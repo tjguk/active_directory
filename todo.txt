@@ -1,0 +1,11 @@
+(19th Oct 2004)
+
+In no particular order:
++ Implement security to override default authentication
++ Pass optional attributes to query to fine-tune ADO
++ Allow for range on filter string
++ Find a more natural way to specify search criteria
++ Check what GetInfo/X and SetInfo/X really do
++ Allow a more lightweight search when only the attributes are required
+
+TJG
