@@ -82,31 +82,6 @@ http://www.opensource.org/licenses/mit-license.php
 
 Many thanks, obviously to Mark Hammond for creating
  the pywin32 extensions.
-
-9th Nov 2005 0.5   Added code from Stian Søiland to handle negative longs
-                    coming from return codes. Also another patch from the
-                    same source to correct iterator handling.
-                   Changed license to MIT license (simpler and still 
-                    GPL-compatible) 
-12th May 2005 0.4  Added ADS_GROUP constants to support cookbook examples.
-                   Added .dump method to AD_object to allow easy viewing
-                    of all fields.
-                   Allowed find_user / find_computer to have default values,
-                    meaning the logged-on user and current machine.
-                   Added license: PSF
-20th Oct 2004 0.3  Added "Page Size" param to query to allow result
-                    sets of > 1000.
-                   Refactored search mechanisms to module-level and
-                    switched to SQL queries.
-19th Oct 2004 0.2  Added support for attribute assignment
-                     (see AD_object.__setattr__)
-                   Added module-level functions:
-                     root - returns a default AD instance
-                     search - calls root's search
-                     find_user - returns first match for a user/fullname
-                     find_computer - returns first match for a computer
-                   Now runs under 2.2 (removed reference to basestring)
-15th Oct 2004 0.1  Initial release by Tim Golden
 """
 from __future__ import generators
 
