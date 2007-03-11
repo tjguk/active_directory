@@ -1,5 +1,15 @@
 active_directory.py - What's New?
 
+11th Mar 2007 0.6
+. Reasonably substantial overhaul
+. Added useful converters to many properties.
+. Separated out common types of AD objects
+. Added find_group method to AD_objects and at module level
+. Moved find_user / find_computer to AD Object; module-level now proxies
+. Added os.walk-style .walk method to AD_group
+. Made AD_object a factory function, doing useful things with
+path or object.
+
 12th May 2005 0.4  Added ADS_GROUP constants to support cookbook examples.
                    Added .dump method to AD_object to allow easy viewing
                     of all fields.

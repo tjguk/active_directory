@@ -6,9 +6,9 @@ What is it?
 ===========
 
 Active Directory (AD) is Microsoft's answer to LDAP, the industry-standard
- directory service holding information about users, computers and
- other resources in a tree structure, arranged by departments or
- geographical location, and optimized for searching.
+directory service holding information about users, computers and
+other resources in a tree structure, arranged by departments or
+geographical location, and optimized for searching.
 
 The Python Active Directory module is a lightweight wrapper on top of the
 pywin32 extensions, and hides some of the plumbing needed to get Python to
@@ -62,10 +62,11 @@ but as a quick taster, try this, to list all users' display names:
 
 import active_directory
 
-for person in active_directory.search ("objectCategory='Person'"):
+for person in active_directory.search (objectCategory='Person'):
   print person.displayName
 
 What License is it released under?
 ==================================
-Licensed under the Python Software Foundation license:
- http://www.python.org/psf/license.html
+(c) Tim Golden <mail@timgolden.me.uk> 2004-2007
+Licensed under the (GPL-compatible) MIT License:
+http://www.opensource.org/licenses/mit-license.php
