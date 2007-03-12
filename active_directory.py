@@ -468,6 +468,15 @@ class _AD_object (object):
 
   def __iter__(self):
     return self.AD_iterator(self.com_object)
+    
+  def walk (self):
+    children = list (self)
+    this_containers = [c for c in children if c.is_container]
+    this_items = [c for c in children if not c.is_container]
+    yield self, this_containers, this_items
+    for c in this_containers:
+      for container, containers, items in c.walk ():
+        yield container, containers, items
 
   def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + "\n")
@@ -527,17 +536,25 @@ class _AD_object (object):
 
   def find_user (self, name=None):
     name = name or win32api.GetUserName ()
-    for user in self.search ("objectCategory='Person'", "objectClass='User'", "sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name)):
+    for user in self.search ("sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory='Person', objectClass='User'):
       return user
 
   def find_computer (self, name=None):
     name = name or socket.gethostname ()
-    for computer in self.search ("objectCategory='Computer'", "cn='%s'" % name):
+    for computer in self.search (objectCategory='Computer', cn=name):
       return computer
 
   def find_group (self, name):
-    for group in self.search ("objectCategory='group'", "cn='%s'" % name):
+    for group in self.search (objectCategory='group', cn=name):
       return group
+      
+  def find_ou (self, name):
+    for ou in self.search (objectClass="organizationalUnit", ou=name):
+      return ou
+      
+  def find_public_folder (self, name):
+    for public_folder in self.search (objectClass="publicFolder", displayName=name):
+      return public_folder
 
   def search (self, *args, **kwargs):
     sql_string = []
@@ -637,13 +654,17 @@ class _AD_domain_dns (_AD_object):
       wellKnownObjects = convert_to_objects
     ))
     self._property_map['msDs-masteredBy'] = convert_to_objects
+    
+class _AD_public_folder (_AD_object):
+  pass
 
 _CLASS_MAP = {
   "user" : _AD_user,
   "computer" : _AD_computer,
   "group" : _AD_group,
   "organizationalUnit" : _AD_organisational_unit,
-  "domainDNS" : _AD_domain_dns
+  "domainDNS" : _AD_domain_dns,
+  "publicFolder" : _AD_public_folder
 }
 _CACHE = {}
 def cached_AD_object (path, obj):
@@ -672,12 +693,15 @@ def AD_object (obj_or_path=None, path=""):
   """
   if path and not obj_or_path:
     obj_or_path = path
-  if isinstance (obj_or_path, basestring):
-    if not obj_or_path.upper ().startswith ("LDAP://"):
-      obj_or_path = "LDAP://" + obj_or_path
-    return cached_AD_object (obj_or_path, GetObject (obj_or_path))
-  else:
-    return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
+  try:
+    if isinstance (obj_or_path, basestring):
+      if not obj_or_path.upper ().startswith ("LDAP://"):
+        obj_or_path = "LDAP://" + obj_or_path
+      return cached_AD_object (obj_or_path, GetObject (obj_or_path))
+    else:
+      return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
+  except:
+    raise Exception, "Problem with path or object %s" % obj_or_path
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
@@ -697,6 +721,12 @@ def find_computer (name=None):
 
 def find_group (name):
   return root ().find_group (name)
+  
+def find_ou (name):
+  return root ().find_ou (name)
+  
+def find_public_folder (name):
+  return root ().find_public_folder (name)
 
 #
 # root returns a cached object referring to the

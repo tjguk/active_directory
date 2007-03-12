@@ -1,5 +1,13 @@
 active_directory.py - What's New?
 
+12th Mar 2007 0.6.2
+. Slight refactoring
+. Added find_ou method to AD_objects and at module level
+. Added find_public_folder method to AD_objects and at module level
+
+11th Mar 2007 0.6.1
+. Bundle-bugfix release
+
 11th Mar 2007 0.6
 . Reasonably substantial overhaul
 . Added useful converters to many properties.
