@@ -560,8 +560,8 @@ class _AD_object (object):
     sql_string = []
     sql_string.append ("SELECT *")
     sql_string.append ("FROM '%s'" % self.path ())
-    where_clause = _and (*args)
-    where_clause += _and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ()))
+    kwclause = _and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ()))
+    where_clause = _and (*args + (kwclause,))
     if where_clause:
       sql_string.append ("WHERE %s" % where_clause)
 
