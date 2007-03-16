@@ -1,5 +1,8 @@
 active_directory.py - What's New?
 
+16th Mar 2007 0.6.4
+. Corrected bug in search clause handling
+
 12 Mar 2007 0.6.3
 . Fixed bug in find_user / search
 
