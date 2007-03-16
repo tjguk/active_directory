@@ -564,7 +564,7 @@ class _AD_object (object):
     if args:
       clauses.append (_and (*args))
     if kwargs:
-      clauses_append (_and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
+      clauses.append (_and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
     print clauses
     where_clause = _and (*clauses)
     if where_clause:
