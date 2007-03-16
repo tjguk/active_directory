@@ -560,11 +560,17 @@ class _AD_object (object):
     sql_string = []
     sql_string.append ("SELECT *")
     sql_string.append ("FROM '%s'" % self.path ())
-    kwclause = _and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ()))
-    where_clause = _and (*args + (kwclause,))
+    clauses = []
+    if args:
+      clauses.append (_and (*args))
+    if kwargs:
+      clauses_append (_and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
+    print clauses
+    where_clause = _and (*clauses)
     if where_clause:
       sql_string.append ("WHERE %s" % where_clause)
 
+    print "\n".join (sql_string)
     for result in query ("\n".join (sql_string), Page_size=50):
       yield AD_object (result.ADsPath.Value)
 
