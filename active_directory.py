@@ -85,7 +85,7 @@ Many thanks, obviously to Mark Hammond for creating
 """
 from __future__ import generators
 
-__VERSION__ = "0.6.6"
+__VERSION__ = "0.6.7"
 
 import os, sys
 import datetime
