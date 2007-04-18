@@ -678,6 +678,9 @@ def cached_AD_object (path, obj):
     classed_obj = _CLASS_MAP.get (obj.Class, _AD_object) (obj)
     _CACHE[path] = classed_obj
     return classed_obj
+    
+def clear_cache ():
+  _CACHE.clear ()
 
 def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
