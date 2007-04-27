@@ -682,6 +682,9 @@ def cached_AD_object (path, obj):
 def clear_cache ():
   _CACHE.clear ()
 
+def escaped_moniker (moniker):
+  return moniker.replace ("/", "\\/")
+
 def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
@@ -698,13 +701,17 @@ def AD_object (obj_or_path=None, path=""):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
+  scheme = "LDAP://"
   if path and not obj_or_path:
     obj_or_path = path
   try:
     if isinstance (obj_or_path, basestring):
-      if not obj_or_path.upper ().startswith ("LDAP://"):
-        obj_or_path = "LDAP://" + obj_or_path
-      return cached_AD_object (obj_or_path, GetObject (obj_or_path))
+      moniker = obj_or_path.lower ()
+      if obj_or_path.upper ().startswith (scheme):
+        moniker = obj_or_path[len (scheme):]
+      else:
+        moniker = obj_or_path
+      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + escaped_moniker (moniker)))
     else:
       return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
   except:

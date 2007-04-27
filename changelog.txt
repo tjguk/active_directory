@@ -1,5 +1,9 @@
 active_directory.py - What's New?
 
+27th Apr 2007 0.6.6
+. Escaped slash character in LDAP moniker
+  (Thanks for Jason Erickson for bug report and patch)
+
 16th Mar 2007 0.6.5
 . Really corrected bug in search clause handling
 
