@@ -89,10 +89,12 @@ __VERSION__ = "0.6.7"
 
 import os, sys
 import datetime
-import win32api
+import Queue
 import socket
 
+import win32api
 from win32com.client import Dispatch, GetObject
+from pythoncom import CoInitialize, CoUninitialize
 import win32security
 
 #
@@ -218,7 +220,7 @@ def _and (*args):
 
     _and ("x=1", "y=2") => "(x=1 AND y=2)"
   """
-  return " AND ".join (args)
+  return u" AND ".join (args)
 
 def _or (*args):
   """Helper function to return its parameters or-ed
@@ -228,7 +230,7 @@ def _or (*args):
 
     _or ("x=1", _and ("a=2", "b=3")) => "(x=1 OR (a=2 AND b=3))"
   """
-  return " OR ".join (args)
+  return u" OR ".join (args)
 
 def _add_path (root_path, relative_path):
   """Add another level to an LDAP path.
@@ -237,7 +239,7 @@ def _add_path (root_path, relative_path):
     _add_path ('LDAP://DC=gb,DC=vo,DC=local', "cn=Users")
       => "LDAP://cn=users,DC=gb,DC=vo,DC=local"
   """
-  protocol = "LDAP://"
+  protocol = u"LDAP://"
   if relative_path.startswith (protocol):
     return relative_path
 
@@ -248,17 +250,11 @@ def _add_path (root_path, relative_path):
 
   return protocol + relative_path + "," + start_path
 
-#
-# Global cached ADO Connection object
-#
-_connection = None
 def connection ():
-  global _connection
-  if _connection is None:
-    _connection = Dispatch ("ADODB.Connection")
-    _connection.Provider = "ADsDSOObject"
-    _connection.Open ("Active Directory Provider")
-  return _connection
+  connection = Dispatch ("ADODB.Connection")
+  connection.Provider = "ADsDSOObject"
+  connection.Open ("Active Directory Provider")
+  return connection
 
 class ADO_record (object):
   """Simple wrapper around an ADO result set"""
@@ -281,11 +277,11 @@ class ADO_record (object):
     """Return a readable presentation of the entire record"""
     s = []
     s.append (repr (self))
-    s.append ("{")
+    s.append (u"{")
     for name, item in self.fields.items ():
-      s.append ("  %s = %s" % (name, item))
+      s.append (u"  %s = %s" % (name, item))
     s.append ("}")
-    return "\n".join (s)
+    return u"\n".join (s)
 
 def query (query_string, **command_properties):
   """Auxiliary function to serve as a quick-and-dirty
@@ -306,6 +302,7 @@ def query (query_string, **command_properties):
     command.Properties (k.replace ("_", " ")).Value = v
   command.CommandText = query_string
 
+  results = []
   recordset, result = command.Execute ()
   while not recordset.EOF:
     yield ADO_record (recordset)
@@ -341,11 +338,11 @@ def convert_to_sid (item):
 def convert_to_guid (item):
   if item is None: return None
   guid = convert_to_hex (item)
-  return "{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
 
 def convert_to_hex (item):
   if item is None: return None
-  return "".join (["%x" % ord (i) for i in item])
+  return "".join ([u"%x" % ord (i) for i in item])
 
 def convert_to_enum (name):
   def _convert_to_enum (item):
@@ -449,7 +446,7 @@ class _AD_object (object):
     return self.as_string ()
 
   def __repr__ (self):
-    return "<%s: %s>" % (self.__class__.__name__, self.as_string ())
+    return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -479,13 +476,13 @@ class _AD_object (object):
         yield container, containers, items
 
   def dump (self, ofile=sys.stdout):
-    ofile.write (self.as_string () + "\n")
-    ofile.write ("{\n")
+    ofile.write (self.as_string () + u"\n")
+    ofile.write (u"{\n")
     for name in self.properties:
       try:
         value = getattr (self, name)
       except:
-        value = "Unable to get value"
+        value = u"Unable to get value"
       if value:
         try:
           if isinstance (name, unicode):
@@ -496,7 +493,7 @@ class _AD_object (object):
         except UnicodeEncodeError:
           ofile.write ("  %s => %s\n" % (name, repr (value)))
 
-    ofile.write ("}\n")
+    ofile.write (u"}\n")
 
   def set (self, **kwds):
     """Set a number of values at one time. Should be
@@ -536,40 +533,40 @@ class _AD_object (object):
 
   def find_user (self, name=None):
     name = name or win32api.GetUserName ()
-    for user in self.search ("sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory='Person', objectClass='User'):
+    for user in self.search (u"sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory=u'Person', objectClass=u'User'):
       return user
 
   def find_computer (self, name=None):
     name = name or socket.gethostname ()
-    for computer in self.search (objectCategory='Computer', cn=name):
+    for computer in self.search (objectCategory=u'Computer', cn=name):
       return computer
 
   def find_group (self, name):
-    for group in self.search (objectCategory='group', cn=name):
+    for group in self.search (objectCategory=u'group', cn=name):
       return group
       
   def find_ou (self, name):
-    for ou in self.search (objectClass="organizationalUnit", ou=name):
+    for ou in self.search (objectClass=u"organizationalUnit", ou=name):
       return ou
       
   def find_public_folder (self, name):
-    for public_folder in self.search (objectClass="publicFolder", displayName=name):
+    for public_folder in self.search (objectClass=u"publicFolder", displayName=name):
       return public_folder
 
   def search (self, *args, **kwargs):
     sql_string = []
-    sql_string.append ("SELECT *")
-    sql_string.append ("FROM '%s'" % self.path ())
+    sql_string.append (u"SELECT *")
+    sql_string.append (u"FROM '%s'" % self.path ())
     clauses = []
     if args:
       clauses.append (_and (*args))
     if kwargs:
-      clauses.append (_and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
+      clauses.append (_and (*(u"%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
     where_clause = _and (*clauses)
     if where_clause:
-      sql_string.append ("WHERE %s" % where_clause)
+      sql_string.append (u"WHERE %s" % where_clause)
 
-    for result in query ("\n".join (sql_string), Page_size=50):
+    for result in query (u"\n".join (sql_string), Page_size=50):
       yield AD_object (result.ADsPath.Value)
 
 class _AD_user (_AD_object):
@@ -622,8 +619,8 @@ class _AD_group (_AD_object):
 
   def walk (self):
     members = self.member or []
-    groups = [m for m in members if m.Class == 'group']
-    users = [m for m in members if m.Class == 'user']
+    groups = [m for m in members if m.Class == u'group']
+    users = [m for m in members if m.Class == u'user']
     yield (self, groups, users)
     for group in groups:
       for result in group.walk ():
@@ -657,18 +654,18 @@ class _AD_domain_dns (_AD_object):
       subRefs = convert_to_objects,
       wellKnownObjects = convert_to_objects
     ))
-    self._property_map['msDs-masteredBy'] = convert_to_objects
+    self._property_map[u'msDs-masteredBy'] = convert_to_objects
     
 class _AD_public_folder (_AD_object):
   pass
 
 _CLASS_MAP = {
-  "user" : _AD_user,
-  "computer" : _AD_computer,
-  "group" : _AD_group,
-  "organizationalUnit" : _AD_organisational_unit,
-  "domainDNS" : _AD_domain_dns,
-  "publicFolder" : _AD_public_folder
+  u"user" : _AD_user,
+  u"computer" : _AD_computer,
+  u"group" : _AD_group,
+  u"organizationalUnit" : _AD_organisational_unit,
+  u"domainDNS" : _AD_domain_dns,
+  u"publicFolder" : _AD_public_folder
 }
 _CACHE = {}
 def cached_AD_object (path, obj):
@@ -683,7 +680,15 @@ def clear_cache ():
   _CACHE.clear ()
 
 def escaped_moniker (moniker):
-  return moniker.replace ("/", "\\/")
+  #
+  # If the moniker *appears* to have been escaped
+  # already, return it straight. This is obviously
+  # fragile but seems to work for now.
+  #
+  if "\\/" in moniker:
+    return moniker
+  else:
+    return moniker.replace ("/", "\\/")
 
 def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
@@ -711,11 +716,13 @@ def AD_object (obj_or_path=None, path=""):
         moniker = obj_or_path[len (scheme):]
       else:
         moniker = obj_or_path
-      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + escaped_moniker (moniker)))
+      moniker = escaped_moniker (moniker)
+      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + moniker))
     else:
       return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
   except:
-    raise Exception, "Problem with path or object %s" % obj_or_path
+    raise
+    #~ raise Exception, "Problem with path or object %s" % obj_or_path
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
