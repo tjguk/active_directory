@@ -7,5 +7,6 @@ In no particular order:
 + Find a more natural way to specify search criteria
 + Check what GetInfo/X and SetInfo/X really do
 + Allow a more lightweight search when only the attributes are required
++ Extend find_user/group etc. to allow specification of alternative attributes
 
 TJG
