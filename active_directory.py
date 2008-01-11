@@ -3,20 +3,20 @@
  for Microsoft's Active Directory
 
 Active Directory is Microsoft's answer to LDAP, the industry-standard
- directory service holding information about users, computers and
- other resources in a tree structure, arranged by departments or
- geographical location, and optimized for searching.
+directory service holding information about users, computers and
+other resources in a tree structure, arranged by departments or
+geographical location, and optimized for searching.
 
 There are several ways of attaching to Active Directory. This
- module uses the Dispatchable LDAP:// objects and wraps them
- lightly in helpful Python classes which do a bit of the
- otherwise tedious plumbing. The module is quite naive, and
- has only really been developed to aid searching, but since
- you can always access the original COM object, there's nothing
- to stop you using it for any AD operations.
+module uses the Dispatchable LDAP:// objects and wraps them
+lightly in helpful Python classes which do a bit of the
+otherwise tedious plumbing. The module is quite naive, and
+has only really been developed to aid searching, but since
+you can always access the original COM object, there's nothing
+to stop you using it for any AD operations.
 
-+ The active directory object (AD_object) will determine its
-   properties and allow you to access them as instance properties.
++ The active directory class (_AD_object or a subclass) will determine 
+  its properties and allow you to access them as instance properties.
 
    eg
      import active_directory
@@ -24,7 +24,7 @@ There are several ways of attaching to Active Directory. This
      print ad.displayName
 
 + Any object returned by the AD object's operations is themselves
-   wrapped as AD objects so you get the same benefits.
+  wrapped as AD objects so you get the same benefits.
 
   eg
     import active_directory
@@ -33,9 +33,8 @@ There are several ways of attaching to Active Directory. This
       print user.displayName
 
 + To search the AD, there are two module-level general
-   search functions, two module-level functions to
-   find a user and computer specifically and the search
-   method on each AD_object. Usage is illustrated below:
+  search functions, and module-level convenience functions 
+  to find a user, computer etc. Usage is illustrated below:
 
    import active_directory as ad
 
@@ -65,7 +64,7 @@ There are several ways of attaching to Active Directory. This
 
    print ad.find_computer ("vogbp200")
 
-   users = ad.root ().child ("cn=users")
+   users = ad.AD ().child ("cn=users")
    for u in users.search ("displayName='Tim*'"):
      print u
 
@@ -81,11 +80,12 @@ Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
 Many thanks, obviously to Mark Hammond for creating
- the pywin32 extensions.
+the pywin32 extensions without which this wouldn't
+have been possible.
 """
 from __future__ import generators
 
-__VERSION__ = "0.6.7"
+__VERSION__ = "0.7"
 
 import os, sys
 import datetime
@@ -116,6 +116,19 @@ def i32(x):
   # i32(0x80000001L) -> -2147483647L     etc.
   return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
 
+#
+# For ease of presentation, ms-style constant lists are
+# held as Enum objects, allowing access by number or
+# by name, and by name-as-attribute. This means you can do, eg:
+#
+# print GROUP_TYPES[2]
+# print GROUP_TYPES['GLOBAL_GROUP']
+# print GROUP_TYPES.GLOBAL_GROUP
+#
+# The first is useful when displaying the contents
+# of an AD object; the other two when you want a more
+# readable piece of code, without magic numbers.
+#
 class Enum (object):
 
   def __init__ (self, **kwargs):
@@ -130,6 +143,12 @@ class Enum (object):
       return self._name_map[item]
     except KeyError:
       return self._number_map[i32 (item)]
+      
+  def __getattr__ (self, attr):
+    try:
+      return self._name_map[attr]
+    except KeyError:
+      raise AttributeError
 
   def item_names (self):
     return self._name_map.items ()
@@ -403,6 +422,15 @@ class _AD_object (object):
 
   def __getattr__ (self, name):
     #
+    # Special-case find_... methods to search for
+    # corresponding object types.
+    #
+    if name.startswith ("find_"):
+      names = name[5:].lower ().split ("_")
+      first, rest = names[0], names[1:]
+      return self.find ("".join ([first] + [n.title () for n in rest]))
+    
+    #
     # Allow access to object's properties as though normal
     #  Python instance properties. Some properties are accessed
     #  directly through the object, others by calling its Get
@@ -450,6 +478,9 @@ class _AD_object (object):
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
+    
+  def __hash__ (self):
+    return hash (self.com_object.ADsPath)
 
   class AD_iterator:
     """ Inner class for wrapping iterated objects
@@ -467,6 +498,11 @@ class _AD_object (object):
     return self.AD_iterator(self.com_object)
     
   def walk (self):
+    """Analogous to os.walk, traverse this AD subtree, 
+    depth-first, and yield for each container:
+    
+    container, containers, items
+    """
     children = list (self)
     this_containers = [c for c in children if c.is_container]
     this_items = [c for c in children if not c.is_container]
@@ -531,29 +567,39 @@ class _AD_object (object):
     """
     return AD_object (path=_add_path (self.path (), relative_path))
 
+  def find (self, object_category):
+    """Helper function to allow general-purpose searching for
+    objects of a class by calling a .find_xxx_yyy method.
+    """
+    def _find (name):
+      for item in self.search (objectClass=object_category, name=name):
+        return item
+    return _find
+  
   def find_user (self, name=None):
+    """Make a special case of (the common need of) finding a user
+    either by username or by display name
+    """
     name = name or win32api.GetUserName ()
     for user in self.search (u"sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory=u'Person', objectClass=u'User'):
       return user
 
-  def find_computer (self, name=None):
-    name = name or socket.gethostname ()
-    for computer in self.search (objectCategory=u'Computer', cn=name):
-      return computer
-
-  def find_group (self, name):
-    for group in self.search (objectCategory=u'group', cn=name):
-      return group
-      
   def find_ou (self, name):
-    for ou in self.search (objectClass=u"organizationalUnit", ou=name):
-      return ou
+    """Convenient alias for find_organizational_unit"""
+    return self.find_organizational_unit (name)
       
-  def find_public_folder (self, name):
-    for public_folder in self.search (objectClass=u"publicFolder", displayName=name):
-      return public_folder
-
   def search (self, *args, **kwargs):
+    """The key method which puts together its arguments to construct
+    a valid AD search string, using AD-SQL (or whatever it's called)
+    rather than the conventional LDAP syntax.
+    
+    Position args are AND-ed together and passed along verbatim
+    Keyword args are AND-ed together as equi-filters
+    The results are always wrapped as an _AD_object or one of
+    its subclasses. No matter which class is returned, well-known
+    attributes are converted according to a property map to more
+    Pythonic types.
+    """
     sql_string = []
     sql_string.append (u"SELECT *")
     sql_string.append (u"FROM '%s'" % self.path ())
@@ -618,6 +664,10 @@ class _AD_group (_AD_object):
     ))
 
   def walk (self):
+    """Override the usual .walk method by returning instead:
+    
+    group, groups, users
+    """
     members = self.member or []
     groups = [m for m in members if m.Class == u'group']
     users = [m for m in members if m.Class == u'user']
@@ -734,6 +784,9 @@ def _root (server=None):
   else:
     return GetObject ("LDAP://rootDSE")
 
+#
+# Convenience functions for common needs
+#
 def find_user (name=None):
   return root ().find_user (name)
 
@@ -749,6 +802,9 @@ def find_ou (name):
 def find_public_folder (name):
   return root ().find_public_folder (name)
 
+def search (*args, **kwargs):
+  return root ().search (*args, **kwargs)
+
 #
 # root returns a cached object referring to the
 #  root of the logged-on active directory tree.
@@ -759,9 +815,6 @@ def root ():
   if _ad is None:
     _ad = AD ()
   return _ad
-
-def search (*args, **kwargs):
-  return root ().search (*args, **kwargs)
 
 def search_ex (query_string=""):
   """Search the Active Directory by specifying a complete
@@ -780,4 +833,3 @@ def search_ex (query_string=""):
   """
   for result in query (query_string, Page_size=50):
     yield result
-
