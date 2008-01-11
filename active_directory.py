@@ -588,6 +588,10 @@ class _AD_object (object):
       return self.search (objectClass=object_class, *args, **kwargs)
     return _search
 
+  def find (self, name):
+    for item in self.search (name=name):
+      return item
+  
   def find_user (self, name=None):
     """Make a special case of (the common need of) finding a user
     either by username or by display name
@@ -799,6 +803,9 @@ def _root (server=None):
 #
 # Convenience functions for common needs
 #
+def find (name):
+  return root ().find (name)
+
 def find_user (name=None):
   return root ().find_user (name)
 
