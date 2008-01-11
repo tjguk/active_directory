@@ -426,9 +426,16 @@ class _AD_object (object):
     # corresponding object types.
     #
     if name.startswith ("find_"):
-      names = name[5:].lower ().split ("_")
+      names = name[len ("find_"):].lower ().split ("_")
       first, rest = names[0], names[1:]
-      return self.find ("".join ([first] + [n.title () for n in rest]))
+      object_class = "".join ([first] + [n.title () for n in rest])
+      return self._find (object_class)
+      
+    if name.startswith ("search_"):
+      names = name[len ("search_"):].lower ().split ("_")
+      first, rest = names[0], names[1:]
+      object_class = "".join ([first] + [n.title () for n in rest])
+      return self._search (object_class)
     
     #
     # Allow access to object's properties as though normal
@@ -567,15 +574,23 @@ class _AD_object (object):
     """
     return AD_object (path=_add_path (self.path (), relative_path))
 
-  def find (self, object_category):
+  def _find (self, object_class):
     """Helper function to allow general-purpose searching for
     objects of a class by calling a .find_xxx_yyy method.
     """
     def _find (name):
-      for item in self.search (objectClass=object_category, name=name):
+      for item in self.search (objectClass=object_class, name=name):
         return item
     return _find
   
+  def _search (self, object_class):
+    """Helper function to allow general-purpose searching for
+    objects of a class by calling a .search_xxx_yyy method.
+    """
+    def _search (*args, **kwargs):
+      return self.search (objectClass=object_class, *args, **kwargs)
+    return _search
+
   def find_user (self, name=None):
     """Make a special case of (the common need of) finding a user
     either by username or by display name
