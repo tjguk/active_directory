@@ -1,7 +1,4 @@
-try:
-  from setuptools import setup
-except ImportError:
-  from distutils.core import setup
+from distutils.core import setup
 
 classifiers = [
   'Development Status :: 5 - Production/Stable',
@@ -16,7 +13,7 @@ classifiers = [
 
 setup (
   name = "active_directory",
-  version = "0.6",
+  version = "0.7",
   description = "Active Directory",
   author = "Tim Golden",
   author_email = "mail@timgolden.me.uk",
