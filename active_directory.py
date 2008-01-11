@@ -89,12 +89,9 @@ __VERSION__ = "0.7"
 
 import os, sys
 import datetime
-import Queue
-import socket
 
 import win32api
 from win32com.client import Dispatch, GetObject
-from pythoncom import CoInitialize, CoUninitialize
 import win32security
 
 #
