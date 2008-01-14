@@ -374,6 +374,47 @@ def convert_to_flags (enum_name):
     return set (name for (bitmask, name) in enum.item_numbers () if item & bitmask)
   return _convert_to_flags
 
+_PROPERTY_MAP = dict (
+  accountExpires = convert_to_datetime,
+  badPasswordTime = convert_to_datetime,
+  creationTime = convert_to_datetime,
+  dSASignature = convert_to_hex,
+  forceLogoff = convert_to_datetime,
+  fSMORoleOwner = convert_to_object,
+  groupType = convert_to_flags ("GROUP_TYPES"),
+  lastLogoff = convert_to_datetime,
+  lastLogon = convert_to_datetime,
+  lastLogonTimestamp = convert_to_datetime,
+  lockoutDuration = convert_to_datetime,
+  lockoutObservationWindow = convert_to_datetime,
+  lockoutTime = convert_to_datetime,
+  masteredBy = convert_to_objects,
+  maxPwdAge = convert_to_datetime,
+  member = convert_to_objects,
+  memberOf = convert_to_objects,
+  minPwdAge = convert_to_datetime,
+  modifiedCount = convert_to_datetime,
+  modifiedCountAtLastProm = convert_to_datetime,
+  msExchMailboxGuid = convert_to_guid,
+  objectGUID = convert_to_guid,
+  objectSid = convert_to_sid,
+  Parent = convert_to_object,
+  publicDelegates = convert_to_objects,
+  publicDelegatesBL = convert_to_objects,
+  pwdLastSet = convert_to_datetime,
+  replicationSignature = convert_to_hex,
+  replUpToDateVector = convert_to_hex,
+  repsFrom = convert_to_hex,
+  repsTo = convert_to_hex,
+  sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
+  subRefs = convert_to_objects,
+  userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL"),
+  uSNChanged = convert_to_datetime,
+  uSNCreated = convert_to_datetime,
+  wellKnownObjects = convert_to_objects
+)
+_PROPERTY_MAP['msDs-masteredBy'] = convert_to_objects
+
 class _AD_root (object):
   def __init__ (self, obj):
     _set (self, "com_object", obj)
@@ -404,14 +445,7 @@ class _AD_object (object):
     _set (self, "properties", schema.MandatoryProperties + schema.OptionalProperties)
     _set (self, "is_container", schema.Container)
 
-    self._property_map = dict (
-      objectGUID = convert_to_guid,
-      uSNChanged = convert_to_datetime,
-      uSNCreated = convert_to_datetime,
-      replicationSignature = convert_to_hex,
-      Parent = convert_to_object,
-      wellKnownObjects = convert_to_objects
-    )
+    self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
 
   def __getitem__ (self, key):
@@ -634,50 +668,14 @@ class _AD_object (object):
 class _AD_user (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-    self._property_map.update (dict (
-      pwdLastSet = convert_to_datetime,
-      memberOf = convert_to_objects,
-      objectSid = convert_to_sid,
-      accountExpires = convert_to_datetime,
-      badPasswordTime = convert_to_datetime,
-      lastLogoff = convert_to_datetime,
-      lastLogon = convert_to_datetime,
-      lastLogonTimestamp = convert_to_datetime,
-      lockoutTime = convert_to_datetime,
-      msExchMailboxGuid = convert_to_guid,
-      publicDelegates = convert_to_objects,
-      publicDelegatesBL = convert_to_objects,
-      sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
-      userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL")
-    ))
 
 class _AD_computer (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-    self._property_map.update (dict (
-      objectSid = convert_to_sid,
-      accountExpires = convert_to_datetime,
-      badPasswordTime = convert_to_datetime,
-      lastLogoff = convert_to_datetime,
-      lastLogon = convert_to_datetime,
-      lastLogonTimestamp = convert_to_datetime,
-      publicDelegates = convert_to_objects,
-      publicDelegatesBL = convert_to_objects,
-      pwdLastSet = convert_to_datetime,
-      sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
-      userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL")
-    ))
 
 class _AD_group (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-    self._property_map.update (dict (
-      groupType = convert_to_flags ("GROUP_TYPES"),
-      objectSid = convert_to_sid,
-      member = convert_to_objects,
-      memberOf = convert_to_objects,
-      sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES")
-    ))
 
   def walk (self):
     """Override the usual .walk method by returning instead:
@@ -695,32 +693,10 @@ class _AD_group (_AD_object):
 class _AD_organisational_unit (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-    self._property_map.update (dict (
-    ))
 
 class _AD_domain_dns (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-    self._property_map.update (dict (
-      creationTime = convert_to_datetime,
-      dSASignature = convert_to_hex,
-      forceLogoff = convert_to_datetime,
-      fSMORoleOwner = convert_to_object,
-      lockoutDuration = convert_to_datetime,
-      lockoutObservationWindow = convert_to_datetime,
-      masteredBy = convert_to_objects,
-      maxPwdAge = convert_to_datetime,
-      minPwdAge = convert_to_datetime,
-      modifiedCount = convert_to_datetime,
-      modifiedCountAtLastProm = convert_to_datetime,
-      objectSid = convert_to_sid,
-      replUpToDateVector = convert_to_hex,
-      repsFrom = convert_to_hex,
-      repsTo = convert_to_hex,
-      subRefs = convert_to_objects,
-      wellKnownObjects = convert_to_objects
-    ))
-    self._property_map[u'msDs-masteredBy'] = convert_to_objects
     
 class _AD_public_folder (_AD_object):
   pass
