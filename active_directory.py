@@ -94,6 +94,9 @@ import win32api
 from win32com.client import Dispatch, GetObject
 import win32security
 
+def delta_as_microseconds (delta) :
+  return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
+
 #
 # Code contributed by Stian Søiland <stian@soiland.no>
 #
@@ -330,6 +333,19 @@ def ad_time_to_datetime (ad_time):
   ns100 = (hi << 32) + lo
   delta = datetime.timedelta (microseconds=ns100 / 10)
   return BASE_TIME + delta
+  
+def ad_time_from_datetime (timestamp):
+  delta = timestamp - BASE_TIME
+  ns100 = 10 * delta_as_microseconds (delta)
+  hi = (ns100 & 0xffffffff00000000) >> 32
+  lo = (ns100 & 0xffffffff)
+  return hi, lo
+  
+def pytime_to_datetime (pytime):
+  return datetime.datetime.fromtimestamp (int (now_pytime))
+  
+def pytime_from_datetime (datetime):
+  
 
 def convert_to_object (item):
   if item is None: return None
@@ -414,6 +430,94 @@ _PROPERTY_MAP = dict (
   wellKnownObjects = convert_to_objects
 )
 _PROPERTY_MAP['msDs-masteredBy'] = convert_to_objects
+_PROPERTY_MAP_OUT = _PROPERTY_MAP
+
+def convert_from_object (item):
+  if item is None: return None
+  return item.com_object
+
+def convert_from_objects (items):
+  if items == []:
+    return None
+  else:
+    return [obj.com_object for obj in items]
+
+def convert_from_datetime (item):
+  if item is None: return None
+  try:
+    return pytime_to_datetime (item)
+  except:
+    return ad_time_to_datetime (item)
+
+def convert_from_sid (item):
+  if item is None: return None
+  return win32security.SID (item)
+
+def convert_from_guid (item):
+  if item is None: return None
+  guid = convert_from_hex (item)
+  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+
+def convert_from_hex (item):
+  if item is None: return None
+  return "".join ([u"%x" % ord (i) for i in item])
+
+def convert_from_enum (name):
+  def _convert_from_enum (item):
+    if item is None: return None
+    return ENUMS[name][item]
+  return _convert_from_enum
+
+def convert_from_flags (enum_name):
+  def _convert_from_flags (item):
+    if item is None: return None
+    item = i32 (item)
+    enum = ENUMS[enum_name]
+    return set (name for (bitmask, name) in enum.item_numbers () if item & bitmask)
+  return _convert_from_flags
+
+
+
+_PROPERTY_MAP_IN = dict (
+  accountExpires = convert_from_datetime,
+  badPasswordTime = convert_from_datetime,
+  creationTime = convert_from_datetime,
+  dSASignature = convert_from_hex,
+  forceLogoff = convert_from_datetime,
+  fSMORoleOwner = convert_from_object,
+  groupType = convert_from_flags ("GROUP_TYPES"),
+  lastLogoff = convert_from_datetime,
+  lastLogon = convert_from_datetime,
+  lastLogonTimestamp = convert_from_datetime,
+  lockoutDuration = convert_from_datetime,
+  lockoutObservationWindow = convert_from_datetime,
+  lockoutTime = convert_from_datetime,
+  masteredBy = convert_from_objects,
+  maxPwdAge = convert_from_datetime,
+  member = convert_from_objects,
+  memberOf = convert_from_objects,
+  minPwdAge = convert_from_datetime,
+  modifiedCount = convert_from_datetime,
+  modifiedCountAtLastProm = convert_from_datetime,
+  msExchMailboxGuid = convert_from_guid,
+  objectGUID = convert_from_guid,
+  objectSid = convert_from_sid,
+  Parent = convert_from_object,
+  publicDelegates = convert_from_objects,
+  publicDelegatesBL = convert_from_objects,
+  pwdLastSet = convert_from_datetime,
+  replicationSignature = convert_from_hex,
+  replUpToDateVector = convert_from_hex,
+  repsFrom = convert_from_hex,
+  repsTo = convert_from_hex,
+  sAMAccountType = convert_from_enum ("SAM_ACCOUNT_TYPES"),
+  subRefs = convert_from_objects,
+  userAccountControl = convert_from_flags ("USER_ACCOUNT_CONTROL"),
+  uSNChanged = convert_from_datetime,
+  uSNCreated = convert_from_datetime,
+  wellKnownObjects = convert_from_objects
+)
+_PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
 class _AD_root (object):
   def __init__ (self, obj):
