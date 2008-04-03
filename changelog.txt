@@ -1,5 +1,8 @@
 active_directory.py - What's New?
 
+3rd April 2008 0.7.1
+. Removed any features which post-date Python 2.2
+
 12th Jan 2008 0.7
 . Added general-purpose find_... function to _AD_object instances.
   The idea is that .find_abc_def ('xxx') translates to a call to
