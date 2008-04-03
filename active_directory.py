@@ -87,8 +87,16 @@ from __future__ import generators
 
 __VERSION__ = "0.7"
 
+try:
+  set
+except NameError:
+  from sets import Set as set
+
 import os, sys
-import datetime
+try:
+  import datetime
+except ImportError:
+  datetime = None
 
 import win32api
 from win32com.client import Dispatch, GetObject
@@ -327,25 +335,40 @@ def query (query_string, **command_properties):
     yield ADO_record (recordset)
     recordset.MoveNext ()
 
-BASE_TIME = datetime.datetime (1601, 1, 1)
-def ad_time_to_datetime (ad_time):
-  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
-  ns100 = (hi << 32) + lo
-  delta = datetime.timedelta (microseconds=ns100 / 10)
-  return BASE_TIME + delta
-  
-def ad_time_from_datetime (timestamp):
-  delta = timestamp - BASE_TIME
-  ns100 = 10 * delta_as_microseconds (delta)
-  hi = (ns100 & 0xffffffff00000000) >> 32
-  lo = (ns100 & 0xffffffff)
-  return hi, lo
-  
-def pytime_to_datetime (pytime):
-  return datetime.datetime.fromtimestamp (int (now_pytime))
-  
-def pytime_from_datetime (datetime):
-  
+if datetime:
+  BASE_TIME = datetime.datetime (1601, 1, 1)
+  def ad_time_to_datetime (ad_time):
+    hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
+    ns100 = (hi << 32) + lo
+    delta = datetime.timedelta (microseconds=ns100 / 10)
+    return BASE_TIME + delta
+
+  def ad_time_from_datetime (timestamp):
+    delta = timestamp - BASE_TIME
+    ns100 = 10 * delta_as_microseconds (delta)
+    hi = (ns100 & 0xffffffff00000000) >> 32
+    lo = (ns100 & 0xffffffff)
+    return hi, lo
+    
+  def pytime_to_datetime (pytime):
+    return datetime.datetime.fromtimestamp (int (now_pytime))
+    
+  def pytime_from_datetime (datetime):
+    pass
+
+else:
+  def ad_time_to_datetime (ad_time):
+    return ad_time
+
+  def ad_time_from_datetime (timestamp):
+    return timestamp
+    
+  def pytime_to_datetime (pytime):
+    return pytime
+    
+  def pytime_from_datetime (datetime):
+    return datetime
+
 
 def convert_to_object (item):
   if item is None: return None
@@ -387,10 +410,13 @@ def convert_to_flags (enum_name):
     if item is None: return None
     item = i32 (item)
     enum = ENUMS[enum_name]
-    return set (name for (bitmask, name) in enum.item_numbers () if item & bitmask)
+    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_to_flags
 
-_PROPERTY_MAP = dict (
+def ddict (**kwargs):
+  return kwargs
+
+_PROPERTY_MAP = ddict (
   accountExpires = convert_to_datetime,
   badPasswordTime = convert_to_datetime,
   creationTime = convert_to_datetime,
@@ -473,12 +499,12 @@ def convert_from_flags (enum_name):
     if item is None: return None
     item = i32 (item)
     enum = ENUMS[enum_name]
-    return set (name for (bitmask, name) in enum.item_numbers () if item & bitmask)
+    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 
 
 
-_PROPERTY_MAP_IN = dict (
+_PROPERTY_MAP_IN = ddict (
   accountExpires = convert_from_datetime,
   badPasswordTime = convert_from_datetime,
   creationTime = convert_from_datetime,
@@ -761,7 +787,7 @@ class _AD_object (object):
     if args:
       clauses.append (_and (*args))
     if kwargs:
-      clauses.append (_and (*(u"%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
+      clauses.append (_and (*[u"%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
     where_clause = _and (*clauses)
     if where_clause:
       sql_string.append (u"WHERE %s" % where_clause)
@@ -831,7 +857,7 @@ def escaped_moniker (moniker):
   # already, return it straight. This is obviously
   # fragile but seems to work for now.
   #
-  if "\\/" in moniker:
+  if moniker.find ("\\/") > -1:
     return moniker
   else:
     return moniker.replace ("/", "\\/")
@@ -856,7 +882,7 @@ def AD_object (obj_or_path=None, path=""):
   if path and not obj_or_path:
     obj_or_path = path
   try:
-    if isinstance (obj_or_path, basestring):
+    if isinstance (obj_or_path, (type (""), type (u""))):
       moniker = obj_or_path.lower ()
       if obj_or_path.upper ().startswith (scheme):
         moniker = obj_or_path[len (scheme):]
