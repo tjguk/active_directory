@@ -85,7 +85,7 @@ have been possible.
 """
 from __future__ import generators
 
-__VERSION__ = "0.7"
+__VERSION__ = "0.7.1"
 
 try:
   set
