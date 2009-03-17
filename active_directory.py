@@ -678,6 +678,11 @@ class _AD_object (object):
     for c in this_containers:
       for container, containers, items in c.walk ():
         yield container, containers, items
+        
+  def flat (self):
+    for container, containers, items in self.walk ():
+      for item in items:
+        yield item
 
   def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + u"\n")
