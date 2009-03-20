@@ -397,7 +397,7 @@ def convert_to_guid (item):
 
 def convert_to_hex (item):
   if item is None: return None
-  return "".join ([u"%x" % ord (i) for i in item])
+  return "".join ([u"%02x" % ord (i) for i in item])
 
 def convert_to_enum (name):
   def _convert_to_enum (item):
