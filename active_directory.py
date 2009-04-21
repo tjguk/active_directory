@@ -351,7 +351,7 @@ if datetime:
     return hi, lo
     
   def pytime_to_datetime (pytime):
-    return datetime.datetime.fromtimestamp (int (now_pytime))
+    return datetime.datetime.fromtimestamp (int (pytime))
     
   def pytime_from_datetime (datetime):
     pass
@@ -385,6 +385,10 @@ def convert_to_objects (items):
 def convert_to_datetime (item):
   if item is None: return None
   return ad_time_to_datetime (item)
+  
+def convert_pytime_to_datetime (item):
+  if item is None: return None
+  return pytime_to_datetime (item)
 
 def convert_to_sid (item):
   if item is None: return None
@@ -453,7 +457,9 @@ _PROPERTY_MAP = ddict (
   userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL"),
   uSNChanged = convert_to_datetime,
   uSNCreated = convert_to_datetime,
-  wellKnownObjects = convert_to_objects
+  wellKnownObjects = convert_to_objects,
+  whenCreated = convert_pytime_to_datetime,
+  whenChanged = convert_pytime_to_datetime,
 )
 _PROPERTY_MAP['msDs-masteredBy'] = convert_to_objects
 _PROPERTY_MAP_OUT = _PROPERTY_MAP
