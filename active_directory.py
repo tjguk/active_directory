@@ -15,7 +15,7 @@ has only really been developed to aid searching, but since
 you can always access the original COM object, there's nothing
 to stop you using it for any AD operations.
 
-+ The active directory class (_AD_object or a subclass) will determine 
++ The active directory class (_AD_object or a subclass) will determine
   its properties and allow you to access them as instance properties.
 
    eg
@@ -33,7 +33,7 @@ to stop you using it for any AD operations.
       print user.displayName
 
 + To search the AD, there are two module-level general
-  search functions, and module-level convenience functions 
+  search functions, and module-level convenience functions
   to find a user, computer etc. Usage is illustrated below:
 
    import active_directory as ad
@@ -151,7 +151,7 @@ class Enum (object):
       return self._name_map[item]
     except KeyError:
       return self._number_map[i32 (item)]
-      
+
   def __getattr__ (self, attr):
     try:
       return self._name_map[attr]
@@ -349,10 +349,10 @@ if datetime:
     hi = (ns100 & 0xffffffff00000000) >> 32
     lo = (ns100 & 0xffffffff)
     return hi, lo
-    
+
   def pytime_to_datetime (pytime):
     return datetime.datetime.fromtimestamp (int (pytime))
-    
+
   def pytime_from_datetime (datetime):
     pass
 
@@ -362,10 +362,10 @@ else:
 
   def ad_time_from_datetime (timestamp):
     return timestamp
-    
+
   def pytime_to_datetime (pytime):
     return pytime
-    
+
   def pytime_from_datetime (datetime):
     return datetime
 
@@ -385,7 +385,7 @@ def convert_to_objects (items):
 def convert_to_datetime (item):
   if item is None: return None
   return ad_time_to_datetime (item)
-  
+
 def convert_pytime_to_datetime (item):
   if item is None: return None
   return pytime_to_datetime (item)
@@ -578,8 +578,8 @@ class _AD_object (object):
     #
     _set (self, "com_object", obj)
     schema = GetObject (obj.Schema)
-    _set (self, "properties", schema.MandatoryProperties + schema.OptionalProperties)
-    _set (self, "is_container", schema.Container)
+    _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
+    _set (self, "is_container", getattr (schema, "Container", False))
 
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
@@ -597,13 +597,13 @@ class _AD_object (object):
       first, rest = names[0], names[1:]
       object_class = "".join ([first] + [n.title () for n in rest])
       return self._find (object_class)
-      
+
     if name.startswith ("search_"):
       names = name[len ("search_"):].lower ().split ("_")
       first, rest = names[0], names[1:]
       object_class = "".join ([first] + [n.title () for n in rest])
       return self._search (object_class)
-    
+
     #
     # Allow access to object's properties as though normal
     #  Python instance properties. Some properties are accessed
@@ -652,7 +652,7 @@ class _AD_object (object):
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
-    
+
   def __hash__ (self):
     return hash (self.com_object.ADsPath)
 
@@ -670,11 +670,11 @@ class _AD_object (object):
 
   def __iter__(self):
     return self.AD_iterator(self.com_object)
-    
+
   def walk (self):
-    """Analogous to os.walk, traverse this AD subtree, 
+    """Analogous to os.walk, traverse this AD subtree,
     depth-first, and yield for each container:
-    
+
     container, containers, items
     """
     children = list (self)
@@ -684,7 +684,7 @@ class _AD_object (object):
     for c in this_containers:
       for container, containers, items in c.walk ():
         yield container, containers, items
-        
+
   def flat (self):
     for container, containers, items in self.walk ():
       for item in items:
@@ -754,7 +754,7 @@ class _AD_object (object):
       for item in self.search (objectClass=object_class, name=name):
         return item
     return _find
-  
+
   def _search (self, object_class):
     """Helper function to allow general-purpose searching for
     objects of a class by calling a .search_xxx_yyy method.
@@ -766,7 +766,7 @@ class _AD_object (object):
   def find (self, name):
     for item in self.search (name=name):
       return item
-  
+
   def find_user (self, name=None):
     """Make a special case of (the common need of) finding a user
     either by username or by display name
@@ -778,12 +778,12 @@ class _AD_object (object):
   def find_ou (self, name):
     """Convenient alias for find_organizational_unit"""
     return self.find_organizational_unit (name)
-      
+
   def search (self, *args, **kwargs):
     """The key method which puts together its arguments to construct
     a valid AD search string, using AD-SQL (or whatever it's called)
     rather than the conventional LDAP syntax.
-    
+
     Position args are AND-ed together and passed along verbatim
     Keyword args are AND-ed together as equi-filters
     The results are always wrapped as an _AD_object or one of
@@ -820,7 +820,7 @@ class _AD_group (_AD_object):
 
   def walk (self):
     """Override the usual .walk method by returning instead:
-    
+
     group, groups, users
     """
     members = self.member or []
@@ -838,7 +838,7 @@ class _AD_organisational_unit (_AD_object):
 class _AD_domain_dns (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-    
+
 class _AD_public_folder (_AD_object):
   pass
 
@@ -858,7 +858,7 @@ def cached_AD_object (path, obj):
     classed_obj = _CLASS_MAP.get (obj.Class, _AD_object) (obj)
     _CACHE[path] = classed_obj
     return classed_obj
-    
+
 def clear_cache ():
   _CACHE.clear ()
 
@@ -931,10 +931,10 @@ def find_computer (name=None):
 
 def find_group (name):
   return root ().find_group (name)
-  
+
 def find_ou (name):
   return root ().find_ou (name)
-  
+
 def find_public_folder (name):
   return root ().find_public_folder (name)
 
