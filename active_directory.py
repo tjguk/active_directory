@@ -109,24 +109,9 @@ import win32security
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
 
-#
-# Code contributed by Stian Søiland <stian@soiland.no>
-#
-def i32(x):
-  """Converts a long (for instance 0x80005000L) to a signed 32-bit-int.
-
-  Python2.4 will convert numbers >= 0x80005000 to large numbers
-  instead of negative ints.    This is not what we want for
-  typical win32 constants.
-
-  Usage:
-      >>> i32(0x80005000L)
-      -2147363168
-  """
-  # x > 0x80000000L should be negative, such that:
-  # i32(0x80000000L) -> -2147483648L
-  # i32(0x80000001L) -> -2147483647L     etc.
-  return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
+def i32 (unsigned):
+  signed, = struct.unpack ("l", struct.pack ("L", unsigned))
+  return signed
 
 #
 # For ease of presentation, ms-style constant lists are
@@ -260,9 +245,6 @@ SEARCH_PREFERENCES = {
   adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE
 }
 def _search_ad (rootpath, filter, server=None, username=None, password=None):
-
-  print "_search_ad", (rootpath, filter)
-  print "ldap moniker", ldap_moniker (rootpath, server, username, password)
   pythoncom.CoInitialize ()
   try:
     directory_search = adsi.ADsOpenObject (
@@ -316,64 +298,6 @@ def _add_path (root_path, relative_path):
     start_path = root_path
 
   return protocol + relative_path + "," + start_path
-
-#~ def connection ():
-  #~ connection = Dispatch ("ADODB.Connection")
-  #~ connection.Provider = "ADsDSOObject"
-  #~ connection.Open ("Active Directory Provider")
-  #~ return connection
-
-#~ class ADO_record (object):
-  #~ """Simple wrapper around an ADO result set"""
-
-  #~ def __init__ (self, record):
-    #~ self.record = record
-    #~ self.fields = {}
-    #~ for i in range (record.Fields.Count):
-      #~ field = record.Fields.Item (i)
-      #~ self.fields[field.Name] = field
-
-  #~ def __getattr__ (self, name):
-    #~ """Allow access to field names by name rather than by Item (...)"""
-    #~ try:
-      #~ return self.fields[name]
-    #~ except KeyError:
-      #~ raise AttributeError
-
-  #~ def __str__ (self):
-    #~ """Return a readable presentation of the entire record"""
-    #~ s = []
-    #~ s.append (repr (self))
-    #~ s.append (u"{")
-    #~ for name, item in self.fields.items ():
-      #~ s.append (u"  %s = %s" % (name, item))
-    #~ s.append ("}")
-    #~ return u"\n".join (s)
-
-#~ def query (query_string, **command_properties):
-  #~ """Auxiliary function to serve as a quick-and-dirty
-   #~ wrapper round an ADO query
-  #~ """
-  #~ command = Dispatch ("ADODB.Command")
-  #~ command.ActiveConnection = connection ()
-  #~ #
-  #~ # Add any client-specified ADO command properties.
-  #~ # NB underscores in the keyword are replaced by spaces.
-  #~ #
-  #~ # Examples:
-  #~ #   "Cache_results" = False => Don't cache large result sets
-  #~ #   "Page_size" = 500 => Return batches of this size
-  #~ #   "Time Limit" = 30 => How many seconds should the search continue
-  #~ #
-  #~ for k, v in command_properties.items ():
-    #~ command.Properties (k.replace ("_", " ")).Value = v
-  #~ command.CommandText = query_string
-
-  #~ results = []
-  #~ recordset, result = command.Execute ()
-  #~ while not recordset.EOF:
-    #~ yield ADO_record (recordset)
-    #~ recordset.MoveNext ()
 
 if datetime:
   BASE_TIME = datetime.datetime (1601, 1, 1)
@@ -548,8 +472,6 @@ def convert_from_flags (enum_name):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 
-
-
 _PROPERTY_MAP_IN = ddict (
   accountExpires = convert_from_datetime,
   badPasswordTime = convert_from_datetime,
@@ -702,14 +624,14 @@ class _AD_object (object):
     Stian Søiland <stian@soiland.no>)
     """
     def __init__(self, com_object):
-      self._iter = iter(com_object)
-    def __iter__(self):
+      self._iter = iter (com_object)
+    def __iter__ (self):
       return self
-    def next(self):
-      return AD_object(self._iter.next())
+    def next (self):
+      return AD_object (self._iter.next ())
 
-  def __iter__(self):
-    return self.AD_iterator(self.com_object)
+  def __iter__ (self):
+    return self.AD_iterator (self.com_object)
 
   def walk (self):
     """Analogous to os.walk, traverse this AD subtree,
