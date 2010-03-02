@@ -100,6 +100,7 @@ except ImportError:
 
 import win32api
 from win32com.client import Dispatch, GetObject
+from win32com import adsi
 import win32security
 
 def delta_as_microseconds (delta) :
@@ -577,7 +578,7 @@ class _AD_object (object):
     #  each other if you aren't.
     #
     _set (self, "com_object", obj)
-    schema = GetObject (obj.Schema)
+    schema = adsi.ADsGetObject (obj.Schema)
     _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
     _set (self, "is_container", getattr (schema, "Container", False))
 
@@ -862,6 +863,12 @@ def cached_AD_object (path, obj):
 def clear_cache ():
   _CACHE.clear ()
 
+ESCAPED_CHARACTERS = dict ((special, r"\%02x" % ord (special)) for special in "*()\x00/")
+def escaped (s):
+  for original, escape in ESCAPED_CHARACTERS.items ():
+    s = s.replace (original, escape)
+  return s
+
 def escaped_moniker (moniker):
   #
   # If the moniker *appears* to have been escaped
@@ -876,7 +883,7 @@ def escaped_moniker (moniker):
 def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
-  is now  intended to be:
+  is now intended to be:
 
     AD_object (obj_or_path)
 
@@ -900,7 +907,7 @@ def AD_object (obj_or_path=None, path=""):
       else:
         moniker = obj_or_path
       moniker = escaped_moniker (moniker)
-      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + moniker))
+      return cached_AD_object (obj_or_path, adsi.ADsGetObject ("LDAP://" + moniker))
     else:
       return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
   except:
@@ -909,13 +916,13 @@ def AD_object (obj_or_path=None, path=""):
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
-  return AD_object (GetObject ("LDAP://%s" % default_naming_context))
+  return AD_object (adsi.ADsGetObject ("LDAP://%s" % default_naming_context))
 
 def _root (server=None):
   if server:
-    return GetObject ("LDAP://%s/rootDSE" % server)
+    return adsi.ADsGetObject ("LDAP://%s/rootDSE" % server)
   else:
-    return GetObject ("LDAP://rootDSE")
+    return adsi.ADsGetObject ("LDAP://rootDSE")
 
 #
 # Convenience functions for common needs
