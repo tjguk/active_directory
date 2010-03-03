@@ -239,25 +239,11 @@ def _set (obj, attribute, value):
   """
   obj.__dict__[attribute] = value
 
-def _and (*args):
-  """Helper function to return its parameters and-ed
-   together and bracketed, ready for a SQL statement.
+def and_ (*args, **kwargs):
+  return "&%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % kwarg for kwarg in kwargs.items ()])
 
-  eg,
-
-    _and ("x=1", "y=2") => "(x=1 AND y=2)"
-  """
-  return u" AND ".join (args)
-
-def _or (*args):
-  """Helper function to return its parameters or-ed
-   together and bracketed, ready for a SQL statement.
-
-  eg,
-
-    _or ("x=1", _and ("a=2", "b=3")) => "(x=1 OR (a=2 AND b=3))"
-  """
-  return u" OR ".join (args)
+def or_ (*args, **kwargs):
+  return "|%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % kwarg for kwarg in kwargs.items ()])
 
 def _add_path (root_path, relative_path):
   """Add another level to an LDAP path.
@@ -277,45 +263,21 @@ def _add_path (root_path, relative_path):
 
   return protocol + relative_path + "," + start_path
 
-def connection ():
+def ADO_connection (username=None, password=None):
   connection = Dispatch ("ADODB.Connection")
   connection.Provider = "ADsDSOObject"
-  connection.Open ("Active Directory Provider")
+  if username:
+    connection.Open ("Active Directory Provider", username, password)
+  else:
+    connection.Open ("Active Directory Provider")
   return connection
 
-class ADO_record (object):
-  """Simple wrapper around an ADO result set"""
-
-  def __init__ (self, record):
-    self.record = record
-    self.fields = {}
-    for i in range (record.Fields.Count):
-      field = record.Fields.Item (i)
-      self.fields[field.Name] = field
-
-  def __getattr__ (self, name):
-    """Allow access to field names by name rather than by Item (...)"""
-    try:
-      return self.fields[name]
-    except KeyError:
-      raise AttributeError
-
-  def __str__ (self):
-    """Return a readable presentation of the entire record"""
-    s = []
-    s.append (repr (self))
-    s.append (u"{")
-    for name, item in self.fields.items ():
-      s.append (u"  %s = %s" % (name, item))
-    s.append ("}")
-    return u"\n".join (s)
-
-def query (query_string, **command_properties):
+def query (query_string, connection=None, **command_properties):
   """Auxiliary function to serve as a quick-and-dirty
    wrapper round an ADO query
   """
   command = Dispatch ("ADODB.Command")
-  command.ActiveConnection = connection ()
+  command.ActiveConnection = connection or ADO_connection ()
   #
   # Add any client-specified ADO command properties.
   # NB underscores in the keyword are replaced by spaces.
@@ -332,7 +294,7 @@ def query (query_string, **command_properties):
   results = []
   recordset, result = command.Execute ()
   while not recordset.EOF:
-    yield ADO_record (recordset)
+    yield dict ((field.Name, field.Value) for field in recordset.Fields)
     recordset.MoveNext ()
 
 if datetime:
@@ -772,7 +734,11 @@ class _AD_object (object):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    for user in self.search (u"sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory=u'Person', objectClass=u'User'):
+    filter = and_ (
+      or_ (sAMAccountName=name, displayName=name, cn=name),
+      sAMAccountType=SAM_ACCOUNT_TYPES.SAM_USER_OBJECT
+    )
+    for user in self.search (filter):
       return user
 
   def find_ou (self, name):
@@ -780,31 +746,10 @@ class _AD_object (object):
     return self.find_organizational_unit (name)
 
   def search (self, *args, **kwargs):
-    """The key method which puts together its arguments to construct
-    a valid AD search string, using AD-SQL (or whatever it's called)
-    rather than the conventional LDAP syntax.
-
-    Position args are AND-ed together and passed along verbatim
-    Keyword args are AND-ed together as equi-filters
-    The results are always wrapped as an _AD_object or one of
-    its subclasses. No matter which class is returned, well-known
-    attributes are converted according to a property map to more
-    Pythonic types.
-    """
-    sql_string = []
-    sql_string.append (u"SELECT *")
-    sql_string.append (u"FROM '%s'" % self.path ())
-    clauses = []
-    if args:
-      clauses.append (_and (*args))
-    if kwargs:
-      clauses.append (_and (*[u"%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
-    where_clause = _and (*clauses)
-    if where_clause:
-      sql_string.append (u"WHERE %s" % where_clause)
-
-    for result in query (u"\n".join (sql_string), Page_size=50):
-      yield AD_object (result.ADsPath.Value)
+    filter = and_ (*args, **kwargs)
+    query_string = "<%s>;(%s);distinguishedName;Subtree" % (self.ADsPath, filter)
+    for result in query (query_string, Page_size=50):
+      yield AD_object (unicode (result['distinguishedName']))
 
 class _AD_user (_AD_object):
   def __init__ (self, *args, **kwargs):
@@ -952,7 +897,7 @@ def root ():
     _ad = AD ()
   return _ad
 
-def search_ex (query_string=""):
+def search_ex (query_string="", username=None, password=None):
   """Search the Active Directory by specifying a complete
    query string. NB The results will *not* be AD_objects
    but rather ADO_objects which are queried for their fields.
@@ -967,5 +912,5 @@ def search_ex (query_string=""):
      \"""):
        print user.displayName
   """
-  for result in query (query_string, Page_size=50):
+  for result in query (query_string, username=username, password=password, Page_size=50):
     yield result
