@@ -97,12 +97,9 @@ try:
   import datetime
 except ImportError:
   datetime = None
-import re
 
-import pythoncom
 import win32api
-from win32com import adsi
-from win32com.adsi import adsicon
+from win32com.client import Dispatch, GetObject
 import win32security
 
 def delta_as_microseconds (delta) :
@@ -236,64 +233,31 @@ ENUMS = {
   "USER_ACCOUNT_CONTROL" : USER_ACCOUNT_CONTROL
 }
 
-def ldap_moniker (rootpath=None, server=None, username=None, password=None):
-  #
-  # FIXME: Need to allow for GC/WinNT monikers
-  #
-  if rootpath is None:
-    rootpath = adsi.ADsOpenObject (
-      ldap_moniker ("rootDSE", server),
-      username, password,
-      adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_SERVER_BIND | adsicon.ADS_FAST_BIND
-    ).Get ("defaultNamingContext")
-  prefix, rest = re.match ("(\w+://)?(.*)", rootpath).groups ()
-  if not prefix:
-    prefix = "LDAP://"
-  if server:
-    return "%s%s/%s" % (prefix, server, rest)
-  else:
-    return "%s%s" % (prefix, rest)
-
-SEARCH_PREFERENCES = {
-  adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
-  adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE
-}
-def _search_ad (rootpath, filter, server=None, username=None, password=None):
-  pythoncom.CoInitialize ()
-  try:
-    directory_search = adsi.ADsOpenObject (
-      ldap_moniker (rootpath, server, username, password),
-      username, password,
-      adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_SERVER_BIND | adsicon.ADS_FAST_BIND,
-      adsi.IID_IDirectorySearch
-    )
-    directory_search.SetSearchPreference ([(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
-
-    hSearch = directory_search.ExecuteSearch ("(%s)" % filter, ["distinguishedName"])
-    try:
-      hResult = directory_search.GetFirstRow (hSearch)
-      while hResult == 0:
-        column_name, column_type, [(value, type)] = directory_search.GetColumn (hSearch, "distinguishedName")
-        yield value
-        hResult = directory_search.GetNextRow (hSearch)
-    finally:
-      directory_search.AbandonSearch (hSearch)
-      directory_search.CloseSearchHandle (hSearch)
-
-  finally:
-    pythoncom.CoUninitialize ()
-
-def _and (*args):
-  return "(&%s)" % "".join ("(%s)" % s for s in args)
-
-def _or (*args):
-  return "(|%s)" % "".join ("(%s)" % s for s in args)
-
 def _set (obj, attribute, value):
   """Helper function to add an attribute directly into the instance
    dictionary, bypassing possible __getattr__ calls
   """
   obj.__dict__[attribute] = value
+
+def _and (*args):
+  """Helper function to return its parameters and-ed
+   together and bracketed, ready for a SQL statement.
+
+  eg,
+
+    _and ("x=1", "y=2") => "(x=1 AND y=2)"
+  """
+  return u" AND ".join (args)
+
+def _or (*args):
+  """Helper function to return its parameters or-ed
+   together and bracketed, ready for a SQL statement.
+
+  eg,
+
+    _or ("x=1", _and ("a=2", "b=3")) => "(x=1 OR (a=2 AND b=3))"
+  """
+  return u" OR ".join (args)
 
 def _add_path (root_path, relative_path):
   """Add another level to an LDAP path.
@@ -312,6 +276,64 @@ def _add_path (root_path, relative_path):
     start_path = root_path
 
   return protocol + relative_path + "," + start_path
+
+def connection ():
+  connection = Dispatch ("ADODB.Connection")
+  connection.Provider = "ADsDSOObject"
+  connection.Open ("Active Directory Provider")
+  return connection
+
+class ADO_record (object):
+  """Simple wrapper around an ADO result set"""
+
+  def __init__ (self, record):
+    self.record = record
+    self.fields = {}
+    for i in range (record.Fields.Count):
+      field = record.Fields.Item (i)
+      self.fields[field.Name] = field
+
+  def __getattr__ (self, name):
+    """Allow access to field names by name rather than by Item (...)"""
+    try:
+      return self.fields[name]
+    except KeyError:
+      raise AttributeError
+
+  def __str__ (self):
+    """Return a readable presentation of the entire record"""
+    s = []
+    s.append (repr (self))
+    s.append (u"{")
+    for name, item in self.fields.items ():
+      s.append (u"  %s = %s" % (name, item))
+    s.append ("}")
+    return u"\n".join (s)
+
+def query (query_string, **command_properties):
+  """Auxiliary function to serve as a quick-and-dirty
+   wrapper round an ADO query
+  """
+  command = Dispatch ("ADODB.Command")
+  command.ActiveConnection = connection ()
+  #
+  # Add any client-specified ADO command properties.
+  # NB underscores in the keyword are replaced by spaces.
+  #
+  # Examples:
+  #   "Cache_results" = False => Don't cache large result sets
+  #   "Page_size" = 500 => Return batches of this size
+  #   "Time Limit" = 30 => How many seconds should the search continue
+  #
+  for k, v in command_properties.items ():
+    command.Properties (k.replace ("_", " ")).Value = v
+  command.CommandText = query_string
+
+  results = []
+  recordset, result = command.Execute ()
+  while not recordset.EOF:
+    yield ADO_record (recordset)
+    recordset.MoveNext ()
 
 if datetime:
   BASE_TIME = datetime.datetime (1601, 1, 1)
@@ -486,6 +508,8 @@ def convert_from_flags (enum_name):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 
+
+
 _PROPERTY_MAP_IN = ddict (
   accountExpires = convert_from_datetime,
   badPasswordTime = convert_from_datetime,
@@ -553,7 +577,7 @@ class _AD_object (object):
     #  each other if you aren't.
     #
     _set (self, "com_object", obj)
-    schema = adsi.ADsGetObject (obj.Schema)
+    schema = GetObject (obj.Schema)
     _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
     _set (self, "is_container", getattr (schema, "Container", False))
 
@@ -638,14 +662,14 @@ class _AD_object (object):
     Stian Søiland <stian@soiland.no>)
     """
     def __init__(self, com_object):
-      self._iter = iter (com_object)
-    def __iter__ (self):
+      self._iter = iter(com_object)
+    def __iter__(self):
       return self
-    def next (self):
-      return AD_object (self._iter.next ())
+    def next(self):
+      return AD_object(self._iter.next())
 
-  def __iter__ (self):
-    return self.AD_iterator (self.com_object)
+  def __iter__(self):
+    return self.AD_iterator(self.com_object)
 
   def walk (self):
     """Analogous to os.walk, traverse this AD subtree,
@@ -748,10 +772,7 @@ class _AD_object (object):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    for user in self.search (
-      u"sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name),
-      sAMAccountType=SAM_ACCOUNT_TYPES.SAM_NORMAL_USER_ACCOUNT
-    ):
+    for user in self.search (u"sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory=u'Person', objectClass=u'User'):
       return user
 
   def find_ou (self, name):
@@ -770,13 +791,20 @@ class _AD_object (object):
     attributes are converted according to a property map to more
     Pythonic types.
     """
-    filter = ""
+    sql_string = []
+    sql_string.append (u"SELECT *")
+    sql_string.append (u"FROM '%s'" % self.path ())
+    clauses = []
     if args:
-      filter += _and (*args)
+      clauses.append (_and (*args))
     if kwargs:
-      filter += _and (*[u"%s=%s" % (k, v) for (k, v) in kwargs.items ()])
-    for dn in _search_ad (self.ADsPath, filter):
-      yield ad (dn)
+      clauses.append (_and (*[u"%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
+    where_clause = _and (*clauses)
+    if where_clause:
+      sql_string.append (u"WHERE %s" % where_clause)
+
+    for result in query (u"\n".join (sql_string), Page_size=50):
+      yield AD_object (result.ADsPath.Value)
 
 class _AD_user (_AD_object):
   def __init__ (self, *args, **kwargs):
@@ -834,12 +862,6 @@ def cached_AD_object (path, obj):
 def clear_cache ():
   _CACHE.clear ()
 
-ESCAPED_CHARACTERS = dict ((special, r"\%02x" % ord (special)) for special in "*()\x00/")
-def escaped (s):
-  for original, escape in ESCAPED_CHARACTERS.items ():
-    s = s.replace (original, escape)
-  return s
-
 def escaped_moniker (moniker):
   #
   # If the moniker *appears* to have been escaped
@@ -854,7 +876,7 @@ def escaped_moniker (moniker):
 def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
-  is now intended to be:
+  is now  intended to be:
 
     AD_object (obj_or_path)
 
@@ -878,22 +900,22 @@ def AD_object (obj_or_path=None, path=""):
       else:
         moniker = obj_or_path
       moniker = escaped_moniker (moniker)
-      return cached_AD_object (obj_or_path, adsi.ADsGetObject ("LDAP://" + moniker))
+      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + moniker))
     else:
       return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
   except:
     raise
-ad = AD_object
+    #~ raise Exception, "Problem with path or object %s" % obj_or_path
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
-  return AD_object (adsi.ADsGetObject ("LDAP://%s" % default_naming_context))
+  return AD_object (GetObject ("LDAP://%s" % default_naming_context))
 
 def _root (server=None):
   if server:
-    return adsi.ADsGetObject ("LDAP://%s/rootDSE" % server)
+    return GetObject ("LDAP://%s/rootDSE" % server)
   else:
-    return adsi.ADsGetObject ("LDAP://rootDSE")
+    return GetObject ("LDAP://rootDSE")
 
 #
 # Convenience functions for common needs
