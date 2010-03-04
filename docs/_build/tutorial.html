@@ -1,0 +1,145 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>active_directory Tutorial &mdash; active_directory v1.0rc1 documentation</title>
+    <link rel="stylesheet" href="_static/active_directory.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '#',
+        VERSION:     '1.0rc1',
+        COLLAPSE_MODINDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="active_directory v1.0rc1 documentation" href="index.html" />
+    <link rel="next" title="active_directory Cookbook" href="cookbook.html" />
+    <link rel="prev" title="active_directory - Active Directory Management" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="modindex.html" title="Global Module Index"
+             accesskey="M">modules</a> |</li>
+        <li class="right" >
+          <a href="cookbook.html" title="active_directory Cookbook"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="active_directory - Active Directory Management"
+             accesskey="P">previous</a> |</li>
+        <li><a href="contents.html">active_directory v1.0rc1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+          <div class="body">
+            
+  <div class="section" id="active-directory-tutorial">
+<h1>active_directory Tutorial<a class="headerlink" href="#active-directory-tutorial" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="the-basics">
+<h2>The Basics<a class="headerlink" href="#the-basics" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="connecting">
+<h3>Connecting<a class="headerlink" href="#connecting" title="Permalink to this headline">¶</a></h3>
+<p class="versionadded">
+<span class="versionmodified">New in version 1.4.1: </span>From v1.4 onwards, the Moniker Syntax Error which usually results from failing
+to initialise threaded WMI access will be caught by the underlying code and a
+<tt class="xref docutils literal"><span class="pre">x_wmi_uninitialised_thread</span></tt> exception will be raised instead.</p>
+</div>
+<div class="section" id="links">
+<h3>Links<a class="headerlink" href="#links" title="Permalink to this headline">¶</a></h3>
+<div class="admonition-see-also admonition seealso">
+<p class="first admonition-title">See also</p>
+<p><strong>Translations</strong></p>
+<dl class="docutils">
+<dt><a class="reference external" href="http://www.script-coding.info/Python/wmi.html">Russian</a></dt>
+<dd>This tutorial translated into Russian by Alexander Ludogovski</dd>
+</dl>
+<p><strong>Authoritative Links</strong></p>
+<dl class="docutils">
+<dt><a class="reference external" href="http://www.microsoft.com/whdc/system/pnppwr/wmi/default.mspx">Windows Management Instrumentation</a></dt>
+<dd>General WMI Documentation on MSDN</dd>
+<dt><a class="reference external" href="http://msdn2.microsoft.com/en-us/library/aa394582.aspx">The Microsoft WMI SDK</a></dt>
+<dd>Pages describing in technical detail the classes and objects available
+via WMI</dd>
+<dt><a class="reference external" href="http://python.org">Python</a></dt>
+<dd>Python language website</dd>
+<dt><a class="reference external" href="http://www.sf.net/projects/pywin32">The Pywin32 Extensions</a></dt>
+<dd>Extensive set of Python modules wrapping areas of the Windows API</dd>
+<dt><a class="reference external" href="http://timgolden.me.uk/python/wmi.html">The Python WMI module</a></dt>
+<dd>This module</dd>
+</dl>
+<p><strong>Useful Examples</strong></p>
+<dl class="docutils">
+<dt><a class="reference external" href="http://www.activexperts.com/activmonitor/windowsmanagement/wmi/samples">ActivExperts</a></dt>
+<dd>Loads of examples</dd>
+<dt><a class="reference external" href="http://www.microsoft.com/technet/scriptcenter/scripts/default.mspx?mfr=true&quot;">Microsoft</a></dt>
+<dd>The Microsoft Scripting Repository</dd>
+</dl>
+<p><strong>Lists, Groups, etc.</strong></p>
+<dl class="last docutils">
+<dt><a class="reference external" href="http://mail.python.org/mailman/listinfo/python-list">python-list</a></dt>
+<dd>The main Python mailing list (mirroring the comp.lang.python newsgroup)</dd>
+<dt><a class="reference external" href="http://groups.google.com/group/comp.lang.python">python-list on Google Groups</a></dt>
+<dd>Google Groups mirror of the Python mailing list</dd>
+<dt><a class="reference external" href="http://mail.python.org/mailman/listinfo/python-win32">The Python Win32 mailing list</a></dt>
+<dd>Special-interest Python mailing list dealing with win32-related topics</dd>
+<dt><a class="reference external" href="http://groups.google.com/group/microsoft.public.win32.programmer.wmi">The general WMI programming group</a></dt>
+<dd>Google Groups mirror of Microsoft&#8217;s WMI programming list</dd>
+<dt><a class="reference external" href="http://groups.google.com/group/microsoft.public.windowsxp.wmi">The WinXP WMI programming group</a></dt>
+<dd>Google Groups mirror of Microsoft&#8217;s WinXP list</dd>
+<dt><a class="reference external" href="http://groups.google.com/group/microsoft.public.windows.server.scripting">The Windows Scripting group</a></dt>
+<dd>Google Groups mirror of Microsoft&#8217;s general Scripting list</dd>
+</dl>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="modindex.html" title="Global Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="cookbook.html" title="active_directory Cookbook"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="active_directory - Active Directory Management"
+             >previous</a> |</li>
+        <li><a href="contents.html">active_directory v1.0rc1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2010, Tim Golden.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.
+    </div>
+  </body>
+</html>

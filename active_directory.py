@@ -15,26 +15,24 @@ has only really been developed to aid searching, but since
 you can always access the original COM object, there's nothing
 to stop you using it for any AD operations.
 
-+ The active directory class (_AD_object or a subclass) will determine
-  its properties and allow you to access them as instance properties.
+* The active directory class (_AD_object or a subclass) will determine
+  its properties and allow you to access them as instance properties::
 
-   eg
      import active_directory
      goldent = active_directory.find_user ("goldent")
      print ad.displayName
 
-+ Any object returned by the AD object's operations is themselves
-  wrapped as AD objects so you get the same benefits.
+* Any object returned by the AD object's operations is themselves
+  wrapped as AD objects so you get the same benefits::
 
-  eg
     import active_directory
     users = active_directory.root ().child ("cn=users")
     for user in users.search ("displayName='Tim*'"):
       print user.displayName
 
-+ To search the AD, there are two module-level general
+* To search the AD, there are two module-level general
   search functions, and module-level convenience functions
-  to find a user, computer etc. Usage is illustrated below:
+  to find a user, computer etc. Usage is illustrated below::
 
    import active_directory as ad
 
@@ -68,12 +66,12 @@ to stop you using it for any AD operations.
    for u in users.search ("displayName='Tim*'"):
      print u
 
-+ Typical usage will be:
+* Typical usage will be::
 
-import active_directory
+    import active_directory
 
-for computer in active_directory.search ("objectClass='computer'"):
-  print computer.displayName
+    for computer in active_directory.search ("objectClass='computer'"):
+      print computer.displayName
 
 (c) Tim Golden <active-directory@timgolden.me.uk> October 2004
 Licensed under the (GPL-compatible) MIT License:
@@ -83,24 +81,18 @@ Many thanks, obviously to Mark Hammond for creating
 the pywin32 extensions without which this wouldn't
 have been possible.
 """
-from __future__ import generators
-
-__VERSION__ = "0.7.1"
-
-try:
-  set
-except NameError:
-  from sets import Set as set
+__VERSION__ = "1.0rc1"
 
 import os, sys
-try:
-  import datetime
-except ImportError:
-  datetime = None
+import datetime
 
 import win32api
 from win32com.client import Dispatch, GetObject
 import win32security
+
+class ActiveDirectoryError (Exception):
+  """Base class for all AD Exceptions"""
+  pass
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
@@ -240,10 +232,10 @@ def _set (obj, attribute, value):
   obj.__dict__[attribute] = value
 
 def and_ (*args, **kwargs):
-  return "&%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % kwarg for kwarg in kwargs.items ()])
+  return "&%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 def or_ (*args, **kwargs):
-  return "|%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % kwarg for kwarg in kwargs.items ()])
+  return "|%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 def _add_path (root_path, relative_path):
   """Add another level to an LDAP path.
@@ -263,7 +255,75 @@ def _add_path (root_path, relative_path):
 
   return protocol + relative_path + "," + start_path
 
-def ADO_connection (username=None, password=None):
+## :1.2.840.113556.1.4.803: bitwise AND
+## :1.2.840.113556.1.4.804: bitwise OR
+## :1.2.840.113556.1.4.1941: matching rule in chain
+class _Proxy (object):
+
+  ESCAPED_CHARACTERS = dict ((special, r"\%02x" % ord (special)) for special in "*()\x00/")
+
+  @classmethod
+  def escaped_filter (cls, s):
+    for original, escape in cls.ESCAPED_CHARACTERS.items ():
+      s = s.replace (original, escape)
+    return s
+
+  def _munge (cls, other):
+    if isinstance (other, datetime.datetime):
+      return datetime_to_ad_time (other)
+    else:
+      other = unicode (other)
+      if other.endswith (u"*"):
+        other, suffix = other[:-1], other[-1]
+      else:
+        suffix = u""
+      other = cls.escaped_filter (other)
+      return other + suffix
+
+  def __init__ (self, name):
+    self._name = name
+
+  def __unicode__ (self):
+    return self._name
+
+  def __eq__ (self, other):
+    return u"%s=%s" % (self._name, self._munge (other))
+
+  def __ne__ (self, other):
+    return u"!%s=%s" % (self._name, self._munge (other))
+
+  def __ge__ (self, other):
+    return u"%s>=%s" % (self._name, self._munge (other))
+
+  def __le__ (self, other):
+    return u"%s<=%s" % (self._name, self._munge (other))
+
+  def __and__ (self, other):
+    return u"%s:1.2.840.113556.1.4.803:=%s" % (self._name, self._munge (other))
+
+  def __or__ (self, other):
+    return u"%s:1.2.840.113556.1.4.804:=%s" % (self._name, self._munge (other))
+
+  def is_within (self, dn):
+    return u"%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
+
+  def is_not_within (self, dn):
+    return u"!%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
+
+class _Attributes (object):
+
+  def __init__ (self):
+    self._proxies = {}
+
+  def __getattr__ (self, attr):
+    return self._proxies.setdefault (attr, _Proxy (attr))
+
+attr = _Attributes ()
+
+def connect (username=None, password=None):
+  """Return an ADODB connection, optionally authenticated by
+  username & password.
+  """
   connection = Dispatch ("ADODB.Connection")
   connection.Provider = "ADsDSOObject"
   if username:
@@ -272,21 +332,42 @@ def ADO_connection (username=None, password=None):
     connection.Open ("Active Directory Provider")
   return connection
 
+_command_properties = {
+  "Page Size" : 500,
+  "Asynchronous" : True
+}
 def query (query_string, connection=None, **command_properties):
-  """Auxiliary function to serve as a quick-and-dirty
-   wrapper round an ADO query
+  """Basic AD query, passing a raw query string straight through to an
+  Active Directory, optionally using a (possibly pre-authenticated) connection
+  or creating one on demand. command_properties may be specified which will be
+  passed through to the ADO command with underscores replaced by spaces. Useful
+  values include:
+
+  =============== ==========================================================
+  page_size       How many records to return in one go
+  size_limit      Stop after returning this many records
+  cache_results   Boolean: cache results; turn off if a large result
+  time_limit      Stop returning records after this many seconds
+  timeout         Stop waiting for the records to start after this many seconds
+  asynchronous    Boolean: Start returning records immediately
+  sort_on         field name to sort on
+  =============== ==========================================================
+
+  :param query_string: An AD query string in any acceptable format. See :func:`query_string`
+                       for an easy way of producing this
+  :param connection: (optional) An ADODB.Connection, as provided by :func:`connect`. If
+                     this is supplied it will be used and not closed. If it is not supplied, a default connection
+                     will be created, used and then closed.
+  :param command_properties: A collection of keywords which will be passed through to the
+                             ADO query as Properties.
   """
+  print query_string
   command = Dispatch ("ADODB.Command")
-  command.ActiveConnection = connection or ADO_connection ()
-  #
-  # Add any client-specified ADO command properties.
-  # NB underscores in the keyword are replaced by spaces.
-  #
-  # Examples:
-  #   "Cache_results" = False => Don't cache large result sets
-  #   "Page_size" = 500 => Return batches of this size
-  #   "Time Limit" = 30 => How many seconds should the search continue
-  #
+  _connection = connection or connect ()
+  command.ActiveConnection = _connection
+
+  for k, v in _command_properties.items ():
+    command.Properties (k.replace ("_", " ")).Value = v
   for k, v in command_properties.items ():
     command.Properties (k.replace ("_", " ")).Value = v
   command.CommandText = query_string
@@ -297,40 +378,54 @@ def query (query_string, connection=None, **command_properties):
     yield dict ((field.Name, field.Value) for field in recordset.Fields)
     recordset.MoveNext ()
 
-if datetime:
-  BASE_TIME = datetime.datetime (1601, 1, 1)
-  def ad_time_to_datetime (ad_time):
-    hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
-    ns100 = (hi << 32) + lo
-    delta = datetime.timedelta (microseconds=ns100 / 10)
-    return BASE_TIME + delta
+  if connection is None:
+    _connection.Close ()
 
-  def ad_time_from_datetime (timestamp):
-    delta = timestamp - BASE_TIME
-    ns100 = 10 * delta_as_microseconds (delta)
-    hi = (ns100 & 0xffffffff00000000) >> 32
-    lo = (ns100 & 0xffffffff)
-    return hi, lo
+def query_string (base=None, filter="", attributes="*", scope="Subtree", range=None):
+  """Easy way to produce a valid AD query string, with meaninful defaults. This
+  is the first parameter to the :func:`query` function so the following will
+  yield the display name of every user in the domain::
 
-  def pytime_to_datetime (pytime):
-    return datetime.datetime.fromtimestamp (int (pytime))
+    import active_directory as ad
 
-  def pytime_from_datetime (datetime):
-    pass
+    for u in ad.query (
+      ad.query_string (filter="(objectClass=User)", attributes="displayName")
+    ):
+      print u['displayName']
 
-else:
-  def ad_time_to_datetime (ad_time):
-    return ad_time
+  :param base: An LDAP:// moniker representing the starting point of the search [domain root]
+  :param filter: An AD filter string to limit the search [no filter]
+  :param attributes: A comma-separated attributes string [* - ADsPath]
+  :param scope: One of - Subtree, Base, OneLevel [Subtree]
+  :param range: Limit the number of returns of multivalued attributes [no range]
+  """
+  if base is None:
+    base = u"LDAP://" + GetObject (u"LDAP://rootDSE").Get (u"defaultNamingContext")
+  if not filter.startswith ("("):
+    filter = u"(%s)" % filter
+  segments = [u"<%s>" % base, filter, attributes]
+  if range:
+    segments += [u"Range=%s-%s" % range]
+  segments += [scope]
+  return u";".join (segments)
 
-  def ad_time_from_datetime (timestamp):
-    return timestamp
+BASE_TIME = datetime.datetime (1601, 1, 1)
+def ad_time_to_datetime (ad_time):
+  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
+  ns100 = (hi << 32) + lo
+  delta = datetime.timedelta (microseconds=ns100 / 10)
+  return BASE_TIME + delta
 
-  def pytime_to_datetime (pytime):
-    return pytime
+def datetime_to_ad_time (datetime):
+  delta = datetime - BASE_TIME
+  n_microseconds = delta.microseconds + (1000000 * delta.seconds) + (1000000 * 60 * 60 * 24 * delta.days)
+  return 1 * n_microseconds
 
-  def pytime_from_datetime (datetime):
-    return datetime
+def pytime_to_datetime (pytime):
+  return datetime.datetime.fromtimestamp (int (pytime))
 
+def pytime_from_datetime (datetime):
+  pass
 
 def convert_to_object (item):
   if item is None: return None
@@ -914,3 +1009,7 @@ def search_ex (query_string="", username=None, password=None):
   """
   for result in query (query_string, username=username, password=password, Page_size=50):
     yield result
+
+def ad ():
+  """Do nothing"""
+  pass
