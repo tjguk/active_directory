@@ -630,16 +630,19 @@ class _AD_object (object):
      users = AD_object (path="LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
-  def __init__ (self, obj):
+  def __init__ (self, obj, username=None, password=None):
     #
     # Be careful here with attribute assignment;
-    #  __setattr__ & __getattr__ will fall over
-    #  each other if you aren't.
+    # __setattr__ & __getattr__ will fall over
+    # each other if you aren't.
     #
     _set (self, "com_object", obj)
     schema = GetObject (obj.Schema)
     _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
     _set (self, "is_container", getattr (schema, "Container", False))
+    _set (self, "username", username)
+    _set (self, "password", password)
+    _set (self, "connection", connect (username=username, password=password))
 
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
@@ -666,9 +669,9 @@ class _AD_object (object):
 
     #
     # Allow access to object's properties as though normal
-    #  Python instance properties. Some properties are accessed
-    #  directly through the object, others by calling its Get
-    #  method. Not clear why.
+    # Python instance properties. Some properties are accessed
+    # directly through the object, others by calling its Get
+    # method. Not clear why.
     #
     if name not in self._delegate_map:
       try:
@@ -721,15 +724,15 @@ class _AD_object (object):
     (This class and the __iter__ method supplied by
     Stian Søiland <stian@soiland.no>)
     """
-    def __init__(self, com_object):
-      self._iter = iter(com_object)
-    def __iter__(self):
+    def __init__ (self, com_object):
+      self._iter = iter (com_object)
+    def __iter__ (self):
       return self
-    def next(self):
-      return AD_object(self._iter.next())
+    def next (self):
+      return AD_object (self._iter.next ())
 
   def __iter__(self):
-    return self.AD_iterator(self.com_object)
+    return self.AD_iterator (self.com_object)
 
   def walk (self):
     """Analogous to os.walk, traverse this AD subtree,
@@ -846,8 +849,8 @@ class _AD_object (object):
   def search (self, *args, **kwargs):
     filter = and_ (*args, **kwargs)
     query_string = "<%s>;(%s);distinguishedName;Subtree" % (self.ADsPath, filter)
-    for result in query (query_string):
-      yield AD_object (unicode (result['distinguishedName']))
+    for result in query (query_string, connection=self.connection):
+      yield ad (unicode (result['distinguishedName']), username=self.username, password=self.password)
 
 class _AD_user (_AD_object):
   def __init__ (self, *args, **kwargs):
@@ -916,7 +919,7 @@ def escaped_moniker (moniker):
   else:
     return moniker.replace ("/", "\\/")
 
-def AD_object (obj_or_path=None, path=""):
+def AD_object (obj_or_path, username=None, password=None):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
   is now  intended to be:
@@ -933,10 +936,8 @@ def AD_object (obj_or_path=None, path=""):
   @return An _AD_object or a subclass proxying for the AD object
   """
   scheme = "LDAP://"
-  if path and not obj_or_path:
-    obj_or_path = path
   try:
-    if isinstance (obj_or_path, (type (""), type (u""))):
+    if isinstance (obj_or_path, basestring):
       moniker = obj_or_path.lower ()
       if obj_or_path.upper ().startswith (scheme):
         moniker = obj_or_path[len (scheme):]
@@ -948,7 +949,7 @@ def AD_object (obj_or_path=None, path=""):
       return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
   except:
     raise
-    #~ raise Exception, "Problem with path or object %s" % obj_or_path
+ad = AD_object
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
@@ -994,7 +995,3 @@ def root ():
   if _ad is None:
     _ad = AD ()
   return _ad
-
-def ad ():
-  """Do nothing"""
-  pass
