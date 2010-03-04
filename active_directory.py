@@ -361,7 +361,6 @@ def query (query_string, connection=None, **command_properties):
   :param command_properties: A collection of keywords which will be passed through to the
                              ADO query as Properties.
   """
-  print query_string
   command = Dispatch ("ADODB.Command")
   _connection = connection or connect ()
   command.ActiveConnection = _connection
@@ -408,6 +407,10 @@ def query_string (base=None, filter="", attributes="*", scope="Subtree", range=N
     segments += [u"Range=%s-%s" % range]
   segments += [scope]
   return u";".join (segments)
+
+def search_ex (query_string="", username=None, password=None):
+  """FIXME: Historical version of :func:`query`"""
+  return query (query_string, connection=connect (username, password))
 
 BASE_TIME = datetime.datetime (1601, 1, 1)
 def ad_time_to_datetime (ad_time):
@@ -705,7 +708,7 @@ class _AD_object (object):
     return self.as_string ()
 
   def __repr__ (self):
-    return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
+    return u"<%s: %s>" % (self.objectClass[-1], self.distinguishedName)
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -843,7 +846,7 @@ class _AD_object (object):
   def search (self, *args, **kwargs):
     filter = and_ (*args, **kwargs)
     query_string = "<%s>;(%s);distinguishedName;Subtree" % (self.ADsPath, filter)
-    for result in query (query_string, Page_size=50):
+    for result in query (query_string):
       yield AD_object (unicode (result['distinguishedName']))
 
 class _AD_user (_AD_object):
@@ -991,24 +994,6 @@ def root ():
   if _ad is None:
     _ad = AD ()
   return _ad
-
-def search_ex (query_string="", username=None, password=None):
-  """Search the Active Directory by specifying a complete
-   query string. NB The results will *not* be AD_objects
-   but rather ADO_objects which are queried for their fields.
-
-   eg,
-
-     import active_directory
-     for user in active_directory.search_ex (\"""
-       SELECT displayName
-       FROM 'LDAP://DC=gb,DC=vo,DC=local'
-       WHERE objectCategory = 'Person'
-     \"""):
-       print user.displayName
-  """
-  for result in query (query_string, username=username, password=password, Page_size=50):
-    yield result
 
 def ad ():
   """Do nothing"""
