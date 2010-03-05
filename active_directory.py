@@ -156,6 +156,12 @@ class Enum (object):
     except KeyError:
       raise AttributeError
 
+  def __repr__ (self):
+    return repr (self._name_map)
+
+  def __str__ (self):
+    return str (self._name_map)
+
   def item_names (self):
     return self._name_map.items ()
 
@@ -272,16 +278,19 @@ class _Proxy (object):
     return s
 
   def _munge (cls, other):
+    if isinstance (other, _AD_object):
+      return other.dn
+
     if isinstance (other, datetime.datetime):
       return datetime_to_ad_time (other)
+
+    other = unicode (other)
+    if other.endswith (u"*"):
+      other, suffix = other[:-1], other[-1]
     else:
-      other = unicode (other)
-      if other.endswith (u"*"):
-        other, suffix = other[:-1], other[-1]
-      else:
-        suffix = u""
-      other = cls.escaped_filter (other)
-      return other + suffix
+      suffix = u""
+    other = cls.escaped_filter (other)
+    return other + suffix
 
   def __init__ (self, name):
     self._name = name
@@ -364,6 +373,7 @@ def query (query_string, connection=None, **command_properties):
   :param command_properties: A collection of keywords which will be passed through to the
                              ADO query as Properties.
   """
+  print "About to query", query_string
   command = Dispatch ("ADODB.Command")
   _connection = connection or connect ()
   command.ActiveConnection = _connection
@@ -497,6 +507,7 @@ _PROPERTY_MAP = ddict (
   lockoutDuration = convert_to_datetime,
   lockoutObservationWindow = convert_to_datetime,
   lockoutTime = convert_to_datetime,
+  manager = convert_to_object,
   masteredBy = convert_to_objects,
   maxPwdAge = convert_to_datetime,
   member = convert_to_objects,
@@ -636,6 +647,7 @@ class _AD_object (object):
     _set (self, "username", username)
     _set (self, "password", password)
     _set (self, "connection", connect (username=username, password=password))
+    _set (self, "dn", self.com_object.distinguishedName)
 
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
@@ -930,15 +942,16 @@ def ad (obj_or_path, username=None, password=None):
   @return An _AD_object or a subclass proxying for the AD object
   """
   matcher = re.compile ("(LDAP://|GC://)?(.*)")
-  if isinstance (obj_or_path, basestring):
+  if isinstance (obj_or_path, _AD_object):
+    return obj_or_path
+  elif isinstance (obj_or_path, basestring):
     scheme, dn = matcher.match (obj_or_path).groups ()
     moniker = escaped_moniker (dn)
-    return ADsOpenObject ((scheme or "LDAP://") + moniker, username, password)
+    obj = adsi.ADsOpenObject ((scheme or "LDAP://") + moniker, username, password)
   else:
-    if isinstance (obj, _AD_object):
-      return obj
-    else:
-      return _CLASS_MAP.get (obj.Class, _AD_object) (obj)
+    obj = obj_or_path
+
+  return _CLASS_MAP.get (obj.Class, _AD_object) (obj)
 AD_object = ad
 
 def AD (server=None, username=None, password=None, use_gc=False):
