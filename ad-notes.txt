@@ -1,0 +1,56 @@
+IADs = IADsContainer.Create (class, relativeName)
+fred = IADsContainer.Create ("user", "cn=FredSmith")
+fred.Put ("sAMAccountName", "smithf")
+fred.SetInfo ()
+
+accountExpires [never]
+nTSecurityDescriptor
+objectCategory ["Person"]
+name [cn]
+pwdLastSet [0]
+userAccountControl [UF_ACCOUNTDISABLE | UF_PASSWD_NOTREQD | UF_NORMAL_ACCOUNT]
+memberOf [Domain Users]
+fred,SetPassword ("...")
+fred.SetInfo ()
+
+
+PutEx (ADS_PROPERTY_OPERATION_ENUM (clear /update/ append/delete)
+
+IADsContainer.Delete (class, relativeName)
+# must be leaf or childless container
+(no need to call SetInfo)
+
+
+group = IADsContainer.Create ("group", "cn=MyGroup")
+group.groupType = ADS_GROUP_TYPE_ENUM 
+group.sAMAccountName = "mygroup"
+
+group = group.QueryInterface (IADsGroup)
+group.member (dns for objects in group)
+group.memberOf (dns for object which contain group) [maintained by AD]
+group.Add (adspath)
+
+sid form of ldap LDAP://SID=<010203....4000>
+
+
+---------
+Binding to a child object: uses same credentials as parent
+
+IADsContainer.GetObject (rdn)
+
+----------
+Binding to a parent [not clear about credentials]
+
+IADs.get_Parent
+
+
+--------
+Binding anonymously: specify ADS_NO_AUTHENTICATION in the call to ADsOpenObject
+Binding with authentication: specify ADS_SECURE_AUTHENTICATION
+
+
+--------
+Fast sea4rching: Use indexed attributes (eg objectCategory, not objectClass)
+Cache connections
+Read rootDSE once and remember
+
