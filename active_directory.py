@@ -906,18 +906,6 @@ _CLASS_MAP = {
   u"domainDNS" : _AD_domain_dns,
   u"publicFolder" : _AD_public_folder
 }
-_CACHE = {}
-def cached_AD_object (path, obj):
-  try:
-    return _CACHE[path]
-  except KeyError:
-    classed_obj = _CLASS_MAP.get (obj.Class, _AD_object) (obj)
-    _CACHE[path] = classed_obj
-    return classed_obj
-
-def clear_cache ():
-  _CACHE.clear ()
-
 def escaped_moniker (moniker):
   #
   # If the moniker *appears* to have been escaped
@@ -945,9 +933,12 @@ def ad (obj_or_path, username=None, password=None):
   if isinstance (obj_or_path, basestring):
     scheme, dn = matcher.match (obj_or_path).groups ()
     moniker = escaped_moniker (dn)
-    return cached_AD_object (obj_or_path, ADsOpenObject ((scheme or "LDAP://") + moniker, username, password))
+    return ADsOpenObject ((scheme or "LDAP://") + moniker, username, password)
   else:
-    return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
+    if isinstance (obj, _AD_object):
+      return obj
+    else:
+      return _CLASS_MAP.get (obj.Class, _AD_object) (obj)
 AD_object = ad
 
 def AD (server=None, username=None, password=None, use_gc=False):
