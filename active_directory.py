@@ -41,7 +41,7 @@ to stop you using it for any AD operations.
      "displayName='Tim Golden' OR sAMAccountName='goldent'"
    ):
      #
-     # This search returns an AD_object
+     # This search returns an _AD_object
      #
      print user
 
@@ -85,14 +85,20 @@ __VERSION__ = "1.0rc1"
 
 import os, sys
 import datetime
+import re
 
+import pythoncom
 import win32api
 from win32com.client import Dispatch, GetObject
 import win32security
+from win32com import adsi
+from win32com.adsi import adsicon
 
 class ActiveDirectoryError (Exception):
   """Base class for all AD Exceptions"""
   pass
+
+DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_SERVER_BIND | adsicon.ADS_FAST_BIND
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
@@ -255,9 +261,6 @@ def _add_path (root_path, relative_path):
 
   return protocol + relative_path + "," + start_path
 
-## :1.2.840.113556.1.4.803: bitwise AND
-## :1.2.840.113556.1.4.804: bitwise OR
-## :1.2.840.113556.1.4.1941: matching rule in chain
 class _Proxy (object):
 
   ESCAPED_CHARACTERS = dict ((special, r"\%02x" % ord (special)) for special in "*()\x00/")
@@ -432,7 +435,7 @@ def pytime_from_datetime (datetime):
 
 def convert_to_object (item):
   if item is None: return None
-  return AD_object (item)
+  return ad (item)
 
 def convert_to_objects (items):
   if items is None:
@@ -440,7 +443,7 @@ def convert_to_objects (items):
   else:
     if not isinstance (items, (tuple, list)):
       items = [items]
-    return [AD_object (item) for item in items]
+    return [ad (item) for item in items]
 
 def convert_to_datetime (item):
   if item is None: return None
@@ -568,8 +571,6 @@ def convert_from_flags (enum_name):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 
-
-
 _PROPERTY_MAP_IN = ddict (
   accountExpires = convert_from_datetime,
   badPasswordTime = convert_from_datetime,
@@ -611,14 +612,6 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _AD_root (object):
-  def __init__ (self, obj):
-    _set (self, "com_object", obj)
-    _set (self, "properties", {})
-    for i in range (obj.PropertyCount):
-      property = obj.Item (i)
-      proprties[property.Name] = property.Value
-
 class _AD_object (object):
   """Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
@@ -627,7 +620,7 @@ class _AD_object (object):
    eg,
 
      import active_directory
-     users = AD_object (path="LDAP://cn=Users,DC=gb,DC=vo,DC=local")
+     users = active_directory.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
   def __init__ (self, obj, username=None, password=None):
@@ -666,6 +659,12 @@ class _AD_object (object):
       first, rest = names[0], names[1:]
       object_class = "".join ([first] + [n.title () for n in rest])
       return self._search (object_class)
+
+    if name.startswith ("get_"):
+      names = name[len ("get_"):].lower ().split ("_")
+      first, rest = names[0], names[1:]
+      object_class = "".join ([first] + [n.title () for n in rest])
+      return self._get (object_class)
 
     #
     # Allow access to object's properties as though normal
@@ -711,7 +710,7 @@ class _AD_object (object):
     return self.as_string ()
 
   def __repr__ (self):
-    return u"<%s: %s>" % (self.objectClass[-1], self.distinguishedName)
+    return u"<%s: %s>" % (self.com_object.Class, self.distinguishedName)
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -729,10 +728,13 @@ class _AD_object (object):
     def __iter__ (self):
       return self
     def next (self):
-      return AD_object (self._iter.next ())
+      return ad (self._iter.next ())
 
   def __iter__(self):
     return self.AD_iterator (self.com_object)
+
+  def refresh (self):
+    self.com_object.GetInfo ()
 
   def walk (self):
     """Analogous to os.walk, traverse this AD subtree,
@@ -793,21 +795,7 @@ class _AD_object (object):
 
   def parent (self):
     """Find this object's parent"""
-    return AD_object (path=self.com_object.Parent)
-
-  def child (self, relative_path):
-    """Return the relative child of this object. The relative_path
-     is inserted into this object's AD path to make a coherent AD
-     path for a child object.
-
-    eg,
-
-      import active_directory
-      root = active_directory.root ()
-      users = root.child ("cn=Users")
-
-    """
-    return AD_object (path=_add_path (self.path (), relative_path))
+    return ad (self.com_object.Parent)
 
   def _find (self, object_class):
     """Helper function to allow general-purpose searching for
@@ -825,6 +813,14 @@ class _AD_object (object):
     def _search (*args, **kwargs):
       return self.search (objectClass=object_class, *args, **kwargs)
     return _search
+
+  def _get (self, object_class):
+    """Helper function to allow general-purpose retrieval of a
+    child object by class.
+    """
+    def _get (rdn):
+      return self.get (object_class, rdn)
+    return _get
 
   def find (self, name):
     for item in self.search (name=name):
@@ -851,6 +847,20 @@ class _AD_object (object):
     query_string = "<%s>;(%s);distinguishedName;Subtree" % (self.ADsPath, filter)
     for result in query (query_string, connection=self.connection):
       yield ad (unicode (result['distinguishedName']), username=self.username, password=self.password)
+
+  def get (self, object_class, relative_path):
+    return ad (self.com_object.GetObject (object_class, relative_path))
+
+  def new (self, object_class, sam_account_name, **kwargs):
+    obj = self.com_object.Create (object_class, u"cn=%s" % sam_account_name)
+    obj.Put ("sAMAccountName", sam_account_name)
+    obj.SetInfo ()
+    for name, value in kwargs.items ():
+      print "%s => %s" % (name, value)
+      obj.Put (name, value)
+    obj.SetInfo ()
+    return ad (obj)
+
 
 class _AD_user (_AD_object):
   def __init__ (self, *args, **kwargs):
@@ -919,47 +929,41 @@ def escaped_moniker (moniker):
   else:
     return moniker.replace ("/", "\\/")
 
-def AD_object (obj_or_path, username=None, password=None):
+def ad (obj_or_path, username=None, password=None):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
   is now  intended to be:
 
-    AD_object (obj_or_path)
-
-  but for historical reasons will continue to support:
-
-    AD_object (obj=None, path="")
+    ad (obj_or_path)
 
   @param obj_or_path Either an COM AD object or the path to one. If
   the path doesn't start with "LDAP://" this will be prepended.
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  scheme = "LDAP://"
-  try:
-    if isinstance (obj_or_path, basestring):
-      moniker = obj_or_path.lower ()
-      if obj_or_path.upper ().startswith (scheme):
-        moniker = obj_or_path[len (scheme):]
-      else:
-        moniker = obj_or_path
-      moniker = escaped_moniker (moniker)
-      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + moniker))
-    else:
-      return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
-  except:
-    raise
-ad = AD_object
-
-def AD (server=None):
-  default_naming_context = _root (server).Get ("defaultNamingContext")
-  return AD_object (GetObject ("LDAP://%s" % default_naming_context))
-
-def _root (server=None):
-  if server:
-    return GetObject ("LDAP://%s/rootDSE" % server)
+  matcher = re.compile ("(LDAP://|GC://)?(.*)")
+  if isinstance (obj_or_path, basestring):
+    scheme, dn = matcher.match (obj_or_path).groups ()
+    moniker = escaped_moniker (dn)
+    return cached_AD_object (obj_or_path, ADsOpenObject ((scheme or "LDAP://") + moniker, username, password))
   else:
-    return GetObject ("LDAP://rootDSE")
+    return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
+AD_object = ad
+
+def AD (server=None, username=None, password=None, use_gc=False):
+  if use_gc:
+    scheme = "GC://"
+  else:
+    scheme = "LDAP://"
+  if server:
+    root_moniker = scheme + server + "/rootDSE"
+  else:
+    root_moniker = scheme + "rootDSE"
+  root_obj = adsi.ADsOpenObject (root_moniker, username, password, DEFAULT_BIND_FLAGS)
+  default_naming_context = root_obj.Get ("defaultNamingContext")
+  moniker = scheme + default_naming_context
+  obj = adsi.ADsOpenObject (moniker, username, password, DEFAULT_BIND_FLAGS)
+  return ad (obj, username, password)
 
 #
 # Convenience functions for common needs
@@ -990,8 +994,8 @@ def search (*args, **kwargs):
 #  root of the logged-on active directory tree.
 #
 _ad = None
-def root ():
+def root (username=None, password=None):
   global _ad
   if _ad is None:
-    _ad = AD ()
+    _ad = AD (username=username, password=password)
   return _ad
