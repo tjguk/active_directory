@@ -373,7 +373,6 @@ def query (query_string, connection=None, **command_properties):
   :param command_properties: A collection of keywords which will be passed through to the
                              ADO query as Properties.
   """
-  print "About to query", query_string
   command = Dispatch ("ADODB.Command")
   _connection = connection or connect ()
   command.ActiveConnection = _connection
@@ -647,10 +646,10 @@ class _AD_object (object):
     _set (self, "username", username)
     _set (self, "password", password)
     _set (self, "connection", connect (username=username, password=password))
-    _set (self, "dn", self.com_object.distinguishedName)
-
+    _set (self, "dn", getattr (self.com_object, "distinguishedName", self.com_object.name))
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
+    self._path = obj.AdsPath
 
   def __getitem__ (self, key):
     return getattr (self, key)
@@ -722,7 +721,7 @@ class _AD_object (object):
     return self.as_string ()
 
   def __repr__ (self):
-    return u"<%s: %s>" % (self.com_object.Class, self.distinguishedName)
+    return u"<%s: %s>" % (self.com_object.Class, self.dn)
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -744,6 +743,10 @@ class _AD_object (object):
 
   def __iter__(self):
     return self.AD_iterator (self.com_object)
+
+  def _get_path (self):
+    return self._path
+  path = property (_get_path)
 
   def refresh (self):
     self.com_object.GetInfo ()
@@ -801,9 +804,6 @@ class _AD_object (object):
     for k, v in kwds.items ():
       self.com_object.Put (k, v)
     self.com_object.SetInfo ()
-
-  def path (self):
-    return self.com_object.ADsPath
 
   def parent (self):
     """Find this object's parent"""
@@ -868,21 +868,29 @@ class _AD_object (object):
     obj.Put ("sAMAccountName", sam_account_name)
     obj.SetInfo ()
     for name, value in kwargs.items ():
-      print "%s => %s" % (name, value)
       obj.Put (name, value)
     obj.SetInfo ()
     return ad (obj)
 
+class LDAP (_AD_object):
 
-class _AD_user (_AD_object):
+  def __init__ (self, *args, **kwargs):
+    super (LDAP, self).__init__ (*args, **kwargs)
+
+class WinNT (_AD_object):
+
+  def __init__ (self, *args, **kwargs):
+    super (WinNT, self).__init__ (*args, **kwargs)
+
+class LDAP_user (LDAP):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
 
-class _AD_computer (_AD_object):
+class LDAP_computer (LDAP):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
 
-class _AD_group (_AD_object):
+class LDAP_group (LDAP):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
 
@@ -899,24 +907,24 @@ class _AD_group (_AD_object):
       for result in group.walk ():
         yield result
 
-class _AD_organisational_unit (_AD_object):
+class LDAP_organisational_unit (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
 
-class _AD_domain_dns (_AD_object):
+class LDAP_domain_dns (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
 
-class _AD_public_folder (_AD_object):
+class LDAP_public_folder (_AD_object):
   pass
 
 _CLASS_MAP = {
-  u"user" : _AD_user,
-  u"computer" : _AD_computer,
-  u"group" : _AD_group,
-  u"organizationalUnit" : _AD_organisational_unit,
-  u"domainDNS" : _AD_domain_dns,
-  u"publicFolder" : _AD_public_folder
+  u"user" : LDAP_user,
+  u"computer" : LDAP_computer,
+  u"group" : LDAP_group,
+  u"organizationalUnit" : LDAP_organisational_unit,
+  u"domainDNS" : LDAP_domain_dns,
+  u"publicFolder" : LDAP_public_folder
 }
 def escaped_moniker (moniker):
   #
@@ -941,17 +949,27 @@ def ad (obj_or_path, username=None, password=None):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  matcher = re.compile ("(LDAP://|GC://)?(.*)")
+  matcher = re.compile ("(LDAP://|GC://|WinNT://)?(.*)")
   if isinstance (obj_or_path, _AD_object):
     return obj_or_path
   elif isinstance (obj_or_path, basestring):
     scheme, dn = matcher.match (obj_or_path).groups ()
-    moniker = escaped_moniker (dn)
-    obj = adsi.ADsOpenObject ((scheme or "LDAP://") + moniker, username, password)
+    if scheme is None: scheme = "LDAP://"
+    if scheme == "WinNT://":
+      moniker = dn
+    else:
+      moniker = escaped_moniker (dn)
+    if scheme in ("LDAP://", "GC://"):
+      obj = adsi.ADsOpenObject (scheme + moniker, username, password)
+    else:
+      obj = GetObject (scheme + moniker)
   else:
     obj = obj_or_path
 
-  return _CLASS_MAP.get (obj.Class, _AD_object) (obj)
+  if scheme == "WinNT://":
+    return WinNT (obj)
+  else:
+    return _CLASS_MAP.get (obj.Class, _AD_object) (obj)
 AD_object = ad
 
 def AD (server=None, username=None, password=None, use_gc=False):
