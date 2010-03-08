@@ -622,6 +622,20 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
+class _members (set):
+
+  def __new__ (meta, group):
+    #~ s = set.__new__ (meta, (ad (i) for i in iter (group.com_object.members ())))
+    s = set.__new__ (meta, [])
+    for i in iter (group.com_object.members ()):
+      print i
+      print i.__class__
+      print i.Name
+      print ad (i)
+      s.add (ad (i))
+    s._group = group
+    return s
+
 class _AD_object (object):
   """Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
@@ -715,7 +729,7 @@ class _AD_object (object):
       _set (self, name, value)
 
   def as_string (self):
-    return self.path ()
+    return self.path
 
   def __str__ (self):
     return self.as_string ()
@@ -959,12 +973,17 @@ def ad (obj_or_path, username=None, password=None):
       moniker = dn
     else:
       moniker = escaped_moniker (dn)
-    if scheme in ("LDAP://", "GC://"):
-      obj = adsi.ADsOpenObject (scheme + moniker, username, password)
-    else:
-      obj = GetObject (scheme + moniker)
+    #~ if scheme in ("LDAP://", "GC://"):
+    obj = adsi.ADsOpenObject (scheme + moniker, username, password)
+   #~ else:
+      #~ obj = GetObject (scheme + moniker)
   else:
     obj = obj_or_path
+    print "obj:", obj
+    print "type:", type (obj)
+    print "Name:", obj.Name
+    print "Class:", obj.Class
+    scheme, dn = matcher.match (obj_or_path.AdsPath).groups ()
 
   if scheme == "WinNT://":
     return WinNT (obj)
