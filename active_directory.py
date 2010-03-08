@@ -622,21 +622,31 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _members (set):
+class _Members (set):
 
-  def __new__ (meta, group):
-    #~ s = set.__new__ (meta, (ad (i) for i in iter (group.com_object.members ())))
-    s = set.__new__ (meta, [])
-    for i in iter (group.com_object.members ()):
-      print i
-      print i.__class__
-      print i.Name
-      print ad (i)
-      s.add (ad (i))
-    s._group = group
-    return s
+  def __init__ (self, group):
+    self._group = group
+    self.update (ad (m) for m in group.com_object.members ())
 
-class _AD_object (object):
+  #~ def _reset (self):
+    #~ self._members = set (ad (i) for i in self._group.com_object.members ())
+
+  #~ @staticmethod
+  #~ def _get_path (obj_or_path):
+    #~ if isinstance (ad_object, _AD_object):
+      #~ return ad_object.path
+    #~ else:
+      #~ return unicode (obj_or_path)
+
+  #~ def add (self, obj_or_path):
+    #~ self._group.com_object.Add (self._get_path (obj_or_path))
+    #~ self._reset ()
+
+  #~ def remove (self, obj_or_path):
+    #~ self._group.com_object.Remove (self._get_path (obj_or_path))
+    #~ self._reset ()
+
+class Base (object):
   """Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
    either directly from a COM object or from an ADs Path.
@@ -718,6 +728,7 @@ class _AD_object (object):
     setattr (self, key, value)
 
   def __setattr__ (self, name, value):
+    print "__setattr__", name, value
     #
     # Allow attribute access to the underlying object's
     #  fields.
@@ -886,34 +897,36 @@ class _AD_object (object):
     obj.SetInfo ()
     return ad (obj)
 
-class LDAP (_AD_object):
+class Group (Base):
 
-  def __init__ (self, *args, **kwargs):
-    super (LDAP, self).__init__ (*args, **kwargs)
+  def _get_x (self):
+    return getattr (self, "_x", "Unknown")
+  def _set_x (self, value):
+    print "_set_x", value
+    self._x = value
+  x = property (_get_x, _set_x)
 
-class WinNT (_AD_object):
-
-  def __init__ (self, *args, **kwargs):
-    super (WinNT, self).__init__ (*args, **kwargs)
-
-class LDAP_user (LDAP):
-  def __init__ (self, *args, **kwargs):
-    _AD_object.__init__ (self, *args, **kwargs)
-
-class LDAP_computer (LDAP):
-  def __init__ (self, *args, **kwargs):
-    _AD_object.__init__ (self, *args, **kwargs)
-
-class LDAP_group (LDAP):
-  def __init__ (self, *args, **kwargs):
-    _AD_object.__init__ (self, *args, **kwargs)
+  def _get_members (self):
+    return _Members (self)
+  def _set_members (self, members):
+    print "_set_members", members
+    #~ print "_set_members", members
+    #~ new_members = set (ad (m) for m in members)
+    #~ print "new members", new_members
+    #~ for member in (new_members - self.members):
+      #~ print "Adding", member
+      #~ self.com_object.Add (member.AdsPath)
+    #~ for member in (self.members - new_members):
+      #~ print "Removing", member
+      #~ self.com_object.Remove (member.AdsPath)
+  members = property (_get_members, _set_members)
 
   def walk (self):
     """Override the usual .walk method by returning instead:
 
     group, groups, users
     """
-    members = self.member or []
+    members = self.members
     groups = [m for m in members if m.Class == u'group']
     users = [m for m in members if m.Class == u'user']
     yield (self, groups, users)
@@ -921,24 +934,13 @@ class LDAP_group (LDAP):
       for result in group.walk ():
         yield result
 
-class LDAP_organisational_unit (_AD_object):
-  def __init__ (self, *args, **kwargs):
-    _AD_object.__init__ (self, *args, **kwargs)
-
-class LDAP_domain_dns (_AD_object):
-  def __init__ (self, *args, **kwargs):
-    _AD_object.__init__ (self, *args, **kwargs)
-
-class LDAP_public_folder (_AD_object):
-  pass
+  def flat (self):
+    for group, groups, members in self.walk ():
+      for member in members:
+        yield member
 
 _CLASS_MAP = {
-  u"user" : LDAP_user,
-  u"computer" : LDAP_computer,
-  u"group" : LDAP_group,
-  u"organizationalUnit" : LDAP_organisational_unit,
-  u"domainDNS" : LDAP_domain_dns,
-  u"publicFolder" : LDAP_public_folder
+  u"group" : Group,
 }
 def escaped_moniker (moniker):
   #
@@ -964,7 +966,7 @@ def ad (obj_or_path, username=None, password=None):
   @return An _AD_object or a subclass proxying for the AD object
   """
   matcher = re.compile ("(LDAP://|GC://|WinNT://)?(.*)")
-  if isinstance (obj_or_path, _AD_object):
+  if isinstance (obj_or_path, Base):
     return obj_or_path
   elif isinstance (obj_or_path, basestring):
     scheme, dn = matcher.match (obj_or_path).groups ()
@@ -973,22 +975,12 @@ def ad (obj_or_path, username=None, password=None):
       moniker = dn
     else:
       moniker = escaped_moniker (dn)
-    #~ if scheme in ("LDAP://", "GC://"):
     obj = adsi.ADsOpenObject (scheme + moniker, username, password)
-   #~ else:
-      #~ obj = GetObject (scheme + moniker)
   else:
     obj = obj_or_path
-    print "obj:", obj
-    print "type:", type (obj)
-    print "Name:", obj.Name
-    print "Class:", obj.Class
     scheme, dn = matcher.match (obj_or_path.AdsPath).groups ()
 
-  if scheme == "WinNT://":
-    return WinNT (obj)
-  else:
-    return _CLASS_MAP.get (obj.Class, _AD_object) (obj)
+  return _CLASS_MAP.get (obj.Class.lower (), Base) (obj)
 AD_object = ad
 
 def AD (server=None, username=None, password=None, use_gc=False):
