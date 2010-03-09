@@ -94,6 +94,12 @@ import win32security
 from win32com import adsi
 from win32com.adsi import adsicon
 
+try:
+  import collections
+  MemberBase = collections.MutableSet
+except (ImportError, AttributeError):
+  MemberBase = object
+
 class ActiveDirectoryError (Exception):
   """Base class for all AD Exceptions"""
   pass
@@ -622,29 +628,75 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _Members (set):
+class _SetLike (set):
+
+  def __init__ (self, initialiser):
+    super (_SetLike, self).update (ad (i) for i in initialiser)
+
+  def update (self, *others):
+    original = set (self)
+    super (_SetLike, self).update (*others)
+    self._update (original)
+
+  def intersection_update (self, *others):
+    original = set (self)
+    super (_SetLike, self).intersection_update (*others)
+    self._update (original)
+
+  def difference_update (self, *others):
+    original = set (self)
+    super (_SetLike, self).difference_update (*others)
+    self._update (original)
+
+  def symmetric_difference_update (self, *others):
+    original = set (self)
+    super (_SetLike, self).symmetric_difference_update (*others)
+    self._update (original)
+
+  def add (self, elem):
+    original = set (self)
+    super (_SetLike, self).add (elem)
+    self._update (original)
+
+  def remove (self, elem):
+    original = set (self)
+    super (_SetLike, self).remove (elem)
+    self._update (original)
+
+  def discard (self, elem):
+    original = set (self)
+    super (_SetLike, self).discard (elem)
+    self._update (original)
+
+  def pop (self):
+    original = set (self)
+    super (_SetLike, self).pop ()
+    self._update (original)
+
+  def clear (self):
+    original = set (self)
+    super (_SetLike, self).clear ()
+    self._update (original)
+
+  def _update (self, original):
+    raise NotImplementedError
+
+class _Members (_SetLike):
 
   def __init__ (self, group):
+    super (_Members, self).__init__ (iter (group.com_object.members ()))
     self._group = group
-    self.update (ad (m) for m in group.com_object.members ())
 
-  #~ def _reset (self):
-    #~ self._members = set (ad (i) for i in self._group.com_object.members ())
-
-  #~ @staticmethod
-  #~ def _get_path (obj_or_path):
-    #~ if isinstance (ad_object, _AD_object):
-      #~ return ad_object.path
-    #~ else:
-      #~ return unicode (obj_or_path)
-
-  #~ def add (self, obj_or_path):
-    #~ self._group.com_object.Add (self._get_path (obj_or_path))
-    #~ self._reset ()
-
-  #~ def remove (self, obj_or_path):
-    #~ self._group.com_object.Remove (self._get_path (obj_or_path))
-    #~ self._reset ()
+  def _update (self, original):
+    print "New:", self
+    print "Original:", original
+    group = self._group.com_object
+    for member in (self - original):
+      print "Adding", member
+      group.Add (member.AdsPath)
+    for member in (original - self):
+      print "Removing", member
+      group.Remove (member.AdsPath)
 
 class Base (object):
   """Wrap an active-directory object for easier access
@@ -666,11 +718,11 @@ class Base (object):
     _set (self, "com_object", obj)
     schema = GetObject (obj.Schema)
     _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
-    _set (self, "is_container", getattr (schema, "Container", False))
-    _set (self, "username", username)
-    _set (self, "password", password)
-    _set (self, "connection", connect (username=username, password=password))
-    _set (self, "dn", getattr (self.com_object, "distinguishedName", self.com_object.name))
+    self.is_container = getattr (schema, "Container", False)
+    self.username = username
+    self.password = password
+    self.connection = connect (username=username, password=password)
+    self.dn = getattr (self.com_object, "distinguishedName", self.com_object.name)
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
     self._path = obj.AdsPath
@@ -714,7 +766,7 @@ class Base (object):
         try:
           attr = self.com_object.Get (name)
         except:
-          raise AttributeError
+          super (Base, self).__getattr__ (name)
 
       converter = self._property_map.get (name)
       if converter:
@@ -728,7 +780,6 @@ class Base (object):
     setattr (self, key, value)
 
   def __setattr__ (self, name, value):
-    print "__setattr__", name, value
     #
     # Allow attribute access to the underlying object's
     #  fields.
@@ -737,7 +788,7 @@ class Base (object):
       self.com_object.Put (name, value)
       self.com_object.SetInfo ()
     else:
-      _set (self, name, value)
+      super (Base, self).__setattr__ (name, value)
 
   def as_string (self):
     return self.path
@@ -752,7 +803,7 @@ class Base (object):
     return self.com_object.Guid == other.com_object.Guid
 
   def __hash__ (self):
-    return hash (self.com_object.ADsPath)
+    return hash (self.com_object.Guid)
 
   class AD_iterator:
     """ Inner class for wrapping iterated objects
@@ -909,15 +960,13 @@ class Group (Base):
   def _get_members (self):
     return _Members (self)
   def _set_members (self, members):
-    print "_set_members", members
-    #~ print "_set_members", members
-    #~ new_members = set (ad (m) for m in members)
-    #~ print "new members", new_members
-    #~ for member in (new_members - self.members):
-      #~ print "Adding", member
+    new_members = set (ad (m) for m in members)
+    print "new members", new_members
+    for member in (new_members - self.members):
+      print "Adding", member
       #~ self.com_object.Add (member.AdsPath)
-    #~ for member in (self.members - new_members):
-      #~ print "Removing", member
+    for member in (self.members - new_members):
+      print "Removing", member
       #~ self.com_object.Remove (member.AdsPath)
   members = property (_get_members, _set_members)
 
