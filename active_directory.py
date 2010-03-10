@@ -96,9 +96,9 @@ from win32com.adsi import adsicon
 
 try:
   import collections
-  MemberBase = collections.MutableSet
+  SetBase = collections.MutableSet
 except (ImportError, AttributeError):
-  MemberBase = object
+  SetBase = object
 
 class ActiveDirectoryError (Exception):
   """Base class for all AD Exceptions"""
@@ -628,58 +628,102 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _SetLike (set):
+class _SetLike (SetBase):
 
   def __init__ (self, initialiser):
-    super (_SetLike, self).update (ad (i) for i in initialiser)
+    self._elements = set (ad (i) for i in initialiser)
 
   def update (self, *others):
+    print "update", self, others
     original = set (self)
-    super (_SetLike, self).update (*others)
-    self._update (original)
+    for other in others:
+      self._elements.update (ad (o) for o in other)
+    self._effect (original)
 
   def intersection_update (self, *others):
+    print "intersection_update", self, others
     original = set (self)
-    super (_SetLike, self).intersection_update (*others)
-    self._update (original)
+    for other in others:
+      self._elements.intersection_update (ad (o) for o in others)
+    self._effect (original)
 
   def difference_update (self, *others):
     original = set (self)
-    super (_SetLike, self).difference_update (*others)
-    self._update (original)
+    result = self._difference_update (*others)
+    self._effect (original)
+    return result
+
+  def _difference_update (self, *others):
+    raise NotImplementedError
 
   def symmetric_difference_update (self, *others):
     original = set (self)
-    super (_SetLike, self).symmetric_difference_update (*others)
-    self._update (original)
+    result = self._symmetric_difference_update (*others)
+    self._effect (original)
+    return result
+
+  def _symmetric_difference_update (self, *others):
+    raise NotImplementedError
 
   def add (self, elem):
     original = set (self)
-    super (_SetLike, self).add (elem)
-    self._update (original)
+    result = self._add (elem)
+    self._effect (original)
+    return result
+
+  def _add (self, elem):
+    raise NotImplementedError
 
   def remove (self, elem):
     original = set (self)
-    super (_SetLike, self).remove (elem)
-    self._update (original)
+    result = self._remove (elem)
+    self._effect (original)
+    return result
+
+  def _remove (self, elem):
+    raise NotImplementedError
 
   def discard (self, elem):
     original = set (self)
-    super (_SetLike, self).discard (elem)
-    self._update (original)
+    result = self._discard (elem)
+    self._effect (original)
+    return result
+
+  def _discard (self, elem):
+    raise NotImplementedError
 
   def pop (self):
     original = set (self)
-    super (_SetLike, self).pop ()
-    self._update (original)
+    result = self._pop ()
+    self._effect (original)
+    return result
+
+  def _pop (self, elem):
+    raise NotImplementedError
 
   def clear (self):
     original = set (self)
-    super (_SetLike, self).clear ()
-    self._update (original)
+    result = self._clear ()
+    self._effect (original)
+    return result
 
-  def _update (self, original):
+  def _clear (self, elem):
     raise NotImplementedError
+
+  def _effect (self, original):
+    raise NotImplementedError
+
+  def __contains__ (self, element):
+    return ad (element) in self._elements
+
+  def __iter__ (self):
+    return iter (self._elements)
+
+  def __len__ (self):
+    return len (self._elements)
+
+  def __repr__ (self):
+    return "<%s: %s>" % (self.__class__.__name__, self._elements)
 
 class _Members (_SetLike):
 
@@ -687,7 +731,7 @@ class _Members (_SetLike):
     super (_Members, self).__init__ (iter (group.com_object.members ()))
     self._group = group
 
-  def _update (self, original):
+  def _effect (self, original):
     print "New:", self
     print "Original:", original
     group = self._group.com_object
@@ -766,7 +810,7 @@ class Base (object):
         try:
           attr = self.com_object.Get (name)
         except:
-          super (Base, self).__getattr__ (name)
+          return super (Base, self).__getattr__ (name)
 
       converter = self._property_map.get (name)
       if converter:
