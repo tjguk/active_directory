@@ -88,6 +88,7 @@ import datetime
 import re
 
 import pythoncom
+import pywintypes
 import win32api
 from win32com.client import Dispatch, GetObject
 import win32security
@@ -104,10 +105,62 @@ class ActiveDirectoryError (Exception):
   """Base class for all AD Exceptions"""
   pass
 
+class MemberAlreadyInGroupError (ActiveDirectoryError):
+  pass
+
+class MemberNotInGroupError (ActiveDirectoryError):
+  pass
+
+ERROR_DS_NO_SUCH_OBJECT = 0x80072030
+ERROR_OBJECT_ALREADY_EXISTS = 0x80071392
+ERROR_MEMBER_NOT_IN_ALIAS = 0x80070561
+ERROR_MEMBER_IN_ALIAS = 0x80070562
+
+def wrapper (winerror_map, default_exception):
+  u"""Used by each module to map specific windows error codes onto
+  Python exceptions. Always includes a default which is raised if
+  no specific exception is found.
+  """
+  def _wrapped (function, *args, **kwargs):
+    u"""Call a Windows API with parameters, and handle any
+    exception raised either by mapping it to a module-specific
+    one or by passing it back up the chain.
+    """
+    try:
+      return function (*args, **kwargs)
+    except pywintypes.com_error, (hresult_code, hresult_name, additional_info, parameter_in_error):
+      exception_string = [u"%08X - %s" % (signed_to_unsigned (hresult_code), hresult_name)]
+      if additional_info:
+        wcode, source_of_error, error_description, whlp_file, whlp_context, scode = additional_info
+        exception_string.append (u"  Error in: %s" % source_of_error)
+        exception_string.append (u"  %08X - %s" % (signed_to_unsigned (scode), (error_description or "").strip ()))
+      exception = winerror_map.get (hresult_code, default_exception)
+      raise exception (hresult_code, hresult_name, "\n".join (exception_string))
+    except pywintypes.error, (errno, errctx, errmsg):
+      exception = winerror_map.get (errno, default_exception)
+      raise exception (errno, errctx, errmsg)
+    except (WindowsError, IOError), err:
+      exception = winerror_map.get (err.errno, default_exception)
+      if exception:
+        raise exception (err.errno, "", err.strerror)
+  return _wrapped
+
+WINERROR_MAP = {
+  ERROR_MEMBER_NOT_IN_ALIAS : MemberNotInGroupError,
+  ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError
+}
+wrapped = wrapper (WINERROR_MAP, ActiveDirectoryError)
+
+
 DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_SERVER_BIND | adsicon.ADS_FAST_BIND
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
+
+def signed_to_unsigned (signed):
+  """Convert a (possibly signed) long to unsigned hex"""
+  unsigned, = struct.unpack ("L", struct.pack ("l", signed))
+  return unsigned
 
 #
 # Code contributed by Stian Søiland <stian@soiland.no>
@@ -628,90 +681,84 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _Members (SetBase):
+class _Members (set):
 
   def __init__ (self, group):
-    super (_Members, self).__init__ ()
-    self._elements = set (ad (i) for i in iter (group.com_object.members ()))
+    super (_Members, self).__init__ (ad (i) for i in iter (group.com_object.members ()))
     self._group = group
 
   def _effect (self, original):
-    print "New:", self
-    print "Original:", original
     group = self._group.com_object
     for member in (self - original):
       print "Adding", member
-      group.Add (member.AdsPath)
+      #~ group.Add (member.AdsPath)
+      wrapped (group.Add, member.AdsPath)
     for member in (original - self):
       print "Removing", member
-      group.Remove (member.AdsPath)
+      #~ group.Remove (member.AdsPath)
+      wrapped (group.Remove, member.AdsPath)
 
   def update (self, *others):
-    print "update", self, others
     original = set (self)
     for other in others:
-      self._elements.update (ad (o) for o in other)
+      super (_Members, self).update (ad (o) for o in other)
     self._effect (original)
 
+  def __ior__ (self, other):
+    return self.update (other)
+
   def intersection_update (self, *others):
-    print "intersection_update", self, others
     original = set (self)
     for other in others:
-      self._elements.intersection_update (ad (o) for o in others)
+      super (_Members, self).intersection_update (ad (o) for o in other)
     self._effect (original)
+
+  def __iand__ (self, other):
+    return self.intersection_update (self, other)
 
   def difference_update (self, *others):
     original = set (self)
     for other in others:
-      self._elements.difference_update (other)
+      self.difference_update (ad (o) for o in other)
     self._effect (original)
 
   def symmetric_difference_update (self, *others):
     original = set (self)
     for other in others:
-      self._elements.symmetric_difference_update (others)
+      self.symmetric_difference_update (ad (o) for o in others)
     self._effect (original)
 
   def add (self, elem):
     original = set (self)
-    result = self._elements.add (elem)
+    result = super (_Members, self).add (ad (elem))
     self._effect (original)
     return result
 
   def remove (self, elem):
     original = set (self)
-    result = self._elements.remove (elem)
+    result = super (_Members, self).remove (ad (elem))
     self._effect (original)
     return result
 
   def discard (self, elem):
     original = set (self)
-    result = self._elements.discard (elem)
+    result = super (_Members, self).discard (ad (elem))
     self._effect (original)
     return result
 
   def pop (self):
     original = set (self)
-    result = self._elements.pop ()
+    result = super (_Members, self).pop ()
     self._effect (original)
     return result
 
   def clear (self):
     original = set (self)
-    self._elements.clear ()
+    super (_Members, self).clear ()
     self._effect (original)
 
   def __contains__ (self, element):
-    return ad (element) in self._elements
-
-  def __iter__ (self):
-    return iter (self._elements)
-
-  def __len__ (self):
-    return len (self._elements)
-
-  def __repr__ (self):
-    return "<%s: %s>" % (self.__class__.__name__, self._elements)
+    return  super (_Members, self).__contains__ (ad (element))
 
 class Base (object):
   """Wrap an active-directory object for easier access
@@ -963,6 +1010,14 @@ class Base (object):
     obj.SetInfo ()
     return ad (obj)
 
+class WinNT (Base):
+
+  def __eq__ (self, other):
+    return self.com_object.ADsPath.lower () == other.com_object.ADsPath.lower ()
+
+  def __hash__ (self):
+    return hash (self.com_object.ADsPath.lower ())
+
 class Group (Base):
 
   def _get_x (self):
@@ -975,14 +1030,18 @@ class Group (Base):
   def _get_members (self):
     return _Members (self)
   def _set_members (self, members):
+    original = self.members
     new_members = set (ad (m) for m in members)
+    print "original", original
     print "new members", new_members
-    for member in (new_members - self.members):
+    print "new_members - original", new_members - original
+    for member in (new_members - original):
       print "Adding", member
-      #~ self.com_object.Add (member.AdsPath)
-    for member in (self.members - new_members):
+      self.com_object.Add (member.AdsPath)
+    print "original - new_members", original - new_members
+    for member in (original - new_members):
       print "Removing", member
-      #~ self.com_object.Remove (member.AdsPath)
+      self.com_object.Remove (member.AdsPath)
   members = property (_get_members, _set_members)
 
   def walk (self):
@@ -1003,8 +1062,14 @@ class Group (Base):
       for member in members:
         yield member
 
+class WinNTGroup (WinNT, Group):
+  pass
+
 _CLASS_MAP = {
   u"group" : Group,
+}
+_WINNT_CLASS_MAP = {
+  u"group" : WinNTGroup
 }
 def escaped_moniker (moniker):
   #
@@ -1044,7 +1109,11 @@ def ad (obj_or_path, username=None, password=None):
     obj = obj_or_path
     scheme, dn = matcher.match (obj_or_path.AdsPath).groups ()
 
-  return _CLASS_MAP.get (obj.Class.lower (), Base) (obj)
+  if scheme == "WinNT://":
+    class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
+  else:
+    class_map = _CLASS_MAP.get (obj.Class.lower (), Base)
+  return class_map (obj)
 AD_object = ad
 
 def AD (server=None, username=None, password=None, use_gc=False):
