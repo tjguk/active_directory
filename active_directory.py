@@ -628,10 +628,23 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _SetLike (SetBase):
+class _Members (SetBase):
 
-  def __init__ (self, initialiser):
-    self._elements = set (ad (i) for i in initialiser)
+  def __init__ (self, group):
+    super (_Members, self).__init__ ()
+    self._elements = set (ad (i) for i in iter (group.com_object.members ()))
+    self._group = group
+
+  def _effect (self, original):
+    print "New:", self
+    print "Original:", original
+    group = self._group.com_object
+    for member in (self - original):
+      print "Adding", member
+      group.Add (member.AdsPath)
+    for member in (original - self):
+      print "Removing", member
+      group.Remove (member.AdsPath)
 
   def update (self, *others):
     print "update", self, others
@@ -649,69 +662,44 @@ class _SetLike (SetBase):
 
   def difference_update (self, *others):
     original = set (self)
-    result = self._difference_update (*others)
+    for other in others:
+      self._elements.difference_update (other)
     self._effect (original)
-    return result
-
-  def _difference_update (self, *others):
-    raise NotImplementedError
 
   def symmetric_difference_update (self, *others):
     original = set (self)
-    result = self._symmetric_difference_update (*others)
+    for other in others:
+      self._elements.symmetric_difference_update (others)
     self._effect (original)
-    return result
-
-  def _symmetric_difference_update (self, *others):
-    raise NotImplementedError
 
   def add (self, elem):
     original = set (self)
-    result = self._add (elem)
+    result = self._elements.add (elem)
     self._effect (original)
     return result
-
-  def _add (self, elem):
-    raise NotImplementedError
 
   def remove (self, elem):
     original = set (self)
-    result = self._remove (elem)
+    result = self._elements.remove (elem)
     self._effect (original)
     return result
-
-  def _remove (self, elem):
-    raise NotImplementedError
 
   def discard (self, elem):
     original = set (self)
-    result = self._discard (elem)
+    result = self._elements.discard (elem)
     self._effect (original)
     return result
-
-  def _discard (self, elem):
-    raise NotImplementedError
 
   def pop (self):
     original = set (self)
-    result = self._pop ()
+    result = self._elements.pop ()
     self._effect (original)
     return result
-
-  def _pop (self, elem):
-    raise NotImplementedError
 
   def clear (self):
     original = set (self)
-    result = self._clear ()
+    self._elements.clear ()
     self._effect (original)
-    return result
-
-  def _clear (self, elem):
-    raise NotImplementedError
-
-  def _effect (self, original):
-    raise NotImplementedError
 
   def __contains__ (self, element):
     return ad (element) in self._elements
@@ -724,23 +712,6 @@ class _SetLike (SetBase):
 
   def __repr__ (self):
     return "<%s: %s>" % (self.__class__.__name__, self._elements)
-
-class _Members (_SetLike):
-
-  def __init__ (self, group):
-    super (_Members, self).__init__ (iter (group.com_object.members ()))
-    self._group = group
-
-  def _effect (self, original):
-    print "New:", self
-    print "Original:", original
-    group = self._group.com_object
-    for member in (self - original):
-      print "Adding", member
-      group.Add (member.AdsPath)
-    for member in (original - self):
-      print "Removing", member
-      group.Remove (member.AdsPath)
 
 class Base (object):
   """Wrap an active-directory object for easier access
