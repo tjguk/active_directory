@@ -337,7 +337,7 @@ class _Proxy (object):
     return s
 
   def _munge (cls, other):
-    if isinstance (other, _AD_object):
+    if isinstance (other, Base):
       return other.dn
 
     if isinstance (other, datetime.datetime):
