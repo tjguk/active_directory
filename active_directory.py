@@ -1012,11 +1012,11 @@ class Base (object):
 
   def new (self, object_class, sam_account_name, **kwargs):
     obj = wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
-    obj.Put ("sAMAccountName", sam_account_name)
-    obj.SetInfo ()
+    wrapped (obj.Put, "sAMAccountName", sam_account_name)
+    wrapped (obj.SetInfo)
     for name, value in kwargs.items ():
       obj.Put (name, value)
-    obj.SetInfo ()
+    wrapped (obj.SetInfo)
     return ad (obj)
 
 class WinNT (Base):
