@@ -1137,7 +1137,7 @@ def AD (server=None, username=None, password=None, use_gc=False):
   root_obj = wrapped (adsi.ADsOpenObject, root_moniker, username, password, DEFAULT_BIND_FLAGS)
   default_naming_context = root_obj.Get ("defaultNamingContext")
   moniker = scheme + default_naming_context
-  obj = wrapepd (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
+  obj = wrapped (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
   return ad (obj, username, password)
 
 #
