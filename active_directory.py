@@ -1113,7 +1113,7 @@ def ad (obj_or_path, username=None, password=None):
       moniker = dn
     else:
       moniker = escaped_moniker (dn)
-    obj = adsi.ADsOpenObject (scheme + moniker, username, password)
+    obj = wrapped (adsi.ADsOpenObject, scheme + moniker, username, password)
   else:
     obj = obj_or_path
     scheme, dn = matcher.match (obj_or_path.AdsPath).groups ()
@@ -1134,10 +1134,10 @@ def AD (server=None, username=None, password=None, use_gc=False):
     root_moniker = scheme + server + "/rootDSE"
   else:
     root_moniker = scheme + "rootDSE"
-  root_obj = adsi.ADsOpenObject (root_moniker, username, password, DEFAULT_BIND_FLAGS)
+  root_obj = wrapped (adsi.ADsOpenObject, root_moniker, username, password, DEFAULT_BIND_FLAGS)
   default_naming_context = root_obj.Get ("defaultNamingContext")
   moniker = scheme + default_naming_context
-  obj = adsi.ADsOpenObject (moniker, username, password, DEFAULT_BIND_FLAGS)
+  obj = wrapepd (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
   return ad (obj, username, password)
 
 #
