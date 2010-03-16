@@ -1022,7 +1022,7 @@ class Base (object):
   def new_group (self, name, type=GROUP_TYPES.GLOBAL, **kwargs):
     obj = wrapped (self.com_object.Create, "group", u"cn=%s" % name)
     wrapped (obj.Put, "sAMAccountName", name)
-    wrapepd (obj.Put, "groupType", type)
+    wrapped (obj.Put, "groupType", type)
     wrapped (obj.SetInfo)
     for name, value in kwargs.items ():
       wrapped (obj.Put, name, value)
