@@ -188,8 +188,8 @@ def i32(x):
 # by name, and by name-as-attribute. This means you can do, eg:
 #
 # print GROUP_TYPES[2]
-# print GROUP_TYPES['GLOBAL_GROUP']
-# print GROUP_TYPES.GLOBAL_GROUP
+# print GROUP_TYPES['GLOBAL']
+# print GROUP_TYPES.GLOBAL
 #
 # The first is useful when displaying the contents
 # of an AD object; the other two when you want a more
@@ -229,10 +229,10 @@ class Enum (object):
     return self._number_map.items ()
 
 GROUP_TYPES = Enum (
-  GLOBAL_GROUP = 0x00000002,
-  DOMAIN_LOCAL_GROUP = 0x00000004,
-  LOCAL_GROUP = 0x00000004,
-  UNIVERSAL_GROUP = 0x00000008,
+  GLOBAL = 0x00000002,
+  DOMAIN_LOCAL = 0x00000004,
+  LOCAL = 0x00000004,
+  UNIVERSAL = 0x00000008,
   SECURITY_ENABLED = 0x80000000
 )
 
@@ -252,42 +252,42 @@ AUTHENTICATION_TYPES = Enum (
 )
 
 SAM_ACCOUNT_TYPES = Enum (
-  SAM_DOMAIN_OBJECT = 0x0 ,
-  SAM_GROUP_OBJECT = 0x10000000 ,
-  SAM_NON_SECURITY_GROUP_OBJECT = 0x10000001 ,
-  SAM_ALIAS_OBJECT = 0x20000000 ,
-  SAM_NON_SECURITY_ALIAS_OBJECT = 0x20000001 ,
-  SAM_USER_OBJECT = 0x30000000 ,
-  SAM_NORMAL_USER_ACCOUNT = 0x30000000 ,
-  SAM_MACHINE_ACCOUNT = 0x30000001 ,
-  SAM_TRUST_ACCOUNT = 0x30000002 ,
-  SAM_APP_BASIC_GROUP = 0x40000000,
-  SAM_APP_QUERY_GROUP = 0x40000001 ,
-  SAM_ACCOUNT_TYPE_MAX = 0x7fffffff
+  DOMAIN_OBJECT = 0x0 ,
+  GROUP_OBJECT = 0x10000000 ,
+  NON_SECURITY_GROUP_OBJECT = 0x10000001 ,
+  ALIAS_OBJECT = 0x20000000 ,
+  NON_SECURITY_ALIAS_OBJECT = 0x20000001 ,
+  USER_OBJECT = 0x30000000 ,
+  NORMAL_USER_ACCOUNT = 0x30000000 ,
+  MACHINE_ACCOUNT = 0x30000001 ,
+  TRUST_ACCOUNT = 0x30000002 ,
+  APP_BASIC_GROUP = 0x40000000,
+  APP_QUERY_GROUP = 0x40000001 ,
+  ACCOUNT_TYPE_MAX = 0x7fffffff
 )
 
 USER_ACCOUNT_CONTROL = Enum (
-  ADS_UF_SCRIPT = 0x00000001,
-  ADS_UF_ACCOUNTDISABLE = 0x00000002,
-  ADS_UF_HOMEDIR_REQUIRED = 0x00000008,
-  ADS_UF_LOCKOUT = 0x00000010,
-  ADS_UF_PASSWD_NOTREQD = 0x00000020,
-  ADS_UF_PASSWD_CANT_CHANGE = 0x00000040,
-  ADS_UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x00000080,
-  ADS_UF_TEMP_DUPLICATE_ACCOUNT = 0x00000100,
-  ADS_UF_NORMAL_ACCOUNT = 0x00000200,
-  ADS_UF_INTERDOMAIN_TRUST_ACCOUNT = 0x00000800,
-  ADS_UF_WORKSTATION_TRUST_ACCOUNT = 0x00001000,
-  ADS_UF_SERVER_TRUST_ACCOUNT = 0x00002000,
-  ADS_UF_DONT_EXPIRE_PASSWD = 0x00010000,
-  ADS_UF_MNS_LOGON_ACCOUNT = 0x00020000,
-  ADS_UF_SMARTCARD_REQUIRED = 0x00040000,
-  ADS_UF_TRUSTED_FOR_DELEGATION = 0x00080000,
-  ADS_UF_NOT_DELEGATED = 0x00100000,
-  ADS_UF_USE_DES_KEY_ONLY = 0x00200000,
-  ADS_UF_DONT_REQUIRE_PREAUTH = 0x00400000,
-  ADS_UF_PASSWORD_EXPIRED = 0x00800000,
-  ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x01000000
+  SCRIPT = 0x00000001,
+  ACCOUNTDISABLE = 0x00000002,
+  HOMEDIR_REQUIRED = 0x00000008,
+  LOCKOUT = 0x00000010,
+  PASSWD_NOTREQD = 0x00000020,
+  PASSWD_CANT_CHANGE = 0x00000040,
+  ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x00000080,
+  TEMP_DUPLICATE_ACCOUNT = 0x00000100,
+  NORMAL_ACCOUNT = 0x00000200,
+  INTERDOMAIN_TRUST_ACCOUNT = 0x00000800,
+  WORKSTATION_TRUST_ACCOUNT = 0x00001000,
+  SERVER_TRUST_ACCOUNT = 0x00002000,
+  DONT_EXPIRE_PASSWD = 0x00010000,
+  MNS_LOGON_ACCOUNT = 0x00020000,
+  SMARTCARD_REQUIRED = 0x00040000,
+  TRUSTED_FOR_DELEGATION = 0x00080000,
+  NOT_DELEGATED = 0x00100000,
+  USE_DES_KEY_ONLY = 0x00200000,
+  DONT_REQUIRE_PREAUTH = 0x00400000,
+  PASSWORD_EXPIRED = 0x00800000,
+  TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x01000000
 )
 
 ADS_PROPERTY = Enum (
@@ -693,7 +693,7 @@ _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 class _Members (set):
 
   def __init__ (self, group):
-    super (_Members, self).__init__ (ad (i) for i in iter (group.com_object.members ()))
+    super (_Members, self).__init__ (ad (i) for i in iter (wrapped (group.com_object.members)))
     self._group = group
 
   def _effect (self, original):
@@ -835,7 +835,7 @@ class Base (object):
         attr = getattr (self.com_object, name)
       except AttributeError:
         try:
-          attr = self.com_object.Get (name)
+          attr = wrapped (self.com_object.Get, name)
         except:
           return super (Base, self).__getattr__ (name)
 
@@ -856,8 +856,8 @@ class Base (object):
     #  fields.
     #
     if name in self.properties:
-      self.com_object.Put (name, value)
-      self.com_object.SetInfo ()
+      wrapped (self.com_object.Put, name, value)
+      wrapped (self.com_object.SetInfo)
     else:
       super (Base, self).__setattr__ (name, value)
 
@@ -896,7 +896,7 @@ class Base (object):
   path = property (_get_path)
 
   def refresh (self):
-    self.com_object.GetInfo ()
+    wrapped (self.com_object.GetInfo)
 
   def walk (self):
     """Analogous to os.walk, traverse this AD subtree,
@@ -949,8 +949,8 @@ class Base (object):
       user.set (displayName = "Tim Golden", description="SQL Developer")
     """
     for k, v in kwds.items ():
-      self.com_object.Put (k, v)
-    self.com_object.SetInfo ()
+      wrapped (self.com_object.Put, k, v)
+    wrapped (self.com_object.SetInfo)
 
   def parent (self):
     """Find this object's parent"""
@@ -992,7 +992,7 @@ class Base (object):
     name = name or win32api.GetUserName ()
     filter = and_ (
       or_ (sAMAccountName=name, displayName=name, cn=name),
-      sAMAccountType=SAM_ACCOUNT_TYPES.SAM_USER_OBJECT
+      sAMAccountType=SAM_ACCOUNT_TYPES.USER_OBJECT
     )
     for user in self.search (filter):
       return user
@@ -1008,10 +1008,10 @@ class Base (object):
       yield ad (unicode (result['distinguishedName']), username=self.username, password=self.password)
 
   def get (self, object_class, relative_path):
-    return ad (self.com_object.GetObject (object_class, relative_path))
+    return ad (wrapped (self.com_object.GetObject, object_class, relative_path))
 
   def new (self, object_class, sam_account_name, **kwargs):
-    obj = self.com_object.Create (object_class, u"cn=%s" % sam_account_name)
+    obj = wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
     obj.Put ("sAMAccountName", sam_account_name)
     obj.SetInfo ()
     for name, value in kwargs.items ():
@@ -1046,11 +1046,11 @@ class Group (Base):
     print "new_members - original", new_members - original
     for member in (new_members - original):
       print "Adding", member
-      self.com_object.Add (member.AdsPath)
+      wrapped (self.com_object.Add, member.AdsPath)
     print "original - new_members", original - new_members
     for member in (original - new_members):
       print "Removing", member
-      self.com_object.Remove (member.AdsPath)
+      wrapped (self.com_object.Remove, member.AdsPath)
   members = property (_get_members, _set_members)
 
   def walk (self):
