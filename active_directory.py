@@ -86,6 +86,7 @@ __VERSION__ = "1.0rc1"
 import os, sys
 import datetime
 import re
+import struct
 
 import pythoncom
 import pywintypes
