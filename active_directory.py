@@ -1010,6 +1010,9 @@ class Base (object):
   def get (self, object_class, relative_path):
     return ad (wrapped (self.com_object.GetObject, object_class, relative_path))
 
+  def new_ou (self, name):
+    return ad (wrapped (self.com_object.Create, "organizationalUnit", u"cn=%s" % name))
+
   def new (self, object_class, sam_account_name, **kwargs):
     obj = wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
     wrapped (obj.Put, "sAMAccountName", sam_account_name)
