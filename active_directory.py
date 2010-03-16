@@ -1019,7 +1019,7 @@ class Base (object):
     wrapped (obj.SetInfo)
     return ad (obj)
 
-  def new_group (self, name, type=GROUP_TYPES.GLOBAL, **kwargs):
+  def new_group (self, name, type=GROUP_TYPES.DOMAIN_LOCAL | GROUP_TYPES.SECURITY_ENABLED, **kwargs):
     obj = wrapped (self.com_object.Create, "group", u"cn=%s" % name)
     wrapped (obj.Put, "sAMAccountName", name)
     wrapped (obj.Put, "groupType", type)
