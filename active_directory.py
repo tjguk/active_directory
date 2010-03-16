@@ -1019,6 +1019,16 @@ class Base (object):
     wrapped (obj.SetInfo)
     return ad (obj)
 
+  def new_group (self, name, type=GROUP_TYPES.GLOBAL, **kwargs):
+    obj = wrapped (self.com_object.Create, "group", u"cn=%s" % name)
+    wrapped (obj.Put, "sAMAccountName", name)
+    wrapepd (obj.Put, "groupType", type)
+    wrapped (obj.SetInfo)
+    for name, value in kwargs.items ():
+      wrapped (obj.Put, name, value)
+    wrapped (obj.SetInfo)
+    return ad (obj)
+
   def new (self, object_class, sam_account_name, **kwargs):
     obj = wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
     wrapped (obj.Put, "sAMAccountName", sam_account_name)
