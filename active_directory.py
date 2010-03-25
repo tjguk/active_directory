@@ -15,6 +15,37 @@ has only really been developed to aid searching, but since
 you can always access the original COM object, there's nothing
 to stop you using it for any AD operations.
 
+Key functions are:
+
+* :func:`connection`, :func:`query` and :func:`query_string` - these offer the
+  most raw functionality: slightly assisting an ADO query and returning a
+  Python dictionary of results::
+
+    import datetime
+    import active_directory as ad
+    #
+    # Find all objects created this month in creation order
+    #
+    this_month = datetime.date.today ().replace (day=1)
+    query_string = ad.query_string (
+      filter=ad.schema.whenCreated >= this_month,
+      attributes=["distinguishedName", "whenCreated"]
+    )
+    for new_object in ad.query (query_string, sort_on="whenCreated"):
+      print "%(distinguishedName)s => %(whenCreated)s" % new_object
+
+* :func:`ad` - this is the wrap-all function which transforms an LDAP: moniker
+  into a Python object which offers the existing properties and members in
+  Pythonic wrappers::
+
+    import active_directory as ad
+
+    me =
+
+* :func:`find_user`, :func:`find_group`, :func:`find_ou` - these are module-level
+  convenience functions which each return a Python object corresponding to the
+  user, group or ou of the name passed in
+
 * The active directory class (_AD_object or a subclass) will determine
   its properties and allow you to access them as instance properties::
 
@@ -112,10 +143,15 @@ class MemberAlreadyInGroupError (ActiveDirectoryError):
 class MemberNotInGroupError (ActiveDirectoryError):
   pass
 
+class BadPathnameError (ActiveDirectoryError):
+  pass
+
 ERROR_DS_NO_SUCH_OBJECT = 0x80072030
 ERROR_OBJECT_ALREADY_EXISTS = 0x80071392
 ERROR_MEMBER_NOT_IN_ALIAS = 0x80070561
 ERROR_MEMBER_IN_ALIAS = 0x80070562
+E_ADS_BAD_PATHNAME = 0x80005000
+ERROR_NOT_IMPLEMENTED = 0x80004001
 
 def wrapper (winerror_map, default_exception):
   u"""Used by each module to map specific windows error codes onto
@@ -148,12 +184,15 @@ def wrapper (winerror_map, default_exception):
 
 WINERROR_MAP = {
   ERROR_MEMBER_NOT_IN_ALIAS : MemberNotInGroupError,
-  ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError
+  ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError,
+  E_ADS_BAD_PATHNAME : BadPathnameError,
+  ERROR_NOT_IMPLEMENTED : NotImplementedError
 }
 wrapped = wrapper (WINERROR_MAP, ActiveDirectoryError)
 
-
 DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_SERVER_BIND | adsicon.ADS_FAST_BIND
+
+namespaces = None
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
@@ -346,8 +385,11 @@ class _Proxy (object):
     return s
 
   def _munge (cls, other):
-    if isinstance (other, Base):
+    if isinstance (other, ADBase):
       return other.dn
+
+    if isinstance (other, datetime.date):
+      other = datetime.datetime (*other.timetuple ()[:7])
 
     if isinstance (other, datetime.datetime):
       return datetime_to_ad_time (other)
@@ -372,8 +414,14 @@ class _Proxy (object):
   def __ne__ (self, other):
     return u"!%s=%s" % (self._name, self._munge (other))
 
+  def __gt__ (self, other):
+    raise NotImplementedError ("> Not implemented")
+
   def __ge__ (self, other):
     return u"%s>=%s" % (self._name, self._munge (other))
+
+  def __lt__ (self, other):
+    raise NotImplementedError ("< Not implemented")
 
   def __le__ (self, other):
     return u"%s<=%s" % (self._name, self._munge (other))
@@ -398,7 +446,7 @@ class _Attributes (object):
   def __getattr__ (self, attr):
     return self._proxies.setdefault (attr, _Proxy (attr))
 
-attr = _Attributes ()
+schema = _Attributes ()
 
 def connect (username=None, password=None):
   """Return an ADODB connection, optionally authenticated by
@@ -460,7 +508,7 @@ def query (query_string, connection=None, **command_properties):
   if connection is None:
     _connection.Close ()
 
-def query_string (base=None, filter="", attributes="*", scope="Subtree", range=None):
+def query_string (base=None, filter="", attributes=["ADsPath"], scope="Subtree", range=None):
   """Easy way to produce a valid AD query string, with meaninful defaults. This
   is the first parameter to the :func:`query` function so the following will
   yield the display name of every user in the domain::
@@ -468,21 +516,21 @@ def query_string (base=None, filter="", attributes="*", scope="Subtree", range=N
     import active_directory as ad
 
     for u in ad.query (
-      ad.query_string (filter="(objectClass=User)", attributes="displayName")
+      ad.query_string (filter="(objectClass=User)", attributes=["displayName"])
     ):
       print u['displayName']
 
   :param base: An LDAP:// moniker representing the starting point of the search [domain root]
   :param filter: An AD filter string to limit the search [no filter]
-  :param attributes: A comma-separated attributes string [* - ADsPath]
+  :param attributes: Iterable of attribute names [ADsPath]
   :param scope: One of - Subtree, Base, OneLevel [Subtree]
   :param range: Limit the number of returns of multivalued attributes [no range]
   """
   if base is None:
-    base = u"LDAP://" + GetObject (u"LDAP://rootDSE").Get (u"defaultNamingContext")
+    base = u"LDAP://" + wrapped (adsi.ADsGetObject, u"LDAP://rootDSE").Get (u"defaultNamingContext")
   if not filter.startswith ("("):
     filter = u"(%s)" % filter
-  segments = [u"<%s>" % base, filter, attributes]
+  segments = [u"<%s>" % base, filter, ",".join (attributes)]
   if range:
     segments += [u"Range=%s-%s" % range]
   segments += [scope]
@@ -500,9 +548,7 @@ def ad_time_to_datetime (ad_time):
   return BASE_TIME + delta
 
 def datetime_to_ad_time (datetime):
-  delta = datetime - BASE_TIME
-  n_microseconds = delta.microseconds + (1000000 * delta.seconds) + (1000000 * 60 * 60 * 24 * delta.days)
-  return 1 * n_microseconds
+  return datetime.strftime ("%y%m%d%H%M%SZ")
 
 def pytime_to_datetime (pytime):
   return datetime.datetime.fromtimestamp (int (pytime))
@@ -585,7 +631,6 @@ _PROPERTY_MAP = ddict (
   msExchMailboxGuid = convert_to_guid,
   objectGUID = convert_to_guid,
   objectSid = convert_to_sid,
-  Parent = convert_to_object,
   publicDelegates = convert_to_objects,
   publicDelegatesBL = convert_to_objects,
   pwdLastSet = convert_to_datetime,
@@ -673,7 +718,6 @@ _PROPERTY_MAP_IN = ddict (
   msExchMailboxGuid = convert_from_guid,
   objectGUID = convert_from_guid,
   objectSid = convert_from_sid,
-  Parent = convert_from_object,
   publicDelegates = convert_from_objects,
   publicDelegatesBL = convert_from_objects,
   pwdLastSet = convert_from_datetime,
@@ -769,10 +813,14 @@ class _Members (set):
   def __contains__ (self, element):
     return  super (_Members, self).__contains__ (ad (element))
 
-class Base (object):
+class ADBase (object):
   """Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
    either directly from a COM object or from an ADs Path.
+
+   Every IADs-derived object has at least the following attributes:
+
+   Name, Class, GUID, ADsPath, Parent, Schema
 
    eg,
 
@@ -780,20 +828,35 @@ class Base (object):
      users = active_directory.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
-  def __init__ (self, obj, username=None, password=None):
-    #
-    # Be careful here with attribute assignment;
-    # __setattr__ & __getattr__ will fall over
-    # each other if you aren't.
-    #
+  PROPERTIES = ["Name", "Class", "GUID", "ADsPath", "Parent", "Schema"]
+
+  def __init__ (self, obj, username=None, password=None, parse_schema=True):
     _set (self, "com_object", obj)
-    schema = GetObject (obj.Schema)
-    _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
-    self.is_container = getattr (schema, "Container", False)
+    schema = None
+    if parse_schema:
+      try:
+        schema = wrapped (adsi.ADsGetObject, wrapped (getattr, obj, "Schema", None))
+      except ActiveDirectoryError:
+        schema = None
+    if schema:
+      properties = set (self.PROPERTIES)
+      properties.update (wrapped (getattr, schema, "MandatoryProperties", []))
+      properties.update (wrapped (getattr, schema, "OptionalProperties", []))
+      _set (self, "properties", properties)
+      self.is_container = wrapped (getattr, schema, "Container", False)
+    else:
+      _set (self, "properties", set (self.PROPERTIES))
+      self.is_container = False
+
+    #
+    # At this point, __getattr__ & __setattr__ have enough
+    # to decide whether an attribute belongs to the delegated
+    # object or not.
+    #
     self.username = username
     self.password = password
     self.connection = connect (username=username, password=password)
-    self.dn = getattr (self.com_object, "distinguishedName", self.com_object.name)
+    self.dn = wrapped (getattr, self.com_object, "distinguishedName", None) or self.com_object.name
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
     self._path = obj.AdsPath
@@ -832,12 +895,12 @@ class Base (object):
     #
     if name not in self._delegate_map:
       try:
-        attr = getattr (self.com_object, name)
+        attr = wrapped (getattr, self.com_object, name)
       except AttributeError:
         try:
           attr = wrapped (self.com_object.Get, name)
         except:
-          return super (Base, self).__getattr__ (name)
+          return super (ADBase, self).__getattr__ (name)
 
       converter = self._property_map.get (name)
       if converter:
@@ -859,7 +922,7 @@ class Base (object):
       wrapped (self.com_object.Put, name, value)
       wrapped (self.com_object.SetInfo)
     else:
-      super (Base, self).__setattr__ (name, value)
+      super (ADBase, self).__setattr__ (name, value)
 
   def as_string (self):
     return self.path
@@ -868,7 +931,7 @@ class Base (object):
     return self.as_string ()
 
   def __repr__ (self):
-    return u"<%s: %s>" % (self.com_object.Class, self.dn)
+    return u"<%s: %s>" % (wrapped (getattr, self.com_object, "Class") or "AD", self.dn)
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -894,6 +957,10 @@ class Base (object):
   def _get_path (self):
     return self._path
   path = property (_get_path)
+
+  def _get_parent (self):
+    return ad (self.com_object.Parent)
+  parent = property (_get_parent)
 
   def refresh (self):
     wrapped (self.com_object.GetInfo)
@@ -951,10 +1018,6 @@ class Base (object):
     for k, v in kwds.items ():
       wrapped (self.com_object.Put, k, v)
     wrapped (self.com_object.SetInfo)
-
-  def parent (self):
-    """Find this object's parent"""
-    return ad (self.com_object.Parent)
 
   def _find (self, object_class):
     """Helper function to allow general-purpose searching for
@@ -1038,7 +1101,7 @@ class Base (object):
     wrapped (obj.SetInfo)
     return ad (obj)
 
-class WinNT (Base):
+class WinNT (ADBase):
 
   def __eq__ (self, other):
     return self.com_object.ADsPath.lower () == other.com_object.ADsPath.lower ()
@@ -1046,14 +1109,7 @@ class WinNT (Base):
   def __hash__ (self):
     return hash (self.com_object.ADsPath.lower ())
 
-class Group (Base):
-
-  def _get_x (self):
-    return getattr (self, "_x", "Unknown")
-  def _set_x (self, value):
-    print "_set_x", value
-    self._x = value
-  x = property (_get_x, _set_x)
+class Group (ADBase):
 
   def _get_members (self):
     return _Members (self)
@@ -1110,6 +1166,7 @@ def escaped_moniker (moniker):
   else:
     return moniker.replace ("/", "\\/")
 
+_namespace_names = None
 def ad (obj_or_path, username=None, password=None):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
@@ -1122,25 +1179,39 @@ def ad (obj_or_path, username=None, password=None):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  matcher = re.compile ("(LDAP://|GC://|WinNT://)?(.*)")
-  if isinstance (obj_or_path, Base):
+  #
+  # Special-case the "ADs:" moniker which isn't a child of IADs
+  #
+  if obj_or_path == "ADs:":
+    return namespaces ()
+
+  if isinstance (obj_or_path, ADBase):
     return obj_or_path
-  elif isinstance (obj_or_path, basestring):
-    scheme, dn = matcher.match (obj_or_path).groups ()
-    if scheme is None: scheme = "LDAP://"
-    if scheme == "WinNT://":
+
+  global _namespace_names
+  if _namespace_names is None:
+    _namespace_names = ["GC:"] + [ns.Name for ns in adsi.ADsGetObject ("ADs:")]
+  matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?(.*)")
+  if isinstance (obj_or_path, basestring):
+    scheme, slashes, dn = matcher.match (obj_or_path).groups ()
+    if scheme is None:
+        scheme, slashes = "LDAP:", "//"
+    if scheme == "WinNT:":
       moniker = dn
     else:
       moniker = escaped_moniker (dn)
-    obj = wrapped (adsi.ADsOpenObject, scheme + moniker, username, password)
+    obj = wrapped (adsi.ADsOpenObject, scheme + (slashes or "") + (moniker or ""), username, password)
   else:
     obj = obj_or_path
-    scheme, dn = matcher.match (obj_or_path.AdsPath).groups ()
+    scheme, slashes, dn = matcher.match (obj_or_path.AdsPath).groups ()
 
-  if scheme == "WinNT://":
+  if dn == "rootDSE":
+    return ADBase (obj, username, password, parse_schema=False)
+
+  if scheme == "WinNT:":
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
   else:
-    class_map = _CLASS_MAP.get (obj.Class.lower (), Base)
+    class_map = _CLASS_MAP.get (obj.Class.lower (), ADBase)
   return class_map (obj)
 AD_object = ad
 
@@ -1158,6 +1229,7 @@ def AD (server=None, username=None, password=None, use_gc=False):
   moniker = scheme + default_naming_context
   obj = wrapped (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
   return ad (obj, username, password)
+
 
 #
 # Convenience functions for common needs
@@ -1193,3 +1265,9 @@ def root (username=None, password=None):
   if _ad is None:
     _ad = AD (username=username, password=password)
   return _ad
+
+def namespaces ():
+  return ADBase (adsi.ADsGetObject ("ADs:"), parse_schema=False)
+
+def root_dse (username=None, password=None):
+  return ADBase (adsi.ADsOpenObject ("LDAP://rootDSE", username, password), username, password, parse_schema=None)

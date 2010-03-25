@@ -51,7 +51,7 @@
           <div class="body">
             
   <div class="section" id="module-active_directory">
-<h1><a title="" class="reference external" href="changes.html#module-active_directory"><tt class="xref docutils literal"><span class="pre">active_directory</span></tt></a> &#8211; Windows Active Directory Management<a class="headerlink" href="#module-active_directory" title="Permalink to this headline">¶</a></h1>
+<h1><a title="" class="reference external" href="#module-active_directory"><tt class="xref docutils literal"><span class="pre">active_directory</span></tt></a> &#8211; Windows Active Directory Management<a class="headerlink" href="#module-active_directory" title="Permalink to this headline">¶</a></h1>
 <dl class="docutils">
 <dt>active_directory - a lightweight wrapper around COM support</dt>
 <dd>for Microsoft&#8217;s Active Directory</dd>
@@ -95,7 +95,7 @@ to find a user, computer etc. Usage is illustrated below:</p>
   <span class="s">&quot;displayName=&#39;Tim Golden&#39; OR sAMAccountName=&#39;goldent&#39;&quot;</span>
 <span class="p">):</span>
   <span class="c">#</span>
-  <span class="c"># This search returns an AD_object</span>
+  <span class="c"># This search returns an _AD_object</span>
   <span class="c">#</span>
   <span class="k">print</span> <span class="n">user</span>
 
@@ -247,8 +247,16 @@ yield the display name of every user in the domain:</p>
 <h2>Main Entry Points<a class="headerlink" href="#main-entry-points" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
 <dt id="active_directory.ad">
-<tt class="descclassname">active_directory.</tt><tt class="descname">ad</tt><big>(</big><big>)</big><a class="headerlink" href="#active_directory.ad" title="Permalink to this definition">¶</a></dt>
-<dd>Do nothing</dd></dl>
+<tt class="descclassname">active_directory.</tt><tt class="descname">ad</tt><big>(</big><em>obj_or_path</em>, <em>username=None</em>, <em>password=None</em><big>)</big><a class="headerlink" href="#active_directory.ad" title="Permalink to this definition">¶</a></dt>
+<dd><p>Factory function for suitably-classed Active Directory
+objects from an incoming path or object. NB The interface
+is now  intended to be:</p>
+<blockquote>
+ad (obj_or_path)</blockquote>
+<p>&#64;param obj_or_path Either an COM AD object or the path to one. If
+the path doesn&#8217;t start with &#8220;<a class="reference external" href="LDAP://">LDAP://</a>&#8221; this will be prepended.</p>
+<p>&#64;return An _AD_object or a subclass proxying for the AD object</p>
+</dd></dl>
 
 <dl class="function">
 <dt id="active_directory.find_user">
