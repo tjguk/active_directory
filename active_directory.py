@@ -152,6 +152,7 @@ ERROR_MEMBER_NOT_IN_ALIAS = 0x80070561
 ERROR_MEMBER_IN_ALIAS = 0x80070562
 E_ADS_BAD_PATHNAME = 0x80005000
 ERROR_NOT_IMPLEMENTED = 0x80004001
+E_ADS_PROPERTY_NOT_FOUND = 0x8000500D
 
 def wrapper (winerror_map, default_exception):
   u"""Used by each module to map specific windows error codes onto
@@ -166,12 +167,16 @@ def wrapper (winerror_map, default_exception):
     try:
       return function (*args, **kwargs)
     except pywintypes.com_error, (hresult_code, hresult_name, additional_info, parameter_in_error):
-      exception_string = [u"%08X - %s" % (signed_to_unsigned (hresult_code), hresult_name)]
+      hresult_code = signed_to_unsigned (hresult_code)
+      exception_string = [u"%08X - %s" % (hresult_code, hresult_name)]
       if additional_info:
         wcode, source_of_error, error_description, whlp_file, whlp_context, scode = additional_info
+        scode = signed_to_unsigned (scode)
         exception_string.append (u"  Error in: %s" % source_of_error)
-        exception_string.append (u"  %08X - %s" % (signed_to_unsigned (scode), (error_description or "").strip ()))
-      exception = winerror_map.get (hresult_code, default_exception)
+        exception_string.append (u"  %08X - %s" % (scode, (error_description or "").strip ()))
+      else:
+        scode = None
+      exception = winerror_map.get (hresult_code, winerror_map.get (scode, default_exception))
       raise exception (hresult_code, hresult_name, "\n".join (exception_string))
     except pywintypes.error, (errno, errctx, errmsg):
       exception = winerror_map.get (errno, default_exception)
@@ -186,7 +191,8 @@ WINERROR_MAP = {
   ERROR_MEMBER_NOT_IN_ALIAS : MemberNotInGroupError,
   ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError,
   E_ADS_BAD_PATHNAME : BadPathnameError,
-  ERROR_NOT_IMPLEMENTED : NotImplementedError
+  ERROR_NOT_IMPLEMENTED : NotImplementedError,
+  E_ADS_PROPERTY_NOT_FOUND : AttributeError
 }
 wrapped = wrapper (WINERROR_MAP, ActiveDirectoryError)
 
@@ -580,6 +586,10 @@ def convert_to_objects (items):
       items = [items]
     return [ad (item) for item in items]
 
+def convert_to_boolean (item):
+  if item is None: return None
+  return item == "TRUE"
+
 def convert_to_datetime (item):
   if item is None: return None
   return ad_time_to_datetime (item)
@@ -619,6 +629,9 @@ def convert_to_flags (enum_name):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_to_flags
 
+def convert_to_breadcrumbs (item):
+  return " > ".join (item)
+
 def ddict (**kwargs):
   return kwargs
 
@@ -631,6 +644,8 @@ _PROPERTY_MAP = ddict (
   forceLogoff = convert_to_datetime,
   fSMORoleOwner = convert_to_object,
   groupType = convert_to_flags ("GROUP_TYPES"),
+  isGlobalCatalogReady = convert_to_boolean,
+  isSynchronized = convert_to_boolean,
   lastLogoff = convert_to_datetime,
   lastLogon = convert_to_datetime,
   lastLogonTimestamp = convert_to_datetime,
@@ -648,6 +663,7 @@ _PROPERTY_MAP = ddict (
   msExchMailboxGuid = convert_to_guid,
   mSMQDigests = convert_to_hex,
   mSMQSignCertificates = convert_to_hex,
+  objectClass = convert_to_breadcrumbs,
   objectGUID = convert_to_guid,
   objectSid = convert_to_sid,
   publicDelegates = convert_to_objects,
@@ -835,8 +851,12 @@ class _Members (set):
 
 class ADSimple (object):
 
+  _properties = []
+
   def __init__ (self, obj):
     _set (self, "com_object", obj)
+    _set (self, "properties", self._properties)
+    self.path = obj.ADsPath
 
   def __getattr__ (self, name):
     try:
@@ -844,7 +864,66 @@ class ADSimple (object):
     except AttributeError:
       return wrapped (self.com_object.GetEx, name)
 
-ROOT_DSE = ADSimple (wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
+  def as_string (self):
+    return self.path
+
+  def dump (self, ofile=sys.stdout):
+    def encode (text):
+      try:
+        return text.encode (sys.stdout.encoding)
+      except UnicodeEncodeError:
+        return repr (text)
+
+    ofile.write (self.as_string () + u"\n")
+    ofile.write (u"{\n")
+    for name in self.properties:
+      try:
+        value = getattr (self, name)
+      except:
+        value = u"Unable to get value"
+      if value:
+        if isinstance (name, unicode):
+          name = encode (name)
+        if isinstance (value, (tuple, list)):
+          value = u"[(%d items)]" % len (value)
+        if isinstance (value, unicode):
+          value = encode (value)
+          if len (value) > 60:
+            value = value[:25] + "..." + value[-25:]
+        try:
+          ofile.write ("  %s => %s\n" % (name, value))
+        except UnicodeEncodeError:
+          ofile.write ("  %s => %r\n" % (name, value))
+    ofile.write (u"}\n")
+
+
+class RootDSE (ADSimple):
+
+  _properties = """configurationNamingContext
+currentTime
+defaultNamingContext
+dnsHostName
+domainControllerFunctionality
+domainFunctionality
+dsServiceName
+forestFunctionality
+highestCommittedUSN
+isGlobalCatalogReady
+isSynchronized
+ldapServiceName
+namingContexts
+rootDomainNamingContext
+schemaNamingContext
+serverName
+subschemaSubentry
+supportedCapabilities
+supportedControl
+supportedLDAPPolicies
+supportedLDAPVersion
+supportedSASLMechanisms
+  """.split ()
+
+ROOT_DSE = RootDSE (wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
 
 class ADBase (ADSimple):
   """Wrap an active-directory object for easier access
@@ -887,7 +966,6 @@ class ADBase (ADSimple):
     self.dn = wrapped (getattr, self.com_object, "distinguishedName", None) or self.com_object.name
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
-    self._path = obj.AdsPath
 
   def __getitem__ (self, key):
     return getattr (self, key)
@@ -974,10 +1052,6 @@ class ADBase (ADSimple):
   def __iter__(self):
     return self.AD_iterator (self.com_object)
 
-  def _get_path (self):
-    return self._path
-  path = property (_get_path)
-
   def _get_parent (self):
     return ad (self.com_object.Parent)
   parent = property (_get_parent)
@@ -1016,35 +1090,6 @@ class ADBase (ADSimple):
     for container, containers, items in self.walk ():
       for item in items:
         yield item
-
-  def dump (self, ofile=sys.stdout):
-    def encode (text):
-      try:
-        return text.encode (sys.stdout.encoding)
-      except UnicodeEncodeError:
-        return repr (text)
-
-    ofile.write (self.as_string () + u"\n")
-    ofile.write (u"{\n")
-    for name in self.properties:
-      try:
-        value = getattr (self, name)
-      except:
-        value = u"Unable to get value"
-      if value:
-        if isinstance (name, unicode):
-          name = encode (name)
-        if isinstance (value, (tuple, list)):
-          value = u"[(%d items)]" % len (value)
-        if isinstance (value, unicode):
-          value = encode (value)
-          if len (value) > 60:
-            value = value[:25] + "..." + value[-25:]
-        try:
-          ofile.write ("  %s => %s\n" % (name, value))
-        except UnicodeEncodeError:
-          ofile.write ("  %s => %r\n" % (name, value))
-    ofile.write (u"}\n")
 
   def set (self, **kwds):
     """Set a number of values at one time. Should be
@@ -1108,9 +1153,10 @@ class ADBase (ADSimple):
 
   def search (self, *args, **kwargs):
     filter = and_ (*args, **kwargs)
-    query_string = "<%s>;(%s);ADsPath;Subtree" % (self.ADsPath, filter)
+    query_string = "<%s>;(%s);objectGuid;Subtree" % (self.ADsPath, filter)
     for result in query (query_string, connection=self.connection):
-      yield ad (result['ADsPath'], username=self.username, password=self.password)
+      guid = "".join (u"%02X" % ord (i) for i in result['objectGuid'])
+      yield ad ("LDAP://<GUID=%s>" % guid, username=self.username, password=self.password)
 
   def get (self, object_class, relative_path):
     return ad (wrapped (self.com_object.GetObject, object_class, relative_path))
@@ -1313,7 +1359,7 @@ def namespaces ():
   return ADBase (adsi.ADsGetObject ("ADs:"), parse_schema=False)
 
 def root_dse (username=None, password=None):
-  return ADBase (adsi.ADsOpenObject ("LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS), username, password, parse_schema=None)
+  return RootDSE (adsi.ADsOpenObject ("LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
 
 
 """
