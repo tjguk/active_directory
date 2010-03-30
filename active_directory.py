@@ -402,7 +402,7 @@ class _Proxy (object):
       other, suffix = other[:-1], other[-1]
     else:
       suffix = u""
-    other = cls.escaped_filter (other)
+    #~ other = cls.escaped_filter (other)
     return other + suffix
 
   def __init__ (self, name):
@@ -410,6 +410,9 @@ class _Proxy (object):
 
   def __unicode__ (self):
     return self._name
+
+  def __repr__ (self):
+    return "<_Proxy for %s>" % self._name
 
   def __eq__ (self, other):
     return u"%s=%s" % (self._name, self._munge (other))
