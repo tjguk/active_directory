@@ -36,7 +36,7 @@ Key functions are:
 
 * :func:`ad` - this is the wrap-all function which transforms an LDAP: moniker
   into a Python object which offers the existing properties and members in
-  Pythonic wrappers::
+  Pythonic wrappers. It will also convert an existing LDAP COM Object::
 
     import active_directory as ad
 
@@ -44,21 +44,25 @@ Key functions are:
 
 * :func:`find_user`, :func:`find_group`, :func:`find_ou` - these are module-level
   convenience functions which each return a Python object corresponding to the
-  user, group or ou of the name passed in
+  user, group or ou of the name passed in::
 
-* The active directory class (_AD_object or a subclass) will determine
+    import active_directory as ad
+
+    camden_users = (obj for obj in ad.find_ou ("Camden") if obj.Class == "User")
+
+* The active directory class (ADBase or a subclass) will determine
   its properties and allow you to access them as instance properties::
 
-     import active_directory
-     goldent = active_directory.find_user ("goldent")
-     print ad.displayName
+     import active_directory as ad
+     goldent = ad.find_user ("goldent")
+     print goldent.displayName
 
-* Any object returned by the AD object's operations is themselves
-  wrapped as AD objects so you get the same benefits::
+* Any object returned by the AD object's operations is itself
+  wrapped as an AD object so you get the same benefits::
 
-    import active_directory
-    users = active_directory.root ().child ("cn=users")
-    for user in users.search ("displayName='Tim*'"):
+    import active_directory as  ad
+    users = ad.root ().child ("cn=users")
+    for user in users.search (displayName='Tim*'):
       print user.displayName
 
 * To search the AD, there are two module-level general
@@ -68,49 +72,29 @@ Key functions are:
    import active_directory as ad
 
    for user in ad.search (
-     "objectClass='User'",
-     "displayName='Tim Golden' OR sAMAccountName='goldent'"
+     objectClass='User',
+     ad.or_ (displayName='Tim Golden', sAMAccountName='goldent')
    ):
      #
-     # This search returns an _AD_object
+     # This search returns an ADUser object
      #
      print user
-
-   query = \"""
-     SELECT Name, displayName
-     FROM 'LDAP://cn=users,DC=gb,DC=vo,DC=local'
-     WHERE displayName = 'John*'
-   \"""
-   for user in ad.search_ex (query):
-     #
-     # This search returns an ADO_object, which
-     #  is faster but doesn't give the convenience
-     #  of the AD methods etc.
-     #
-     print user
-
-   print ad.find_user ("goldent")
-
-   print ad.find_computer ("vogbp200")
-
-   users = ad.AD ().child ("cn=users")
-   for u in users.search ("displayName='Tim*'"):
-     print u
 
 * Typical usage will be::
 
-    import active_directory
+    import active_directory as ad
 
-    for computer in active_directory.search ("objectClass='computer'"):
+    for computer in ad.search (objectClass='computer'):
       print computer.displayName
 
-(c) Tim Golden <active-directory@timgolden.me.uk> October 2004
+(c) Tim Golden <mail@timgolden.me.uk> October 2004-2010
 Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
-Many thanks, obviously to Mark Hammond for creating
+Many thanks, obviously, to Mark Hammond for creating
 the pywin32 extensions without which this wouldn't
-have been possible.
+have been possible. (Or would at least have been much
+more work...)
 """
 __VERSION__ = "1.0rc1"
 
@@ -122,7 +106,7 @@ import struct
 import pythoncom
 import pywintypes
 import win32api
-from win32com.client import Dispatch, GetObject
+import win32com.client
 import win32security
 from win32com import adsi
 from win32com.adsi import adsicon
@@ -408,6 +392,7 @@ class _Proxy (object):
 
     if isinstance (other, datetime.date):
       other = datetime.datetime (*other.timetuple ()[:7])
+      # now drop through to datetime converter below
 
     if isinstance (other, datetime.datetime):
       return datetime_to_ad_time (other)
@@ -470,7 +455,7 @@ def connect (username=None, password=None):
   """Return an ADODB connection, optionally authenticated by
   username & password.
   """
-  connection = Dispatch ("ADODB.Connection")
+  connection = win32com.client.Dispatch ("ADODB.Connection")
   connection.Provider = "ADsDSOObject"
   if username:
     connection.Open ("Active Directory Provider", username, password)
@@ -507,7 +492,7 @@ def query (query_string, connection=None, **command_properties):
   :param command_properties: A collection of keywords which will be passed through to the
                              ADO query as Properties.
   """
-  command = Dispatch ("ADODB.Command")
+  command = win32com.client.Dispatch ("ADODB.Command")
   _connection = connection or connect ()
   command.ActiveConnection = _connection
 
@@ -545,7 +530,7 @@ def query_string (base=None, filter="", attributes=["ADsPath"], scope="Subtree",
   :param range: Limit the number of returns of multivalued attributes [no range]
   """
   if base is None:
-    base = u"LDAP://" + ROOT_DSE.Get (u"defaultNamingContext")
+    base = u"LDAP://" + wrapped (adsi.ADsGetObject, "LDAP://rootDSE").Get (u"defaultNamingContext")
   if not filter.startswith ("("):
     filter = u"(%s)" % filter
   segments = [u"<%s>" % base, filter, ",".join (attributes)]
@@ -923,7 +908,7 @@ supportedLDAPVersion
 supportedSASLMechanisms
   """.split ()
 
-ROOT_DSE = RootDSE (wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
+#~ ROOT_DSE = RootDSE (wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
 
 class ADBase (ADSimple):
   """Wrap an active-directory object for easier access
@@ -1267,12 +1252,6 @@ def ad (obj_or_path, username=None, password=None):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  #
-  # Special-case the "ADs:" moniker which isn't a child of IADs
-  #
-  if obj_or_path == "ADs:":
-    return namespaces ()
-
   if isinstance (obj_or_path, ADBase):
     return obj_or_path
 
@@ -1281,6 +1260,12 @@ def ad (obj_or_path, username=None, password=None):
     _namespace_names = ["GC:"] + [ns.Name for ns in adsi.ADsGetObject ("ADs:")]
   matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?([A-za-z0-9-_]+/)?(.*)")
   if isinstance (obj_or_path, basestring):
+    #
+    # Special-case the "ADs:" moniker which isn't a child of IADs
+    #
+    if obj_or_path == "ADs:":
+      return namespaces ()
+
     scheme, slashes, server, dn = matcher.match (obj_or_path).groups ()
     if scheme is None:
         scheme, slashes = "LDAP:", "//"
