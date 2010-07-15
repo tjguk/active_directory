@@ -108,14 +108,10 @@ import pywintypes
 import win32api
 import win32com.client
 import win32security
-from win32com import adsi
-from win32com.adsi import adsicon
+#~ from win32com import adsi
+#~ from win32com.adsi import adsicon
 
-try:
-  import collections
-  SetBase = collections.MutableSet
-except (ImportError, AttributeError):
-  SetBase = object
+ADsGetObject = win32com.client.GetObject
 
 class ActiveDirectoryError (Exception):
   u"""Base class for all AD Exceptions"""
@@ -186,28 +182,13 @@ def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
 
 def signed_to_unsigned (signed):
-  u"""Convert a (possibly signed) long to unsigned hex"""
   unsigned, = struct.unpack ("L", struct.pack ("l", signed))
   return unsigned
 
-#
-# Code contributed by Stian Søiland <stian@soiland.no>
-#
-def i32(x):
-  u"""Converts a long (for instance 0x80005000L) to a signed 32-bit-int.
+def unsigned_to_signed (unsigned):
+  signed, = struct.unpack ("l", struct.pack ("L", unsigned))
+  return signed
 
-  Python2.4 will convert numbers >= 0x80005000 to large numbers
-  instead of negative ints.    This is not what we want for
-  typical win32 constants.
-
-  Usage:
-      >>> i32(0x80005000L)
-      -2147363168
-  """
-  # x > 0x80000000L should be negative, such that:
-  # i32(0x80000000L) -> -2147483648L
-  # i32(0x80000001L) -> -2147483647L     etc.
-  return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
 
 #
 # For ease of presentation, ms-style constant lists are
@@ -228,14 +209,14 @@ class Enum (object):
     self._name_map = {}
     self._number_map = {}
     for k, v in kwargs.items ():
-      self._name_map[k] = i32 (v)
-      self._number_map[i32 (v)] = k
+      self._name_map[k] = unsigned_to_signed (v)
+      self._number_map[unsigned_to_signed (v)] = k
 
   def __getitem__ (self, item):
     try:
       return self._name_map[item]
     except KeyError:
-      return self._number_map[i32 (item)]
+      return self._number_map[unsigned_to_signed (item)]
 
   def __getattr__ (self, attr):
     try:
@@ -277,18 +258,18 @@ GROUP_TYPES = Enum (
 )
 
 AUTHENTICATION_TYPES = Enum (
-  SECURE_AUTHENTICATION = i32 (0x01),
-  USE_ENCRYPTION = i32 (0x02),
-  USE_SSL = i32 (0x02),
-  READONLY_SERVER = i32 (0x04),
-  PROMPT_CREDENTIALS = i32 (0x08),
-  NO_AUTHENTICATION = i32 (0x10),
-  FAST_BIND = i32 (0x20),
-  USE_SIGNING = i32 (0x40),
-  USE_SEALING = i32 (0x80),
-  USE_DELEGATION = i32 (0x100),
-  SERVER_BIND = i32 (0x200),
-  AUTH_RESERVED = i32 (0x800000000)
+  SECURE_AUTHENTICATION = 0x01,
+  USE_ENCRYPTION = 0x02,
+  USE_SSL = 0x02,
+  READONLY_SERVER = 0x04,
+  PROMPT_CREDENTIALS = 0x08,
+  NO_AUTHENTICATION = 0x10,
+  FAST_BIND = 0x20,
+  USE_SIGNING = 0x40,
+  USE_SEALING = 0x80,
+  USE_DELEGATION = 0x100,
+  SERVER_BIND = 0x200,
+  AUTH_RESERVED = 0x800000000
 )
 
 SAM_ACCOUNT_TYPES = Enum (
@@ -536,7 +517,7 @@ def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtre
   :param range: Limit the number of returns of multivalued attributes [no range]
   """
   if base is None:
-    base = u"LDAP://" + wrapped (adsi.ADsGetObject, "LDAP://rootDSE").Get (u"defaultNamingContext")
+    base = u"LDAP://" + wrapped (ADsGetObject, "LDAP://rootDSE").Get (u"defaultNamingContext")
   if not filter.startswith ("("):
     filter = u"(%s)" % filter
   segments = [u"<%s>" % base, filter, ",".join (attributes)]
@@ -551,7 +532,7 @@ def search_ex (query_string=u"", username=None, password=None):
 
 BASE_TIME = datetime.datetime (1601, 1, 1)
 def ad_time_to_datetime (ad_time):
-  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
+  hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
   ns100 = (hi << 32) + lo
   delta = datetime.timedelta (microseconds=ns100 / 10)
   return BASE_TIME + delta
@@ -615,7 +596,7 @@ def convert_to_enum (name):
 def convert_to_flags (enum_name):
   def _convert_to_flags (item):
     if item is None: return None
-    item = i32 (item)
+    item = unsigned_to_signed (item)
     enum = ENUMS[enum_name]
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_to_flags
@@ -716,7 +697,7 @@ def convert_from_enum (name):
 def convert_from_flags (enum_name):
   def _convert_from_flags (item):
     if item is None: return None
-    item = i32 (item)
+    item = unsigned_to_signed (item)
     enum = ENUMS[enum_name]
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
@@ -914,7 +895,7 @@ supportedLDAPVersion
 supportedSASLMechanisms
   """.split ()
 
-#~ ROOT_DSE = RootDSE (wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
+#~ ROOT_DSE = RootDSE (wrapped (ADsGetObject, "LDAP://rootDSE"))
 
 class ADBase (ADSimple):
   u"""Wrap an active-directory object for easier access
@@ -939,7 +920,7 @@ class ADBase (ADSimple):
     schema = None
     if parse_schema:
       try:
-        schema = wrapped (adsi.ADsGetObject, wrapped (getattr, obj, u"Schema", None))
+        schema = wrapped (ADsGetObject, wrapped (getattr, obj, u"Schema", None))
       except ActiveDirectoryError:
         schema = None
     properties, is_container = self._schema (schema)
@@ -1263,7 +1244,7 @@ def ad (obj_or_path, username=None, password=None):
 
   global _namespace_names
   if _namespace_names is None:
-    _namespace_names = [u"GC:"] + [ns.Name for ns in adsi.ADsGetObject (u"ADs:")]
+    _namespace_names = [u"GC:"] + [ns.Name for ns in ADsGetObject (u"ADs:")]
   matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?([A-za-z0-9-_]+/)?(.*)")
   if isinstance (obj_or_path, basestring):
     #
@@ -1347,7 +1328,7 @@ def root (username=None, password=None):
   return _ad
 
 def namespaces ():
-  return ADBase (adsi.ADsGetObject (u"ADs:"), parse_schema=False)
+  return ADBase (ADsGetObject (u"ADs:"), parse_schema=False)
 
 def root_dse (username=None, password=None):
   return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
