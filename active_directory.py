@@ -93,10 +93,8 @@ except NameError:
   from sets import Set as set
 
 import os, sys
-try:
-  import datetime
-except ImportError:
-  datetime = None
+import datetime
+import struct
 
 import win32api
 from win32com.client import Dispatch, GetObject
@@ -105,24 +103,11 @@ import win32security
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
 
-#
-# Code contributed by Stian Søiland <stian@soiland.no>
-#
-def i32(x):
-  """Converts a long (for instance 0x80005000L) to a signed 32-bit-int.
+def signed_to_unsigned (signed):
+  return struct.unpack ("L", struct.pack ("l", signed))[0]
 
-  Python2.4 will convert numbers >= 0x80005000 to large numbers
-  instead of negative ints.    This is not what we want for
-  typical win32 constants.
-
-  Usage:
-      >>> i32(0x80005000L)
-      -2147363168
-  """
-  # x > 0x80000000L should be negative, such that:
-  # i32(0x80000000L) -> -2147483648L
-  # i32(0x80000001L) -> -2147483647L     etc.
-  return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
+def unsigned_to_signed (unsigned):
+  return struct.unpack ("l", struct.pack ("L", unsigned))[0]
 
 #
 # For ease of presentation, ms-style constant lists are
@@ -143,14 +128,14 @@ class Enum (object):
     self._name_map = {}
     self._number_map = {}
     for k, v in kwargs.items ():
-      self._name_map[k] = i32 (v)
-      self._number_map[i32 (v)] = k
+      self._name_map[k] = unsigned_to_signed (v)
+      self._number_map[unsigned_to_signed (v)] = k
 
   def __getitem__ (self, item):
     try:
       return self._name_map[item]
     except KeyError:
-      return self._number_map[i32 (item)]
+      return self._number_map[unsigned_to_signed (item)]
 
   def __getattr__ (self, attr):
     try:
@@ -173,18 +158,18 @@ GROUP_TYPES = Enum (
 )
 
 AUTHENTICATION_TYPES = Enum (
-  SECURE_AUTHENTICATION = i32 (0x01),
-  USE_ENCRYPTION = i32 (0x02),
-  USE_SSL = i32 (0x02),
-  READONLY_SERVER = i32 (0x04),
-  PROMPT_CREDENTIALS = i32 (0x08),
-  NO_AUTHENTICATION = i32 (0x10),
-  FAST_BIND = i32 (0x20),
-  USE_SIGNING = i32 (0x40),
-  USE_SEALING = i32 (0x80),
-  USE_DELEGATION = i32 (0x100),
-  SERVER_BIND = i32 (0x200),
-  AUTH_RESERVED = i32 (0x800000000)
+  SECURE_AUTHENTICATION = 0x01,
+  USE_ENCRYPTION = 0x02,
+  USE_SSL = 0x02,
+  READONLY_SERVER = 0x04,
+  PROMPT_CREDENTIALS = 0x08,
+  NO_AUTHENTICATION = 0x10,
+  FAST_BIND = 0x20,
+  USE_SIGNING = 0x40,
+  USE_SEALING = 0x80,
+  USE_DELEGATION = 0x100,
+  SERVER_BIND = 0x200,
+  AUTH_RESERVED = 0x80000000
 )
 
 SAM_ACCOUNT_TYPES = Enum (
@@ -247,7 +232,7 @@ def _and (*args):
 
     _and ("x=1", "y=2") => "(x=1 AND y=2)"
   """
-  return u" AND ".join (args)
+  return " AND ".join (args)
 
 def _or (*args):
   """Helper function to return its parameters or-ed
@@ -257,7 +242,7 @@ def _or (*args):
 
     _or ("x=1", _and ("a=2", "b=3")) => "(x=1 OR (a=2 AND b=3))"
   """
-  return u" OR ".join (args)
+  return " OR ".join (args)
 
 def _add_path (root_path, relative_path):
   """Add another level to an LDAP path.
@@ -266,7 +251,7 @@ def _add_path (root_path, relative_path):
     _add_path ('LDAP://DC=gb,DC=vo,DC=local', "cn=Users")
       => "LDAP://cn=users,DC=gb,DC=vo,DC=local"
   """
-  protocol = u"LDAP://"
+  protocol = "LDAP://"
   if relative_path.startswith (protocol):
     return relative_path
 
@@ -304,11 +289,11 @@ class ADO_record (object):
     """Return a readable presentation of the entire record"""
     s = []
     s.append (repr (self))
-    s.append (u"{")
+    s.append ("{")
     for name, item in self.fields.items ():
-      s.append (u"  %s = %s" % (name, item))
+      s.append ("  %s = %s" % (name, item))
     s.append ("}")
-    return u"\n".join (s)
+    return "\n".join (s)
 
 def query (query_string, **command_properties):
   """Auxiliary function to serve as a quick-and-dirty
@@ -338,7 +323,7 @@ def query (query_string, **command_properties):
 if datetime:
   BASE_TIME = datetime.datetime (1601, 1, 1)
   def ad_time_to_datetime (ad_time):
-    hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
+    hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
     ns100 = (hi << 32) + lo
     delta = datetime.timedelta (microseconds=ns100 / 10)
     return BASE_TIME + delta
@@ -397,11 +382,11 @@ def convert_to_sid (item):
 def convert_to_guid (item):
   if item is None: return None
   guid = convert_to_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+  return "{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
 
 def convert_to_hex (item):
   if item is None: return None
-  return "".join ([u"%02x" % ord (i) for i in item])
+  return "".join (["%02x" % ord (i) for i in item])
 
 def convert_to_enum (name):
   def _convert_to_enum (item):
@@ -412,7 +397,7 @@ def convert_to_enum (name):
 def convert_to_flags (enum_name):
   def _convert_to_flags (item):
     if item is None: return None
-    item = i32 (item)
+    item = unsigned_to_signed (item)
     enum = ENUMS[enum_name]
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_to_flags
@@ -488,11 +473,11 @@ def convert_from_sid (item):
 def convert_from_guid (item):
   if item is None: return None
   guid = convert_from_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+  return "{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
 
 def convert_from_hex (item):
   if item is None: return None
-  return "".join ([u"%x" % ord (i) for i in item])
+  return "".join (["%x" % ord (i) for i in item])
 
 def convert_from_enum (name):
   def _convert_from_enum (item):
@@ -503,7 +488,7 @@ def convert_from_enum (name):
 def convert_from_flags (enum_name):
   def _convert_from_flags (item):
     if item is None: return None
-    item = i32 (item)
+    item = unsigned_to_signed (item)
     enum = ENUMS[enum_name]
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
@@ -648,7 +633,7 @@ class _AD_object (object):
     return self.as_string ()
 
   def __repr__ (self):
-    return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
+    return "<%s: %s>" % (self.__class__.__name__, self.as_string ())
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -691,13 +676,13 @@ class _AD_object (object):
         yield item
 
   def dump (self, ofile=sys.stdout):
-    ofile.write (self.as_string () + u"\n")
-    ofile.write (u"{\n")
+    ofile.write (self.as_string () + "\n")
+    ofile.write ("{\n")
     for name in self.properties:
       try:
         value = getattr (self, name)
       except:
-        value = u"Unable to get value"
+        value = "Unable to get value"
       if value:
         try:
           if isinstance (name, unicode):
@@ -708,7 +693,7 @@ class _AD_object (object):
         except UnicodeEncodeError:
           ofile.write ("  %s => %s\n" % (name, repr (value)))
 
-    ofile.write (u"}\n")
+    ofile.write ("}\n")
 
   def set (self, **kwds):
     """Set a number of values at one time. Should be
@@ -772,7 +757,7 @@ class _AD_object (object):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    for user in self.search (u"sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory=u'Person', objectClass=u'User'):
+    for user in self.search ("sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory='Person', objectClass='User'):
       return user
 
   def find_ou (self, name):
@@ -792,18 +777,18 @@ class _AD_object (object):
     Pythonic types.
     """
     sql_string = []
-    sql_string.append (u"SELECT *")
-    sql_string.append (u"FROM '%s'" % self.path ())
+    sql_string.append ("SELECT *")
+    sql_string.append ("FROM '%s'" % self.path ())
     clauses = []
     if args:
       clauses.append (_and (*args))
     if kwargs:
-      clauses.append (_and (*[u"%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
+      clauses.append (_and (*["%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
     where_clause = _and (*clauses)
     if where_clause:
-      sql_string.append (u"WHERE %s" % where_clause)
+      sql_string.append ("WHERE %s" % where_clause)
 
-    for result in query (u"\n".join (sql_string), Page_size=50):
+    for result in query ("\n".join (sql_string), Page_size=50):
       yield AD_object (result.ADsPath.Value)
 
 class _AD_user (_AD_object):
@@ -824,8 +809,8 @@ class _AD_group (_AD_object):
     group, groups, users
     """
     members = self.member or []
-    groups = [m for m in members if m.Class == u'group']
-    users = [m for m in members if m.Class == u'user']
+    groups = [m for m in members if m.Class == 'group']
+    users = [m for m in members if m.Class == 'user']
     yield (self, groups, users)
     for group in groups:
       for result in group.walk ():
@@ -843,12 +828,12 @@ class _AD_public_folder (_AD_object):
   pass
 
 _CLASS_MAP = {
-  u"user" : _AD_user,
-  u"computer" : _AD_computer,
-  u"group" : _AD_group,
-  u"organizationalUnit" : _AD_organisational_unit,
-  u"domainDNS" : _AD_domain_dns,
-  u"publicFolder" : _AD_public_folder
+  "user" : _AD_user,
+  "computer" : _AD_computer,
+  "group" : _AD_group,
+  "organizationalUnit" : _AD_organisational_unit,
+  "domainDNS" : _AD_domain_dns,
+  "publicFolder" : _AD_public_folder
 }
 _CACHE = {}
 def cached_AD_object (path, obj):
@@ -893,7 +878,7 @@ def AD_object (obj_or_path=None, path=""):
   if path and not obj_or_path:
     obj_or_path = path
   try:
-    if isinstance (obj_or_path, (type (""), type (u""))):
+    if isinstance (obj_or_path, (type (""), type (""))):
       moniker = obj_or_path.lower ()
       if obj_or_path.upper ().startswith (scheme):
         moniker = obj_or_path[len (scheme):]
