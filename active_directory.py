@@ -860,32 +860,29 @@ class ADSimple (object):
 
   def dump (self, ofile=sys.stdout):
     def encode (text):
-      try:
-        return text.encode (sys.stdout.encoding)
-      except UnicodeEncodeError:
-        return repr (text)
+      if isinstance (text, unicode):
+        return unicode (text).encode (sys.stdout.encoding, "backslashreplace")
+      else:
+        return text
 
     ofile.write (self.as_string () + u"\n")
-    ofile.write (u"{\n")
+    ofile.write ("{\n")
     for name in self.properties:
       try:
         value = getattr (self, name)
       except:
-        value = u"Unable to get value"
+        value = "Unable to get value"
       if value:
         if isinstance (name, unicode):
           name = encode (name)
         if isinstance (value, (tuple, list)):
-          value = u"[(%d items)]" % len (value)
+          value = "[(%d items)]" % len (value)
         if isinstance (value, unicode):
           value = encode (value)
           if len (value) > 60:
-            value = value[:25] + u"..." + value[-25:]
-        try:
-          ofile.write (u"  %s => %s\n" % (name, value))
-        except UnicodeEncodeError:
-          ofile.write (u"  %s => %r\n" % (name, value))
-    ofile.write (u"}\n")
+            value = value[:25] + "..." + value[-25:]
+        ofile.write ("  %s => %s\n" % (encode (name), encode (value)))
+    ofile.write ("}\n")
 
 
 class RootDSE (ADSimple):
