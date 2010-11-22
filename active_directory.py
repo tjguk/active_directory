@@ -518,7 +518,7 @@ def query (query_string, connection=None, **command_properties):
     _connection.Close ()
 
 def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtree", range=None):
-  u"""Easy way to produce a valid AD query string, with meaninful defaults. This
+  u"""Easy way to produce a valid AD query string, with meaningful defaults. This
   is the first parameter to the :func:`query` function so the following will
   yield the display name of every user in the domain::
 
