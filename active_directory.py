@@ -493,8 +493,8 @@ def query (query_string, connection=None, **command_properties):
   :param query_string: An AD query string in any acceptable format. See :func:`query_string`
                        for an easy way of producing this
   :param connection: (optional) An ADODB.Connection, as provided by :func:`connect`. If
-                     this is supplied it will be used and not closed. If it is not supplied, a default connection
-                     will be created, used and then closed.
+                     this is supplied it will be used and not closed. If it is not supplied,
+                     a default connection will be created, used and then closed.
   :param command_properties: A collection of keywords which will be passed through to the
                              ADO query as Properties.
   """
@@ -524,9 +524,8 @@ def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtre
 
     import active_directory as ad
 
-    for u in ad.query (
-      ad.query_string (filter="(objectClass=User)", attributes=["displayName"])
-    ):
+    qs = ad.query_string (filter="(objectClass=User)", attributes=["displayName"])
+    for u in ad.query (qs):
       print u['displayName']
 
   :param base: An LDAP:// moniker representing the starting point of the search [domain root]
@@ -920,7 +919,10 @@ class ADSimple (object):
     try:
       return wrapped (getattr, self.com_object, name)
     except AttributeError:
-      return wrapped (self.com_object.GetEx, name)
+      try:
+        return wrapped (self.com_object.GetEx, name)
+      except NotImplementedError:
+        raise AttributeError
 
   def as_string (self):
     return self.path
@@ -991,8 +993,8 @@ class ADBase (ADSimple):
 
    eg,
 
-     import active_directory
-     users = active_directory.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
+     import active_directory as ad
+     users = ad.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
   _default_properties = [u"Name", u"Class", u"GUID", u"ADsPath", u"Parent", u"Schema"]
