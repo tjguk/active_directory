@@ -549,6 +549,69 @@ def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
   return query (query_string, connection=connect (username, password))
 
+  """
+  Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
+  2.5.5.1	DN String	DN String
+  2.5.5.2	Object ID	CaseIgnore String
+  2.5.5.3	Case Sensitive String	CaseExact String
+  2.5.5.4	Case Ignored String	CaseIgnore String
+  2.5.5.5	Print Case String	Printable String
+  2.5.5.6	Numeric String	Numeric String
+  2.5.5.7	OR Name DNWithOctetString	Not Supported
+  2.5.5.8	Boolean	Boolean
+  2.5.5.9	Integer	Integer
+  2.5.5.10	Octet String	Octet String
+  2.5.5.11	Time	UTC Time
+  2.5.5.12	Unicode	Case Ignore String
+  2.5.5.13	Address	Not Supported
+  2.5.5.14	Distname-Address
+  2.5.5.15	NT Security Descriptor	IADsSecurityDescriptor
+  2.5.5.16	Large Integer	IADsLargeInteger
+  2.5.5.17	SID	Octet String
+  """
+  TYPE_CONVERTERS = {
+    "2.5.5.1" : unicode,
+    "2.5.5.2" : unicode,
+    "2.5.5.3" : unicode,
+    "2.5.5.4" : unicode,
+    "2.5.5.5" : unicode,
+    "2.5.5.6" : unicode,
+    "2.5.5.8" : unicode,
+    "2.5.5.8" : bool,
+    "2.5.5.9" : int,
+    "2.5.5.10" : unicode,
+    "2.5.5.11" : ad_time_to_datetime,
+    "2.5.5.12" : unicode,
+    "2.5.5.13" : None,
+    "2.5.5.14" : None,
+    "2.5.5.15" : convert_to_sid,
+    "2.5.5.16" : int,
+    "2.5.5.17" : None
+  }
+
+converters = {}
+def register_converter (attribute_name, from_ad=None, to_ad=None):
+  converters[attribute_name] = (from_ad or (lambda x : x), to_ad or (lambda x : x))
+
+_attribute_cache = {}
+def attribute (attribute_name):
+  if attribute_name not in _attribute_cache:
+    schemaNamingContext, = root_dse ().schemaNamingContext
+    qs = query_string (
+      base="LDAP://%s" % schemaNamingContext,
+      filter="ldapDisplayName=%s" % attribute_name
+    )
+    _attribute_cache[attribute_name] = attribute = ad (query (qs).next ()['ADsPath'])
+
+  if attribute_name not in converters:
+    register_converter (
+      attribute_name,
+      TYPE_CONVERTERS.get (attribute.attributeSyntax) or (lambda x : x),
+      TYPE_CONVERTERS.get (attribute.attributeSyntax) or (lambda x : x)
+    )
+
+  return _attribute_cache[attribute_name]
+
 BASE_TIME = datetime.datetime (1601, 1, 1)
 def ad_time_to_datetime (ad_time):
   hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
@@ -623,6 +686,50 @@ def convert_to_flags (enum_name):
 def convert_to_breadcrumbs (item):
   return u" > ".join (item)
 
+def convert_from_object (item):
+  if item is None: return None
+  return item.com_object
+
+def convert_from_objects (items):
+  if items == []:
+    return None
+  else:
+    return [obj.com_object for obj in items]
+
+def convert_from_datetime (item):
+  if item is None: return None
+  try:
+    return pytime_to_datetime (item)
+  except:
+    return ad_time_to_datetime (item)
+
+def convert_from_sid (item):
+  if item is None: return None
+  return win32security.SID (item)
+
+def convert_from_guid (item):
+  if item is None: return None
+  guid = convert_from_hex (item)
+  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+
+def convert_from_hex (item):
+  if item is None: return None
+  return u"".join ([u"%x" % ord (i) for i in item])
+
+def convert_from_enum (name):
+  def _convert_from_enum (item):
+    if item is None: return None
+    return ENUMS[name][item]
+  return _convert_from_enum
+
+def convert_from_flags (enum_name):
+  def _convert_from_flags (item):
+    if item is None: return None
+    item = i32 (item)
+    enum = ENUMS[enum_name]
+    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
+  return _convert_from_flags
+
 def ddict (**kwargs):
   return kwargs
 
@@ -677,50 +784,6 @@ _PROPERTY_MAP = ddict (
 _PROPERTY_MAP[u'msDs-masteredBy'] = convert_to_objects
 _PROPERTY_MAP_OUT = _PROPERTY_MAP
 
-def convert_from_object (item):
-  if item is None: return None
-  return item.com_object
-
-def convert_from_objects (items):
-  if items == []:
-    return None
-  else:
-    return [obj.com_object for obj in items]
-
-def convert_from_datetime (item):
-  if item is None: return None
-  try:
-    return pytime_to_datetime (item)
-  except:
-    return ad_time_to_datetime (item)
-
-def convert_from_sid (item):
-  if item is None: return None
-  return win32security.SID (item)
-
-def convert_from_guid (item):
-  if item is None: return None
-  guid = convert_from_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
-
-def convert_from_hex (item):
-  if item is None: return None
-  return u"".join ([u"%x" % ord (i) for i in item])
-
-def convert_from_enum (name):
-  def _convert_from_enum (item):
-    if item is None: return None
-    return ENUMS[name][item]
-  return _convert_from_enum
-
-def convert_from_flags (enum_name):
-  def _convert_from_flags (item):
-    if item is None: return None
-    item = i32 (item)
-    enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
-  return _convert_from_flags
-
 _PROPERTY_MAP_IN = ddict (
   accountExpires = convert_from_datetime,
   badPasswordTime = convert_from_datetime,
@@ -760,6 +823,10 @@ _PROPERTY_MAP_IN = ddict (
   wellKnownObjects = convert_from_objects
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
+
+for name, from_ad in _PROPERTY_MAP_OUT.items ():
+  to_ad = _PROPERTY_MAP_IN.get (name)
+  register_converter (name, from_ad, to_ad)
 
 class _Members (set):
 
@@ -989,7 +1056,7 @@ class ADBase (ADSimple):
     #
     if name not in self._delegate_map:
       attr = super (ADBase, self).__getattr__ (name)
-      converter = self._property_map.get (name)
+      from_ad, to_ad = self.converters.get (name, (None, None))
       if converter:
         self._delegate_map[name] = converter (attr)
       else:
@@ -1348,10 +1415,3 @@ def namespaces ():
 
 def root_dse (username=None, password=None):
   return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
-
-
-u"""
-Reading the schema:
-
-ad.ad (ad.query (ad.query_string (base="LDAP://" + ad.root_dse ().schemaNamingContext, filter="ldapDisplayName=ldapDisplayName")).next ()['ADsPath']).dump ()
-"""
