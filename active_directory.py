@@ -130,6 +130,9 @@ class MemberNotInGroupError (ActiveDirectoryError):
 class BadPathnameError (ActiveDirectoryError):
   pass
 
+class AttributeNotFound (ActiveDirectoryError):
+  pass
+
 ERROR_DS_NO_SUCH_OBJECT = 0x80072030
 ERROR_OBJECT_ALREADY_EXISTS = 0x80071392
 ERROR_MEMBER_NOT_IN_ALIAS = 0x80070561
@@ -189,6 +192,12 @@ def signed_to_unsigned (signed):
   u"""Convert a (possibly signed) long to unsigned hex"""
   unsigned, = struct.unpack ("L", struct.pack ("l", signed))
   return unsigned
+
+def _set (obj, attribute, value):
+  u"""Helper function to add an attribute directly into the instance
+   dictionary, bypassing possible __getattr__ calls
+  """
+  obj.__dict__[attribute] = value
 
 #
 # Code contributed by Stian Søiland <stian@soiland.no>
@@ -346,35 +355,177 @@ ENUMS = {
   u"ADS_SYSTEMFLAG" : ADS_SYSTEMFLAG,
 }
 
-def _set (obj, attribute, value):
-  u"""Helper function to add an attribute directly into the instance
-   dictionary, bypassing possible __getattr__ calls
-  """
-  obj.__dict__[attribute] = value
+#
+# Converters
+#
+BASE_TIME = datetime.datetime (1601, 1, 1)
+def ad_time_to_datetime (ad_time):
+  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
+  ns100 = (hi << 32) + lo
+  delta = datetime.timedelta (microseconds=ns100 / 10)
+  return BASE_TIME + delta
 
-def and_ (*args, **kwargs):
-  return u"&%s" % "".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
+def datetime_to_ad_time (datetime):
+  return datetime.strftime ("%y%m%d%H%M%SZ")
 
-def or_ (*args, **kwargs):
-  return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
+def pytime_to_datetime (pytime):
+  return datetime.datetime.fromtimestamp (int (pytime))
 
-def _add_path (root_path, relative_path):
-  u"""Add another level to an LDAP path.
-  eg,
+def pytime_from_datetime (datetime):
+  pass
 
-    _add_path ('LDAP://DC=gb,DC=vo,DC=local', "cn=Users")
-      => "LDAP://cn=users,DC=gb,DC=vo,DC=local"
-  """
-  protocol = u"LDAP://"
-  if relative_path.startswith (protocol):
-    return relative_path
+def convert_to_object (item):
+  if item is None: return None
+  return ad (item)
 
-  if root_path.startswith (protocol):
-    start_path = root_path[len (protocol):]
+def convert_to_objects (items):
+  if items is None:
+    return []
   else:
-    start_path = root_path
+    if not isinstance (items, (tuple, list)):
+      items = [items]
+    return [ad (item) for item in items]
 
-  return protocol + relative_path + u"," + start_path
+def convert_to_boolean (item):
+  if item is None: return None
+  return item == u"TRUE"
+
+def convert_to_datetime (item):
+  if item is None: return None
+  return ad_time_to_datetime (item)
+
+def convert_pytime_to_datetime (item):
+  if item is None: return None
+  return pytime_to_datetime (item)
+
+def convert_to_sid (item):
+  if item is None: return None
+  return win32security.SID (item)
+
+def convert_to_guid (item):
+  if item is None: return None
+  guid = convert_to_hex (item)
+  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+
+def convert_to_hex (item):
+  if item is None: return None
+  return u"<%s>" % u"".join ([u"%02x" % ord (i) for i in item])
+
+def convert_to_hexes (item):
+  if item is None: return None
+  return [convert_to_hex (i) for i in item]
+
+def convert_to_enum (name):
+  def _convert_to_enum (item):
+    if item is None: return None
+    return ENUMS[name][item]
+  return _convert_to_enum
+
+def convert_to_flags (enum_name):
+  def _convert_to_flags (item):
+    if item is None: return None
+    item = i32 (item)
+    enum = ENUMS[enum_name]
+    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
+  return _convert_to_flags
+
+def convert_to_breadcrumbs (item):
+  return u" > ".join (item)
+
+def convert_to_long (item):
+  return (item.HighPart << 32) + item.LowPart
+
+def convert_from_object (item):
+  if item is None: return None
+  return item.com_object
+
+def convert_from_objects (items):
+  if items == []:
+    return None
+  else:
+    return [obj.com_object for obj in items]
+
+def convert_from_datetime (item):
+  if item is None: return None
+  try:
+    return pytime_to_datetime (item)
+  except:
+    return ad_time_to_datetime (item)
+
+def convert_from_sid (item):
+  if item is None: return None
+  return win32security.SID (item)
+
+def convert_from_guid (item):
+  if item is None: return None
+  guid = convert_from_hex (item)
+  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+
+def convert_from_hex (item):
+  if item is None: return None
+  return u"".join ([u"%x" % ord (i) for i in item])
+
+def convert_from_enum (name):
+  def _convert_from_enum (item):
+    if item is None: return None
+    return ENUMS[name][item]
+  return _convert_from_enum
+
+def convert_from_flags (enum_name):
+  def _convert_from_flags (item):
+    if item is None: return None
+    item = i32 (item)
+    enum = ENUMS[enum_name]
+    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
+  return _convert_from_flags
+
+converters = {}
+def register_converter (attribute_name, from_ad=None, to_ad=None):
+  from_to = converters.get (attribute_name, [None, None])
+  if from_ad:
+    from_to[0] = from_ad
+  if to_ad:
+    from_to[1] = to_ad
+  converters[attribute_name] = from_to
+
+"""
+Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
+2.5.5.1	DN String	DN String
+2.5.5.2	Object ID	CaseIgnore String
+2.5.5.3	Case Sensitive String	CaseExact String
+2.5.5.4	Case Ignored String	CaseIgnore String
+2.5.5.5	Print Case String	Printable String
+2.5.5.6	Numeric String	Numeric String
+2.5.5.7	OR Name DNWithOctetString	Not Supported
+2.5.5.8	Boolean	Boolean
+2.5.5.9	Integer	Integer
+2.5.5.10	Octet String	Octet String
+2.5.5.11	Time	UTC Time
+2.5.5.12	Unicode	Case Ignore String
+2.5.5.13	Address	Not Supported
+2.5.5.14	Distname-Address
+2.5.5.15	NT Security Descriptor	IADsSecurityDescriptor
+2.5.5.16	Large Integer	IADsLargeInteger
+2.5.5.17	SID	Octet String
+"""
+TYPE_CONVERTERS = {
+  "2.5.5.11" : ad_time_to_datetime,
+  "2.5.5.16" : convert_to_long,
+  "2.5.5.17" : convert_to_sid
+}
+
+def attribute (attribute_name, root=None):
+  schemaNamingContext, = (root or root_dse ()).schemaNamingContext
+  qs = query_string (
+    base="LDAP://%s" % schemaNamingContext,
+    filter="ldapDisplayName=%s" % attribute_name
+  )
+  for item in query (qs):
+    path = item['ADsPath']
+    return ad (path)
+  else:
+    return None
+    raise AttributeNotFound (attribute_name)
 
 class _Proxy (object):
 
@@ -386,7 +537,8 @@ class _Proxy (object):
       s = s.replace (original, escape)
     return s
 
-  def _munge (cls, other):
+  @staticmethod
+  def _munge (other):
     if isinstance (other, ADBase):
       return other.dn
 
@@ -407,6 +559,16 @@ class _Proxy (object):
 
   def __init__ (self, name):
     self._name = name
+    self._attribute = _attribute = attribute (name)
+    #
+    # If a suitable converter isn't known, try a few
+    # well-known defaults
+    #
+    if name not in converters:
+      if _attribute and _attribute.attributeSyntax in TYPE_CONVERTERS:
+        register_converter (name, from_ad=TYPE_CONVERTERS[_attribute.attributeSyntax])
+      elif name.endswith ("GUID"):
+        register_converter (name, from_ad=convert_to_guid)
 
   def __unicode__ (self):
     return self._name
@@ -416,6 +578,9 @@ class _Proxy (object):
 
   def __hash__ (self):
     return hash (self._name)
+
+  def __getattr__ (self, attr):
+    return getattr (self._attribute, attr)
 
   def __eq__ (self, other):
     return u"%s=%s" % (self._name, self._munge (other))
@@ -453,9 +618,107 @@ class _Attributes (object):
     self._proxies = {}
 
   def __getattr__ (self, attr):
-    return self._proxies.setdefault (attr, _Proxy (attr))
+    return self[attr]
+
+  def __getitem__ (self, item):
+    return self._proxies.setdefault (item, _Proxy (item))
 
 schema = _Attributes ()
+
+#
+# Conversions
+#
+_PROPERTY_MAP = dict (
+  accountExpires = convert_to_datetime,
+  auditingPolicy = convert_to_hex,
+  badPasswordTime = convert_to_datetime,
+  creationTime = convert_to_datetime,
+  dSASignature = convert_to_hex,
+  forceLogoff = convert_to_datetime,
+  fSMORoleOwner = convert_to_object,
+  groupType = convert_to_flags (u"GROUP_TYPES"),
+  isGlobalCatalogReady = convert_to_boolean,
+  isSynchronized = convert_to_boolean,
+  lastLogoff = convert_to_datetime,
+  lastLogon = convert_to_datetime,
+  lastLogonTimestamp = convert_to_datetime,
+  lockoutDuration = convert_to_datetime,
+  lockoutObservationWindow = convert_to_datetime,
+  lockoutTime = convert_to_datetime,
+  manager = convert_to_object,
+  masteredBy = convert_to_objects,
+  maxPwdAge = convert_to_datetime,
+  member = convert_to_objects,
+  memberOf = convert_to_objects,
+  minPwdAge = convert_to_datetime,
+  modifiedCount = convert_to_datetime,
+  modifiedCountAtLastProm = convert_to_datetime,
+  msExchMailboxGuid = convert_to_guid,
+  mSMQDigests = convert_to_hex,
+  mSMQSignCertificates = convert_to_hex,
+  objectClass = convert_to_breadcrumbs,
+  objectGUID = convert_to_guid,
+  objectSid = convert_to_sid,
+  publicDelegates = convert_to_objects,
+  publicDelegatesBL = convert_to_objects,
+  pwdLastSet = convert_to_datetime,
+  replicationSignature = convert_to_hex,
+  replUpToDateVector = convert_to_hex,
+  repsFrom = convert_to_hexes,
+  repsTo = convert_to_hex,
+  sAMAccountType = convert_to_enum (u"SAM_ACCOUNT_TYPES"),
+  subRefs = convert_to_objects,
+  systemFlags = convert_to_flags (u"ADS_SYSTEMFLAG"),
+  userAccountControl = convert_to_flags (u"USER_ACCOUNT_CONTROL"),
+  wellKnownObjects = convert_to_objects,
+  whenCreated = convert_pytime_to_datetime,
+  whenChanged = convert_pytime_to_datetime,
+)
+_PROPERTY_MAP[u'msDs-masteredBy'] = convert_to_objects
+
+for k, v in _PROPERTY_MAP.items ():
+  register_converter (k, from_ad=v)
+
+_PROPERTY_MAP_IN = dict (
+  accountExpires = convert_from_datetime,
+  badPasswordTime = convert_from_datetime,
+  creationTime = convert_from_datetime,
+  dSASignature = convert_from_hex,
+  forceLogoff = convert_from_datetime,
+  fSMORoleOwner = convert_from_object,
+  groupType = convert_from_flags (u"GROUP_TYPES"),
+  lastLogoff = convert_from_datetime,
+  lastLogon = convert_from_datetime,
+  lastLogonTimestamp = convert_from_datetime,
+  lockoutDuration = convert_from_datetime,
+  lockoutObservationWindow = convert_from_datetime,
+  lockoutTime = convert_from_datetime,
+  masteredBy = convert_from_objects,
+  maxPwdAge = convert_from_datetime,
+  member = convert_from_objects,
+  memberOf = convert_from_objects,
+  minPwdAge = convert_from_datetime,
+  modifiedCount = convert_from_datetime,
+  modifiedCountAtLastProm = convert_from_datetime,
+  msExchMailboxGuid = convert_from_guid,
+  objectGUID = convert_from_guid,
+  objectSid = convert_from_sid,
+  publicDelegates = convert_from_objects,
+  publicDelegatesBL = convert_from_objects,
+  pwdLastSet = convert_from_datetime,
+  replicationSignature = convert_from_hex,
+  replUpToDateVector = convert_from_hex,
+  repsFrom = convert_from_hex,
+  repsTo = convert_from_hex,
+  sAMAccountType = convert_from_enum (u"SAM_ACCOUNT_TYPES"),
+  subRefs = convert_from_objects,
+  userAccountControl = convert_from_flags (u"USER_ACCOUNT_CONTROL"),
+  wellKnownObjects = convert_from_objects
+)
+_PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
+
+for k, v in _PROPERTY_MAP_IN.items ():
+  register_converter (k, to_ad=v)
 
 def connect (username=None, password=None):
   u"""Return an ADODB connection, optionally authenticated by
@@ -468,6 +731,12 @@ def connect (username=None, password=None):
   else:
     connection.Open (u"Active Directory Provider")
   return connection
+
+def and_ (*args, **kwargs):
+  return u"&%s" % "".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
+
+def or_ (*args, **kwargs):
+  return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 _command_properties = {
   u"Page Size" : 500,
@@ -547,285 +816,6 @@ def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtre
 def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
   return query (query_string, connection=connect (username, password))
-
-  """
-  Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
-  2.5.5.1	DN String	DN String
-  2.5.5.2	Object ID	CaseIgnore String
-  2.5.5.3	Case Sensitive String	CaseExact String
-  2.5.5.4	Case Ignored String	CaseIgnore String
-  2.5.5.5	Print Case String	Printable String
-  2.5.5.6	Numeric String	Numeric String
-  2.5.5.7	OR Name DNWithOctetString	Not Supported
-  2.5.5.8	Boolean	Boolean
-  2.5.5.9	Integer	Integer
-  2.5.5.10	Octet String	Octet String
-  2.5.5.11	Time	UTC Time
-  2.5.5.12	Unicode	Case Ignore String
-  2.5.5.13	Address	Not Supported
-  2.5.5.14	Distname-Address
-  2.5.5.15	NT Security Descriptor	IADsSecurityDescriptor
-  2.5.5.16	Large Integer	IADsLargeInteger
-  2.5.5.17	SID	Octet String
-  """
-  TYPE_CONVERTERS = {
-    "2.5.5.1" : unicode,
-    "2.5.5.2" : unicode,
-    "2.5.5.3" : unicode,
-    "2.5.5.4" : unicode,
-    "2.5.5.5" : unicode,
-    "2.5.5.6" : unicode,
-    "2.5.5.8" : unicode,
-    "2.5.5.8" : bool,
-    "2.5.5.9" : int,
-    "2.5.5.10" : unicode,
-    "2.5.5.11" : ad_time_to_datetime,
-    "2.5.5.12" : unicode,
-    "2.5.5.13" : None,
-    "2.5.5.14" : None,
-    "2.5.5.15" : convert_to_sid,
-    "2.5.5.16" : int,
-    "2.5.5.17" : None
-  }
-
-converters = {}
-def register_converter (attribute_name, from_ad=None, to_ad=None):
-  converters[attribute_name] = (from_ad or (lambda x : x), to_ad or (lambda x : x))
-
-_attribute_cache = {}
-def attribute (attribute_name):
-  if attribute_name not in _attribute_cache:
-    schemaNamingContext, = root_dse ().schemaNamingContext
-    qs = query_string (
-      base="LDAP://%s" % schemaNamingContext,
-      filter="ldapDisplayName=%s" % attribute_name
-    )
-    _attribute_cache[attribute_name] = attribute = ad (query (qs).next ()['ADsPath'])
-
-  if attribute_name not in converters:
-    register_converter (
-      attribute_name,
-      TYPE_CONVERTERS.get (attribute.attributeSyntax) or (lambda x : x),
-      TYPE_CONVERTERS.get (attribute.attributeSyntax) or (lambda x : x)
-    )
-
-  return _attribute_cache[attribute_name]
-
-BASE_TIME = datetime.datetime (1601, 1, 1)
-def ad_time_to_datetime (ad_time):
-  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
-  ns100 = (hi << 32) + lo
-  delta = datetime.timedelta (microseconds=ns100 / 10)
-  return BASE_TIME + delta
-
-def datetime_to_ad_time (datetime):
-  return datetime.strftime ("%y%m%d%H%M%SZ")
-
-def pytime_to_datetime (pytime):
-  return datetime.datetime.fromtimestamp (int (pytime))
-
-def pytime_from_datetime (datetime):
-  pass
-
-def convert_to_object (item):
-  if item is None: return None
-  return ad (item)
-
-def convert_to_objects (items):
-  if items is None:
-    return []
-  else:
-    if not isinstance (items, (tuple, list)):
-      items = [items]
-    return [ad (item) for item in items]
-
-def convert_to_boolean (item):
-  if item is None: return None
-  return item == u"TRUE"
-
-def convert_to_datetime (item):
-  if item is None: return None
-  return ad_time_to_datetime (item)
-
-def convert_pytime_to_datetime (item):
-  if item is None: return None
-  return pytime_to_datetime (item)
-
-def convert_to_sid (item):
-  if item is None: return None
-  return win32security.SID (item)
-
-def convert_to_guid (item):
-  if item is None: return None
-  guid = convert_to_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
-
-def convert_to_hex (item):
-  if item is None: return None
-  return u"<%s>" % u"".join ([u"%02x" % ord (i) for i in item])
-
-def convert_to_hexes (item):
-  if item is None: return None
-  return [convert_to_hex (i) for i in item]
-
-def convert_to_enum (name):
-  def _convert_to_enum (item):
-    if item is None: return None
-    return ENUMS[name][item]
-  return _convert_to_enum
-
-def convert_to_flags (enum_name):
-  def _convert_to_flags (item):
-    if item is None: return None
-    item = i32 (item)
-    enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
-  return _convert_to_flags
-
-def convert_to_breadcrumbs (item):
-  return u" > ".join (item)
-
-def convert_from_object (item):
-  if item is None: return None
-  return item.com_object
-
-def convert_from_objects (items):
-  if items == []:
-    return None
-  else:
-    return [obj.com_object for obj in items]
-
-def convert_from_datetime (item):
-  if item is None: return None
-  try:
-    return pytime_to_datetime (item)
-  except:
-    return ad_time_to_datetime (item)
-
-def convert_from_sid (item):
-  if item is None: return None
-  return win32security.SID (item)
-
-def convert_from_guid (item):
-  if item is None: return None
-  guid = convert_from_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
-
-def convert_from_hex (item):
-  if item is None: return None
-  return u"".join ([u"%x" % ord (i) for i in item])
-
-def convert_from_enum (name):
-  def _convert_from_enum (item):
-    if item is None: return None
-    return ENUMS[name][item]
-  return _convert_from_enum
-
-def convert_from_flags (enum_name):
-  def _convert_from_flags (item):
-    if item is None: return None
-    item = i32 (item)
-    enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
-  return _convert_from_flags
-
-def ddict (**kwargs):
-  return kwargs
-
-_PROPERTY_MAP = ddict (
-  accountExpires = convert_to_datetime,
-  auditingPolicy = convert_to_hex,
-  badPasswordTime = convert_to_datetime,
-  creationTime = convert_to_datetime,
-  dSASignature = convert_to_hex,
-  forceLogoff = convert_to_datetime,
-  fSMORoleOwner = convert_to_object,
-  groupType = convert_to_flags (u"GROUP_TYPES"),
-  isGlobalCatalogReady = convert_to_boolean,
-  isSynchronized = convert_to_boolean,
-  lastLogoff = convert_to_datetime,
-  lastLogon = convert_to_datetime,
-  lastLogonTimestamp = convert_to_datetime,
-  lockoutDuration = convert_to_datetime,
-  lockoutObservationWindow = convert_to_datetime,
-  lockoutTime = convert_to_datetime,
-  manager = convert_to_object,
-  masteredBy = convert_to_objects,
-  maxPwdAge = convert_to_datetime,
-  member = convert_to_objects,
-  memberOf = convert_to_objects,
-  minPwdAge = convert_to_datetime,
-  modifiedCount = convert_to_datetime,
-  modifiedCountAtLastProm = convert_to_datetime,
-  msExchMailboxGuid = convert_to_guid,
-  mSMQDigests = convert_to_hex,
-  mSMQSignCertificates = convert_to_hex,
-  objectClass = convert_to_breadcrumbs,
-  objectGUID = convert_to_guid,
-  objectSid = convert_to_sid,
-  publicDelegates = convert_to_objects,
-  publicDelegatesBL = convert_to_objects,
-  pwdLastSet = convert_to_datetime,
-  replicationSignature = convert_to_hex,
-  replUpToDateVector = convert_to_hex,
-  repsFrom = convert_to_hexes,
-  repsTo = convert_to_hex,
-  sAMAccountType = convert_to_enum (u"SAM_ACCOUNT_TYPES"),
-  subRefs = convert_to_objects,
-  systemFlags = convert_to_flags (u"ADS_SYSTEMFLAG"),
-  userAccountControl = convert_to_flags (u"USER_ACCOUNT_CONTROL"),
-  uSNChanged = convert_to_datetime,
-  uSNCreated = convert_to_datetime,
-  wellKnownObjects = convert_to_objects,
-  whenCreated = convert_pytime_to_datetime,
-  whenChanged = convert_pytime_to_datetime,
-)
-_PROPERTY_MAP[u'msDs-masteredBy'] = convert_to_objects
-_PROPERTY_MAP_OUT = _PROPERTY_MAP
-
-_PROPERTY_MAP_IN = ddict (
-  accountExpires = convert_from_datetime,
-  badPasswordTime = convert_from_datetime,
-  creationTime = convert_from_datetime,
-  dSASignature = convert_from_hex,
-  forceLogoff = convert_from_datetime,
-  fSMORoleOwner = convert_from_object,
-  groupType = convert_from_flags (u"GROUP_TYPES"),
-  lastLogoff = convert_from_datetime,
-  lastLogon = convert_from_datetime,
-  lastLogonTimestamp = convert_from_datetime,
-  lockoutDuration = convert_from_datetime,
-  lockoutObservationWindow = convert_from_datetime,
-  lockoutTime = convert_from_datetime,
-  masteredBy = convert_from_objects,
-  maxPwdAge = convert_from_datetime,
-  member = convert_from_objects,
-  memberOf = convert_from_objects,
-  minPwdAge = convert_from_datetime,
-  modifiedCount = convert_from_datetime,
-  modifiedCountAtLastProm = convert_from_datetime,
-  msExchMailboxGuid = convert_from_guid,
-  objectGUID = convert_from_guid,
-  objectSid = convert_from_sid,
-  publicDelegates = convert_from_objects,
-  publicDelegatesBL = convert_from_objects,
-  pwdLastSet = convert_from_datetime,
-  replicationSignature = convert_from_hex,
-  replUpToDateVector = convert_from_hex,
-  repsFrom = convert_from_hex,
-  repsTo = convert_from_hex,
-  sAMAccountType = convert_from_enum (u"SAM_ACCOUNT_TYPES"),
-  subRefs = convert_from_objects,
-  userAccountControl = convert_from_flags (u"USER_ACCOUNT_CONTROL"),
-  uSNChanged = convert_from_datetime,
-  uSNCreated = convert_from_datetime,
-  wellKnownObjects = convert_from_objects
-)
-_PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
-
-for name, from_ad in _PROPERTY_MAP_OUT.items ():
-  to_ad = _PROPERTY_MAP_IN.get (name)
-  register_converter (name, from_ad, to_ad)
 
 class _Members (set):
 
@@ -940,6 +930,7 @@ class ADSimple (object):
       try:
         value = getattr (self, name)
       except:
+        raise
         value = "Unable to get value"
       if value:
         if isinstance (name, unicode):
@@ -1057,16 +1048,20 @@ class ADBase (ADSimple):
     # method. Not clear why.
     #
     if name not in self._delegate_map:
-      attr = super (ADBase, self).__getattr__ (name)
-      from_ad, to_ad = self.converters.get (name, (None, None))
-      if converter:
-        self._delegate_map[name] = converter (attr)
+      value = super (ADBase, self).__getattr__ (name)
+      from_ad, _ = converters.get (name, (None, None))
+      if from_ad:
+        self._delegate_map[name] = from_ad (value)
       else:
-        self._delegate_map[name] = attr
+        self._delegate_map[name] = value
     return self._delegate_map[name]
 
   def __setitem__ (self, key, value):
-    setattr (self, key, value)
+    from_ad, to_ad = converters.get (name, (None, None))
+    if to_ad:
+      setattr (self, key, converter (value))
+    else:
+      setattr (self, key, value)
 
   def __setattr__ (self, name, value):
     #
@@ -1114,16 +1109,17 @@ class ADBase (ADSimple):
   parent = property (_get_parent)
 
   @classmethod
-  def _schema (cls, schema):
-    if schema is None:
+  def _schema (cls, cschema):
+    if cschema is None:
+      #~ return dict ((p, schema[p]) for p in cls._default_properties), False
       return cls._default_properties, False
 
-    if schema.ADsPath not in cls._schema_cache:
+    if cschema.ADsPath not in cls._schema_cache:
       properties = \
-        wrapped (getattr, schema, u"MandatoryProperties", []) + \
-        wrapped (getattr, schema, u"OptionalProperties", [])
+        wrapped (getattr, cschema, u"mandatoryProperties", []) + \
+        wrapped (getattr, cschema, u"optionalProperties", [])
+      #~ cls._schema_cache[schema.ADsPath] = dict ((p, schema[p]) for p in properties), wrapped (getattr, schema, u"Container", False)
       cls._schema_cache[schema.ADsPath] = properties, wrapped (getattr, schema, u"Container", False)
-
     return cls._schema_cache[schema.ADsPath]
 
   def refresh (self):
@@ -1417,3 +1413,4 @@ def namespaces ():
 
 def root_dse (username=None, password=None):
   return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
+
