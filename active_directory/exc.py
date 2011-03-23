@@ -1,6 +1,8 @@
 # -*- coding: iso-8859-1 -*-
 import pywintypes
 
+from . import utils
+
 class ActiveDirectoryError (Exception):
   u"""Base class for all AD Exceptions"""
   pass
@@ -30,11 +32,11 @@ def wrapper (winerror_map, default_exception):
     try:
       return function (*args, **kwargs)
     except pywintypes.com_error, (hresult_code, hresult_name, additional_info, parameter_in_error):
-      hresult_code = signed_to_unsigned (hresult_code)
+      hresult_code = utils.signed_to_unsigned (hresult_code)
       exception_string = [u"%08X - %s" % (hresult_code, hresult_name)]
       if additional_info:
         wcode, source_of_error, error_description, whlp_file, whlp_context, scode = additional_info
-        scode = signed_to_unsigned (scode)
+        scode = utils.signed_to_unsigned (scode)
         exception_string.append (u"  Error in: %s" % source_of_error)
         exception_string.append (u"  %08X - %s" % (scode, (error_description or "").strip ()))
       else:

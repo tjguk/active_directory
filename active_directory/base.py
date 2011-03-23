@@ -150,13 +150,16 @@ class ADBase (ADSimple):
     if name in self.properties:
       exc.wrapped (self.com_object.Put, name, value)
       exc.wrapped (self.com_object.SetInfo)
-      #
-      # Invalidate to ensure map is refreshed on next get
-      #
-      if name in self._delegate_map:
-        del self._delegate_map[name]
+      self._invalidate (name)
     else:
       super (ADBase, self).__setattr__ (name, value)
+
+  def _invalidate (self, name):
+    #
+    # Invalidate to ensure map is refreshed on next get
+    #
+    if name in self._delegate_map:
+      del self._delegate_map[name]
 
   def as_string (self):
     return self.path
@@ -335,20 +338,18 @@ class WinNT (ADBase):
 
 class _Members (set):
 
-  def __init__ (self, group):
+  def __init__ (self, group, name="members"):
     super (_Members, self).__init__ (ad (i) for i in iter (exc.wrapped (group.com_object.members)))
     self._group = group
+    self._name = name
 
   def _effect (self, original):
     group = self._group.com_object
     for member in (self - original):
-      print u"Adding", member
-      #~ group.Add (member.AdsPath)
       exc.wrapped (group.Add, member.AdsPath)
     for member in (original - self):
-      print u"Removing", member
-      #~ group.Remove (member.AdsPath)
       exc.wrapped (group.Remove, member.AdsPath)
+    self._group._invalidate (self._name)
 
   def update (self, *others):
     original = set (self)
@@ -419,15 +420,9 @@ class Group (ADBase):
   def _set_members (self, members):
     original = self.members
     new_members = set (ad (m) for m in members)
-    print u"original", original
-    print u"new members", new_members
-    print u"new_members - original", new_members - original
     for member in (new_members - original):
-      print u"Adding", member
       exc.wrapped (self.com_object.Add, member.AdsPath)
-    print u"original - new_members", original - new_members
     for member in (original - new_members):
-      print u"Removing", member
       exc.wrapped (self.com_object.Remove, member.AdsPath)
   members = property (_get_members, _set_members)
 
