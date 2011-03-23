@@ -131,92 +131,11 @@ except (ImportError, AttributeError):
   logger.warn ("Unable to use collections.MutableSet; using object instead")
   SetBase = object
 
-DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION
-
 schema = types.Attributes ()
 
 def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
   return core.query (query_string, connection=connect (username, password))
-
-class _Members (set):
-
-  def __init__ (self, group):
-    super (_Members, self).__init__ (ad (i) for i in iter (exc.wrapped (group.com_object.members)))
-    self._group = group
-
-  def _effect (self, original):
-    group = self._group.com_object
-    for member in (self - original):
-      print u"Adding", member
-      #~ group.Add (member.AdsPath)
-      exc.wrapped (group.Add, member.AdsPath)
-    for member in (original - self):
-      print u"Removing", member
-      #~ group.Remove (member.AdsPath)
-      exc.wrapped (group.Remove, member.AdsPath)
-
-  def update (self, *others):
-    original = set (self)
-    for other in others:
-      super (_Members, self).update (ad (o) for o in other)
-    self._effect (original)
-
-  def __ior__ (self, other):
-    return self.update (other)
-
-  def intersection_update (self, *others):
-    original = set (self)
-    for other in others:
-      super (_Members, self).intersection_update (ad (o) for o in other)
-    self._effect (original)
-
-  def __iand__ (self, other):
-    return self.intersection_update (self, other)
-
-  def difference_update (self, *others):
-    original = set (self)
-    for other in others:
-      self.difference_update (ad (o) for o in other)
-    self._effect (original)
-
-  def symmetric_difference_update (self, *others):
-    original = set (self)
-    for other in others:
-      self.symmetric_difference_update (ad (o) for o in others)
-    self._effect (original)
-
-  def add (self, elem):
-    original = set (self)
-    result = super (_Members, self).add (ad (elem))
-    self._effect (original)
-    return result
-
-  def remove (self, elem):
-    original = set (self)
-    result = super (_Members, self).remove (ad (elem))
-    self._effect (original)
-    return result
-
-  def discard (self, elem):
-    original = set (self)
-    result = super (_Members, self).discard (ad (elem))
-    self._effect (original)
-    return result
-
-  def pop (self):
-    original = set (self)
-    result = super (_Members, self).pop ()
-    self._effect (original)
-    return result
-
-  def clear (self):
-    original = set (self)
-    super (_Members, self).clear ()
-    self._effect (original)
-
-  def __contains__ (self, element):
-    return  super (_Members, self).__contains__ (ad (element))
 
 class RootDSE (base.ADSimple):
 
@@ -253,10 +172,10 @@ def AD (server=None, username=None, password=None, use_gc=False):
     root_moniker = scheme + server + u"/rootDSE"
   else:
     root_moniker = scheme + u"rootDSE"
-  root_obj = exc.wrapped (adsi.ADsOpenObject, root_moniker, username, password, DEFAULT_BIND_FLAGS)
+  root_obj = exc.wrapped (adsi.ADsOpenObject, root_moniker, username, password, constants.DEFAULT_BIND_FLAGS)
   default_naming_context = root_obj.Get (u"defaultNamingContext")
   moniker = scheme + default_naming_context
-  obj = exc.wrapped (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
+  obj = exc.wrapped (adsi.ADsOpenObject, moniker, username, password, constants.DEFAULT_BIND_FLAGS)
   return base.ad (obj, username, password)
 
 #
@@ -295,10 +214,10 @@ def root (username=None, password=None):
   return _ad
 
 def root_dse (username=None, password=None):
-  return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
+  return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, constants.DEFAULT_BIND_FLAGS))
 
 #
-# Conversions
+# Register known attributes
 #
 _PROPERTY_MAP = dict (
   accountExpires = types.convert_to_datetime,
@@ -307,7 +226,7 @@ _PROPERTY_MAP = dict (
   creationTime = types.convert_to_datetime,
   dSASignature = types.convert_to_hex,
   forceLogoff = types.convert_to_datetime,
-  #~ fSMORoleOwner = types.convert_to_object (ad),
+  fSMORoleOwner = types.convert_to_object (base.ad),
   groupType = types.convert_to_flags (constants.GROUP_TYPES),
   isGlobalCatalogReady = types.convert_to_boolean,
   isSynchronized = types.convert_to_boolean,
@@ -317,37 +236,37 @@ _PROPERTY_MAP = dict (
   lockoutDuration = types.convert_to_datetime,
   lockoutObservationWindow = types.convert_to_datetime,
   lockoutTime = types.convert_to_datetime,
-  #~ manager = types.convert_to_object (ad),
-  #~ masteredBy = types.convert_to_objects (ad),
+  manager = types.convert_to_object (base.ad),
+  masteredBy = types.convert_to_objects (base.ad),
   maxPwdAge = types.convert_to_datetime,
-  #~ member = types.convert_to_objects (ad),
-  #~ memberOf = types.convert_to_objects (ad),
+  member = types.convert_to_objects (base.ad),
+  memberOf = types.convert_to_objects (base.ad),
   minPwdAge = types.convert_to_datetime,
   modifiedCount = types.convert_to_datetime,
   modifiedCountAtLastProm = types.convert_to_datetime,
-  #~ msExchMailboxGuid = types.convert_to_guid,
-  #~ schemaIDGUID = types.convert_to_guid,
+  msExchMailboxGuid = types.convert_to_guid,
+  schemaIDGUID = types.convert_to_guid,
   mSMQDigests = types.convert_to_hex,
   mSMQSignCertificates = types.convert_to_hex,
   objectClass = types.convert_to_breadcrumbs,
-  #~ objectGUID = types.convert_to_guid,
+  objectGUID = types.convert_to_guid,
   objectSid = types.convert_to_sid,
-  #~ publicDelegates = types.convert_to_objects (ad),
-  #~ publicDelegatesBL = types.convert_to_objects (ad),
+  publicDelegates = types.convert_to_objects (base.ad),
+  publicDelegatesBL = types.convert_to_objects (base.ad),
   pwdLastSet = types.convert_to_datetime,
   replicationSignature = types.convert_to_hex,
   replUpToDateVector = types.convert_to_hex,
   repsFrom = types.convert_to_hexes,
   repsTo = types.convert_to_hex,
   sAMAccountType = types.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
-  #~ subRefs = types.convert_to_objects (ad),
+  subRefs = types.convert_to_objects (base.ad),
   systemFlags = types.convert_to_flags (constants.ADS_SYSTEMFLAG),
   userAccountControl = types.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
-  #~ wellKnownObjects = types.convert_to_objects (ad),
+  wellKnownObjects = types.convert_to_objects (base.ad),
   whenCreated = types.convert_pytime_to_datetime,
   whenChanged = types.convert_pytime_to_datetime,
 )
-#~ _PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (ad)
+_PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (base.ad)
 
 for k, v in _PROPERTY_MAP.items ():
   types.register_converter (k, from_ad=v)
@@ -374,7 +293,7 @@ _PROPERTY_MAP_IN = dict (
   modifiedCount = types.convert_from_datetime,
   modifiedCountAtLastProm = types.convert_from_datetime,
   msExchMailboxGuid = types.convert_from_guid,
-  #~ objectGUID = types.convert_from_guid,
+  objectGUID = types.convert_from_guid,
   objectSid = types.convert_from_sid,
   publicDelegates = types.convert_from_objects,
   publicDelegatesBL = types.convert_from_objects,

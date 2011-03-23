@@ -1,11 +1,14 @@
 # -*- coding: iso-8859-1 -*-
 import os, sys
+import re
 
 import win32api
 from win32com import adsi
 
 from . import core
+from . import constants
 from . import exc
+from . import types
 from . import utils
 
 class ADSimple (object):
@@ -131,16 +134,13 @@ class ADBase (ADSimple):
     #
     if name not in self._delegate_map:
       value = super (ADBase, self).__getattr__ (name)
-      converter = get_converter (name)
-      self._delegate_map[name] = converter (value)
+      convert_from, _ = types.get_converter (name)
+      self._delegate_map[name] = convert_from (value)
     return self._delegate_map[name]
 
   def __setitem__ (self, key, value):
-    from_ad, to_ad = types.types.get (name, (None, None))
-    if to_ad:
-      setattr (self, key, converter (value))
-    else:
-      setattr (self, key, value)
+    _, convert_to = types.get_converter (name)
+    setattr (self, key, convert_to (value))
 
   def __setattr__ (self, name, value):
     #
@@ -333,6 +333,85 @@ class WinNT (ADBase):
   def __hash__ (self):
     return hash (self.com_object.ADsPath.lower ())
 
+class _Members (set):
+
+  def __init__ (self, group):
+    super (_Members, self).__init__ (ad (i) for i in iter (exc.wrapped (group.com_object.members)))
+    self._group = group
+
+  def _effect (self, original):
+    group = self._group.com_object
+    for member in (self - original):
+      print u"Adding", member
+      #~ group.Add (member.AdsPath)
+      exc.wrapped (group.Add, member.AdsPath)
+    for member in (original - self):
+      print u"Removing", member
+      #~ group.Remove (member.AdsPath)
+      exc.wrapped (group.Remove, member.AdsPath)
+
+  def update (self, *others):
+    original = set (self)
+    for other in others:
+      super (_Members, self).update (ad (o) for o in other)
+    self._effect (original)
+
+  def __ior__ (self, other):
+    return self.update (other)
+
+  def intersection_update (self, *others):
+    original = set (self)
+    for other in others:
+      super (_Members, self).intersection_update (ad (o) for o in other)
+    self._effect (original)
+
+  def __iand__ (self, other):
+    return self.intersection_update (self, other)
+
+  def difference_update (self, *others):
+    original = set (self)
+    for other in others:
+      self.difference_update (ad (o) for o in other)
+    self._effect (original)
+
+  def symmetric_difference_update (self, *others):
+    original = set (self)
+    for other in others:
+      self.symmetric_difference_update (ad (o) for o in others)
+    self._effect (original)
+
+  def add (self, elem):
+    original = set (self)
+    result = super (_Members, self).add (ad (elem))
+    self._effect (original)
+    return result
+
+  def remove (self, elem):
+    original = set (self)
+    result = super (_Members, self).remove (ad (elem))
+    self._effect (original)
+    return result
+
+  def discard (self, elem):
+    original = set (self)
+    result = super (_Members, self).discard (ad (elem))
+    self._effect (original)
+    return result
+
+  def pop (self):
+    original = set (self)
+    result = super (_Members, self).pop ()
+    self._effect (original)
+    return result
+
+  def clear (self):
+    original = set (self)
+    super (_Members, self).clear ()
+    self._effect (original)
+
+  def __contains__ (self, element):
+    return  super (_Members, self).__contains__ (ad (element))
+
 class Group (ADBase):
 
   def _get_members (self):
@@ -415,9 +494,9 @@ def ad (obj_or_path, username=None, password=None):
     if scheme == u"WinNT:":
       moniker = dn
     else:
-      moniker = escaped_moniker (dn)
+      moniker = utils.escaped_moniker (dn)
     obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
-    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, username, password, DEFAULT_BIND_FLAGS)
+    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, username, password, constants.DEFAULT_BIND_FLAGS)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()

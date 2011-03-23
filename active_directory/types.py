@@ -3,6 +3,7 @@ import datetime
 
 import win32security
 
+from . import constants
 from . import core
 from . import utils
 
@@ -132,14 +133,14 @@ def convert_from_flags (enum):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 
-converters = {}
+_converters = {}
 def register_converter (attribute_name, from_ad=None, to_ad=None):
-  from_to = converters.get (attribute_name, [None, None])
+  from_to = _converters.get (attribute_name, [None, None])
   if from_ad:
     from_to[0] = from_ad
   if to_ad:
     from_to[1] = to_ad
-  converters[attribute_name] = from_to
+  _converters[attribute_name] = from_to
 
 """
 Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
@@ -269,14 +270,14 @@ class Attributes (object):
     return self._proxies[item]
 
 def get_converter (name):
-  if name not in converters.converters:
+  if name not in _converters:
     obj = None ## attribute (name)
     if obj and obj.attributeSyntax in TYPE_CONVERTERS:
-      converters.register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
+      register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
     elif name.endswith ("GUID"):
-      converters.register_converter (name, from_ad=converters.convert_to_guid)
-  from_ad, _ = converters.converters.get (name, (None, None))
-  return from_ad or (lambda x : x)
+      register_converter (name, from_ad=convert_to_guid)
+  from_ad, to_ad = _converters.get (name, (None, None))
+  return from_ad or (lambda x : x), to_ad or (lambda x : x)
 
 def attribute (attribute_name, root=None):
   root_dse = root or win32com.client.GetObject ("LDAP://rootDSE")

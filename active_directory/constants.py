@@ -1,4 +1,7 @@
 # -*- coding: iso-8859-1 -*-
+from win32com import adsi
+from win32com.adsi import adsicon
+
 from . import utils
 
 #
@@ -128,3 +131,6 @@ ADS_PROPERTY = Enum (
   APPEND = 3,
   DELETE = 4
 )
+
+DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION
+
