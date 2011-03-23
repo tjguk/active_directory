@@ -518,8 +518,20 @@ Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
 TYPE_CONVERTERS = {
   "2.5.5.11" : ad_time_to_datetime,
   "2.5.5.16" : convert_to_long,
-  "2.5.5.17" : convert_to_sid
+  "2.5.5.17" : convert_to_sid,
+  "2.5.5.10" : convert_to_hex
 }
+
+def get_converter (name):
+  print "Getting converter for", name
+  if name not in converters:
+    obj = None ## attribute (name)
+    if obj and obj.attributeSyntax in TYPE_CONVERTERS:
+      register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
+    elif name.endswith ("GUID"):
+      register_converter (name, from_ad=convert_to_guid)
+  from_ad, _ = converters.get (name, (None, None))
+  return from_ad or (lambda x : x)
 
 def attribute (attribute_name, root=None):
   schemaNamingContext, = (root or root_dse ()).schemaNamingContext
@@ -529,17 +541,7 @@ def attribute (attribute_name, root=None):
   )
   for item in query (qs):
     path = item['ADsPath']
-    obj = ad (path)
-    #
-    # If a suitable converter isn't known, try a few
-    # well-known defaults
-    #
-    if attribute_name not in converters:
-      if obj.attributeSyntax in TYPE_CONVERTERS:
-        register_converter (attribute_name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
-      elif attribute_name.endswith ("GUID"):
-        register_converter (attribute_name, from_ad=convert_to_guid)
-    return obj
+    return ad (path)
   else:
     return None
     raise AttributeNotFound (attribute_name)
@@ -668,11 +670,12 @@ _PROPERTY_MAP = dict (
   minPwdAge = convert_to_datetime,
   modifiedCount = convert_to_datetime,
   modifiedCountAtLastProm = convert_to_datetime,
-  msExchMailboxGuid = convert_to_guid,
+  #~ msExchMailboxGuid = convert_to_guid,
+  #~ schemaIDGUID = convert_to_guid,
   mSMQDigests = convert_to_hex,
   mSMQSignCertificates = convert_to_hex,
   objectClass = convert_to_breadcrumbs,
-  objectGUID = convert_to_guid,
+  #~ objectGUID = convert_to_guid,
   objectSid = convert_to_sid,
   publicDelegates = convert_to_objects,
   publicDelegatesBL = convert_to_objects,
@@ -716,7 +719,7 @@ _PROPERTY_MAP_IN = dict (
   modifiedCount = convert_from_datetime,
   modifiedCountAtLastProm = convert_from_datetime,
   msExchMailboxGuid = convert_from_guid,
-  objectGUID = convert_from_guid,
+  #~ objectGUID = convert_from_guid,
   objectSid = convert_from_sid,
   publicDelegates = convert_from_objects,
   publicDelegatesBL = convert_from_objects,
@@ -1064,11 +1067,8 @@ class ADBase (ADSimple):
     #
     if name not in self._delegate_map:
       value = super (ADBase, self).__getattr__ (name)
-      from_ad, _ = converters.get (name, (None, None))
-      if from_ad:
-        self._delegate_map[name] = from_ad (value)
-      else:
-        self._delegate_map[name] = value
+      converter = get_converter (name)
+      self._delegate_map[name] = converter (value)
     return self._delegate_map[name]
 
   def __setitem__ (self, key, value):
@@ -1086,6 +1086,11 @@ class ADBase (ADSimple):
     if name in self.properties:
       wrapped (self.com_object.Put, name, value)
       wrapped (self.com_object.SetInfo)
+      #
+      # Invalidate to ensure map is refreshed on next get
+      #
+      if name in self._delegate_map:
+        del self._delegate_map[name]
     else:
       super (ADBase, self).__setattr__ (name, value)
 
