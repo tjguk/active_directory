@@ -1,3 +1,4 @@
+# -*- coding: iso-8859-1 -*-
 import os, sys
 
 import win32api
