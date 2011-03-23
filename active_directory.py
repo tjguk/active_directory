@@ -100,6 +100,7 @@ __VERSION__ = u"1.0rc1"
 
 import os, sys
 import datetime
+import logging
 import re
 import struct
 
@@ -111,10 +112,16 @@ import win32security
 from win32com import adsi
 from win32com.adsi import adsicon
 
+logger = logging.getLogger ("active_directory")
+def enable_debugging ():
+  logger.addHandler (logging.StreamHandler (sys.stdout))
+  logger.setLevel (logging.DEBUG)
+
 try:
   import collections
   SetBase = collections.MutableSet
 except (ImportError, AttributeError):
+  logger.warn ("Unable to use collections.MutableSet; using object instead")
   SetBase = object
 
 class ActiveDirectoryError (Exception):
@@ -372,7 +379,7 @@ def pytime_to_datetime (pytime):
   return datetime.datetime.fromtimestamp (int (pytime))
 
 def pytime_from_datetime (datetime):
-  pass
+  raise NotImplementedError
 
 def convert_to_object (item):
   if item is None: return None
@@ -522,7 +529,17 @@ def attribute (attribute_name, root=None):
   )
   for item in query (qs):
     path = item['ADsPath']
-    return ad (path)
+    obj = ad (path)
+    #
+    # If a suitable converter isn't known, try a few
+    # well-known defaults
+    #
+    if attribute_name not in converters:
+      if obj.attributeSyntax in TYPE_CONVERTERS:
+        register_converter (attribute_name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
+      elif attribute_name.endswith ("GUID"):
+        register_converter (attribute_name, from_ad=convert_to_guid)
+    return obj
   else:
     return None
     raise AttributeNotFound (attribute_name)
@@ -559,16 +576,7 @@ class _Proxy (object):
 
   def __init__ (self, name):
     self._name = name
-    self._attribute = _attribute = attribute (name)
-    #
-    # If a suitable converter isn't known, try a few
-    # well-known defaults
-    #
-    if name not in converters:
-      if _attribute and _attribute.attributeSyntax in TYPE_CONVERTERS:
-        register_converter (name, from_ad=TYPE_CONVERTERS[_attribute.attributeSyntax])
-      elif name.endswith ("GUID"):
-        register_converter (name, from_ad=convert_to_guid)
+    self._attribute = None
 
   def __unicode__ (self):
     return self._name
@@ -612,6 +620,11 @@ class _Proxy (object):
   def is_not_within (self, dn):
     return u"!%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
 
+  def dump (self, *args, **kwargs):
+    if self._attribute is None:
+      self._attribute = attribute (self._name)
+    self._attribute.dump (*args, **kwargs)
+
 class _Attributes (object):
 
   def __init__ (self):
@@ -621,7 +634,9 @@ class _Attributes (object):
     return self[attr]
 
   def __getitem__ (self, item):
-    return self._proxies.setdefault (item, _Proxy (item))
+    if item not in self._proxies:
+      self._proxies[item] = _Proxy (item)
+    return self._proxies[item]
 
 schema = _Attributes ()
 
@@ -1111,16 +1126,14 @@ class ADBase (ADSimple):
   @classmethod
   def _schema (cls, cschema):
     if cschema is None:
-      #~ return dict ((p, schema[p]) for p in cls._default_properties), False
       return cls._default_properties, False
 
     if cschema.ADsPath not in cls._schema_cache:
       properties = \
         wrapped (getattr, cschema, u"mandatoryProperties", []) + \
         wrapped (getattr, cschema, u"optionalProperties", [])
-      #~ cls._schema_cache[schema.ADsPath] = dict ((p, schema[p]) for p in properties), wrapped (getattr, schema, u"Container", False)
-      cls._schema_cache[schema.ADsPath] = properties, wrapped (getattr, schema, u"Container", False)
-    return cls._schema_cache[schema.ADsPath]
+      cls._schema_cache[cschema.ADsPath] = properties, wrapped (getattr, cschema, u"Container", False)
+    return cls._schema_cache[cschema.ADsPath]
 
   def refresh (self):
     wrapped (self.com_object.GetInfo)
