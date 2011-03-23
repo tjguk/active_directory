@@ -78,7 +78,7 @@ def convert_to_enum (enum):
 def convert_to_flags (enum):
   def _convert_to_flags (item):
     if item is None: return None
-    item = i32 (item)
+    item = utils.i32 (item)
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_to_flags
 
@@ -127,7 +127,7 @@ def convert_from_enum (enum):
 def convert_from_flags (enum):
   def _convert_from_flags (item):
     if item is None: return None
-    item = i32 (item)
+    item = utils.i32 (item)
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 

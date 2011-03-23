@@ -73,7 +73,7 @@ Key functions are:
 
    for user in ad.search (
      objectClass='User',
-     ad.or_ (displayName='Tim Golden', sAMAccountName='goldent')
+     ad.core.or_ (displayName='Tim Golden', sAMAccountName='goldent')
    ):
      #
      # This search returns an ADUser object
@@ -112,9 +112,12 @@ import win32security
 from win32com import adsi
 from win32com.adsi import adsicon
 
+from . import attributes
 from . import converters
-from . import utils
+from . import constants
 from . import core
+from . import exc
+from . import utils
 
 logger = logging.getLogger ("active_directory")
 def enable_debugging ():
@@ -130,358 +133,30 @@ except (ImportError, AttributeError):
 
 DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION
 
-#
-# For ease of presentation, ms-style constant lists are
-# held as Enum objects, allowing access by number or
-# by name, and by name-as-attribute. This means you can do, eg:
-#
-# print GROUP_TYPES[2]
-# print GROUP_TYPES['GLOBAL']
-# print GROUP_TYPES.GLOBAL
-#
-# The first is useful when displaying the contents
-# of an AD object; the other two when you want a more
-# readable piece of code, without magic numbers.
-#
-class Enum (object):
-
-  def __init__ (self, **kwargs):
-    self._name_map = {}
-    self._number_map = {}
-    for k, v in kwargs.items ():
-      self._name_map[k] = utils.i32 (v)
-      self._number_map[utils.i32 (v)] = k
-
-  def __getitem__ (self, item):
-    try:
-      return self._name_map[item]
-    except KeyError:
-      return self._number_map[utils.i32 (item)]
-
-  def __getattr__ (self, attr):
-    try:
-      return self._name_map[attr]
-    except KeyError:
-      raise AttributeError
-
-  def __repr__ (self):
-    return repr (self._name_map)
-
-  def __str__ (self):
-    return str (self._name_map)
-
-  def item_names (self):
-    return self._name_map.items ()
-
-  def item_numbers (self):
-    return self._number_map.items ()
-
-ADS_SYSTEMFLAG = Enum (
-  DISALLOW_DELETE             = 0x80000000,
-  CONFIG_ALLOW_RENAME         = 0x40000000,
-  CONFIG_ALLOW_MOVE           = 0x20000000,
-  CONFIG_ALLOW_LIMITED_MOVE   = 0x10000000,
-  DOMAIN_DISALLOW_RENAME      = 0x08000000,
-  DOMAIN_DISALLOW_MOVE        = 0x04000000,
-  CR_NTDS_NC                  = 0x00000001,
-  CR_NTDS_DOMAIN              = 0x00000002,
-  ATTR_NOT_REPLICATED         = 0x00000001,
-  ATTR_IS_CONSTRUCTED         = 0x00000004
-)
-
-GROUP_TYPES = Enum (
-  GLOBAL = 0x00000002,
-  DOMAIN_LOCAL = 0x00000004,
-  LOCAL = 0x00000004,
-  UNIVERSAL = 0x00000008,
-  SECURITY_ENABLED = 0x80000000
-)
-
-AUTHENTICATION_TYPES = Enum (
-  SECURE_AUTHENTICATION = utils.i32 (0x01),
-  USE_ENCRYPTION = utils.i32 (0x02),
-  USE_SSL = utils.i32 (0x02),
-  READONLY_SERVER = utils.i32 (0x04),
-  PROMPT_CREDENTIALS = utils.i32 (0x08),
-  NO_AUTHENTICATION = utils.i32 (0x10),
-  FAST_BIND = utils.i32 (0x20),
-  USE_SIGNING = utils.i32 (0x40),
-  USE_SEALING = utils.i32 (0x80),
-  USE_DELEGATION = utils.i32 (0x100),
-  SERVER_BIND = utils.i32 (0x200),
-  AUTH_RESERVED = utils.i32 (0x800000000)
-)
-
-SAM_ACCOUNT_TYPES = Enum (
-  DOMAIN_OBJECT = 0x0 ,
-  GROUP_OBJECT = 0x10000000 ,
-  NON_SECURITY_GROUP_OBJECT = 0x10000001 ,
-  ALIAS_OBJECT = 0x20000000 ,
-  NON_SECURITY_ALIAS_OBJECT = 0x20000001 ,
-  USER_OBJECT = 0x30000000 ,
-  NORMAL_USER_ACCOUNT = 0x30000000 ,
-  MACHINE_ACCOUNT = 0x30000001 ,
-  TRUST_ACCOUNT = 0x30000002 ,
-  APP_BASIC_GROUP = 0x40000000,
-  APP_QUERY_GROUP = 0x40000001 ,
-  ACCOUNT_TYPE_MAX = 0x7fffffff
-)
-
-USER_ACCOUNT_CONTROL = Enum (
-  SCRIPT = 0x00000001,
-  ACCOUNTDISABLE = 0x00000002,
-  HOMEDIR_REQUIRED = 0x00000008,
-  LOCKOUT = 0x00000010,
-  PASSWD_NOTREQD = 0x00000020,
-  PASSWD_CANT_CHANGE = 0x00000040,
-  ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x00000080,
-  TEMP_DUPLICATE_ACCOUNT = 0x00000100,
-  NORMAL_ACCOUNT = 0x00000200,
-  INTERDOMAIN_TRUST_ACCOUNT = 0x00000800,
-  WORKSTATION_TRUST_ACCOUNT = 0x00001000,
-  SERVER_TRUST_ACCOUNT = 0x00002000,
-  DONT_EXPIRE_PASSWD = 0x00010000,
-  MNS_LOGON_ACCOUNT = 0x00020000,
-  SMARTCARD_REQUIRED = 0x00040000,
-  TRUSTED_FOR_DELEGATION = 0x00080000,
-  NOT_DELEGATED = 0x00100000,
-  USE_DES_KEY_ONLY = 0x00200000,
-  DONT_REQUIRE_PREAUTH = 0x00400000,
-  PASSWORD_EXPIRED = 0x00800000,
-  TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x01000000
-)
-
-ADS_PROPERTY = Enum (
-  CLEAR = 1,
-  UPDATE = 2,
-  APPEND = 3,
-  DELETE = 4
-)
-
-ENUMS = {
-  u"GROUP_TYPES" : GROUP_TYPES,
-  u"AUTHENTICATION_TYPES" : AUTHENTICATION_TYPES,
-  u"SAM_ACCOUNT_TYPES" : SAM_ACCOUNT_TYPES,
-  u"USER_ACCOUNT_CONTROL" : USER_ACCOUNT_CONTROL,
-  u"ADS_PROPERTY" : ADS_PROPERTY,
-  u"ADS_SYSTEMFLAG" : ADS_SYSTEMFLAG,
-}
-
 def get_converter (name):
-  print "Getting converter for", name
   if name not in converters.converters:
     obj = None ## attribute (name)
     if obj and obj.attributeSyntax in TYPE_CONVERTERS:
       converters.register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
     elif name.endswith ("GUID"):
-      converters.register_converter (name, from_ad=convert_to_guid)
+      converters.register_converter (name, from_ad=converters.convert_to_guid)
   from_ad, _ = converters.converters.get (name, (None, None))
   return from_ad or (lambda x : x)
 
 def attribute (attribute_name, root=None):
-  schemaNamingContext, = (root or root_dse ()).schemaNamingContext
+  root_dse = root or win32com.client.GetObject ("LDAP://rootDSE")
+  schemaNamingContext = root_dse.Get ("schemaNamingContext")
   qs = core.query_string (
     base="LDAP://%s" % schemaNamingContext,
-    filter="ldapDisplayName=%s" % attribute_name
+    filter="ldapDisplayName=%s" % attribute_name,
+    attributes="*"
   )
   for item in core.query (qs):
-    path = item['ADsPath']
-    return ad (path)
+    return item
   else:
-    return None
-    raise AttributeNotFound (attribute_name)
+    return {}
 
-class _Proxy (object):
-
-  ESCAPED_CHARACTERS = dict ((special, ur"\%02x" % ord (special)) for special in u"*()\x00/")
-
-  @classmethod
-  def escaped_filter (cls, s):
-    for original, escape in cls.ESCAPED_CHARACTERS.items ():
-      s = s.replace (original, escape)
-    return s
-
-  @staticmethod
-  def _munge (other):
-    if isinstance (other, ADBase):
-      return other.dn
-
-    if isinstance (other, datetime.date):
-      other = datetime.datetime (*other.timetuple ()[:7])
-      # now drop through to datetime converter below
-
-    if isinstance (other, datetime.datetime):
-      return datetime_to_ad_time (other)
-
-    other = unicode (other)
-    if other.endswith (u"*"):
-      other, suffix = other[:-1], other[-1]
-    else:
-      suffix = u""
-    #~ other = cls.escaped_filter (other)
-    return other + suffix
-
-  def __init__ (self, name):
-    self._name = name
-    self._attribute = None
-
-  def __unicode__ (self):
-    return self._name
-
-  def __repr__ (self):
-    return u"<_Proxy for %s>" % self._name
-
-  def __hash__ (self):
-    return hash (self._name)
-
-  def __getattr__ (self, attr):
-    return getattr (self._attribute, attr)
-
-  def __eq__ (self, other):
-    return u"%s=%s" % (self._name, self._munge (other))
-
-  def __ne__ (self, other):
-    return u"!%s=%s" % (self._name, self._munge (other))
-
-  def __gt__ (self, other):
-    raise NotImplementedError (u"> Not implemented")
-
-  def __ge__ (self, other):
-    return u"%s>=%s" % (self._name, self._munge (other))
-
-  def __lt__ (self, other):
-    raise NotImplementedError (u"< Not implemented")
-
-  def __le__ (self, other):
-    return u"%s<=%s" % (self._name, self._munge (other))
-
-  def __and__ (self, other):
-    return u"%s:1.2.840.113556.1.4.803:=%s" % (self._name, self._munge (other))
-
-  def __or__ (self, other):
-    return u"%s:1.2.840.113556.1.4.804:=%s" % (self._name, self._munge (other))
-
-  def is_within (self, dn):
-    return u"%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
-
-  def is_not_within (self, dn):
-    return u"!%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
-
-  def dump (self, *args, **kwargs):
-    if self._attribute is None:
-      self._attribute = attribute (self._name)
-    self._attribute.dump (*args, **kwargs)
-
-class _Attributes (object):
-
-  def __init__ (self):
-    self._proxies = {}
-
-  def __getattr__ (self, attr):
-    return self[attr]
-
-  def __getitem__ (self, item):
-    if item not in self._proxies:
-      self._proxies[item] = _Proxy (item)
-    return self._proxies[item]
-
-schema = _Attributes ()
-
-#
-# Conversions
-#
-_PROPERTY_MAP = dict (
-  accountExpires = convert_to_datetime,
-  auditingPolicy = convert_to_hex,
-  badPasswordTime = convert_to_datetime,
-  creationTime = convert_to_datetime,
-  dSASignature = convert_to_hex,
-  forceLogoff = convert_to_datetime,
-  fSMORoleOwner = convert_to_object (ad),
-  groupType = convert_to_flags (GROUP_TYPES),
-  isGlobalCatalogReady = convert_to_boolean,
-  isSynchronized = convert_to_boolean,
-  lastLogoff = convert_to_datetime,
-  lastLogon = convert_to_datetime,
-  lastLogonTimestamp = convert_to_datetime,
-  lockoutDuration = convert_to_datetime,
-  lockoutObservationWindow = convert_to_datetime,
-  lockoutTime = convert_to_datetime,
-  manager = convert_to_object (ad),
-  masteredBy = convert_to_objects (ad),
-  maxPwdAge = convert_to_datetime,
-  member = convert_to_objects (ad),
-  memberOf = convert_to_objects (ad),
-  minPwdAge = convert_to_datetime,
-  modifiedCount = convert_to_datetime,
-  modifiedCountAtLastProm = convert_to_datetime,
-  #~ msExchMailboxGuid = convert_to_guid,
-  #~ schemaIDGUID = convert_to_guid,
-  mSMQDigests = convert_to_hex,
-  mSMQSignCertificates = convert_to_hex,
-  objectClass = convert_to_breadcrumbs,
-  #~ objectGUID = convert_to_guid,
-  objectSid = convert_to_sid,
-  publicDelegates = convert_to_objects (ad),
-  publicDelegatesBL = convert_to_objects (ad),
-  pwdLastSet = convert_to_datetime,
-  replicationSignature = convert_to_hex,
-  replUpToDateVector = convert_to_hex,
-  repsFrom = convert_to_hexes,
-  repsTo = convert_to_hex,
-  sAMAccountType = convert_to_enum (SAM_ACCOUNT_TYPES),
-  subRefs = convert_to_objects (ad),
-  systemFlags = convert_to_flags (ADS_SYSTEMFLAG),
-  userAccountControl = convert_to_flags (USER_ACCOUNT_CONTROL),
-  wellKnownObjects = convert_to_objects (ad),
-  whenCreated = convert_pytime_to_datetime,
-  whenChanged = convert_pytime_to_datetime,
-)
-_PROPERTY_MAP[u'msDs-masteredBy'] = convert_to_objects (ad)
-
-for k, v in _PROPERTY_MAP.items ():
-  register_converter (k, from_ad=v)
-
-_PROPERTY_MAP_IN = dict (
-  accountExpires = convert_from_datetime,
-  badPasswordTime = convert_from_datetime,
-  creationTime = convert_from_datetime,
-  dSASignature = convert_from_hex,
-  forceLogoff = convert_from_datetime,
-  fSMORoleOwner = convert_from_object,
-  groupType = convert_from_flags (GROUP_TYPES),
-  lastLogoff = convert_from_datetime,
-  lastLogon = convert_from_datetime,
-  lastLogonTimestamp = convert_from_datetime,
-  lockoutDuration = convert_from_datetime,
-  lockoutObservationWindow = convert_from_datetime,
-  lockoutTime = convert_from_datetime,
-  masteredBy = convert_from_objects,
-  maxPwdAge = convert_from_datetime,
-  member = convert_from_objects,
-  memberOf = convert_from_objects,
-  minPwdAge = convert_from_datetime,
-  modifiedCount = convert_from_datetime,
-  modifiedCountAtLastProm = convert_from_datetime,
-  msExchMailboxGuid = convert_from_guid,
-  #~ objectGUID = convert_from_guid,
-  objectSid = convert_from_sid,
-  publicDelegates = convert_from_objects,
-  publicDelegatesBL = convert_from_objects,
-  pwdLastSet = convert_from_datetime,
-  replicationSignature = convert_from_hex,
-  replUpToDateVector = convert_from_hex,
-  repsFrom = convert_from_hex,
-  repsTo = convert_from_hex,
-  sAMAccountType = convert_from_enum (SAM_ACCOUNT_TYPES),
-  subRefs = convert_from_objects,
-  userAccountControl = convert_from_flags (USER_ACCOUNT_CONTROL),
-  wellKnownObjects = convert_from_objects
-)
-_PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
-
-for k, v in _PROPERTY_MAP_IN.items ():
-  register_converter (k, to_ad=v)
+schema = attributes._Attributes ()
 
 def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
@@ -490,7 +165,7 @@ def search_ex (query_string=u"", username=None, password=None):
 class _Members (set):
 
   def __init__ (self, group):
-    super (_Members, self).__init__ (ad (i) for i in iter (wrapped (group.com_object.members)))
+    super (_Members, self).__init__ (ad (i) for i in iter (exc.wrapped (group.com_object.members)))
     self._group = group
 
   def _effect (self, original):
@@ -498,11 +173,11 @@ class _Members (set):
     for member in (self - original):
       print u"Adding", member
       #~ group.Add (member.AdsPath)
-      wrapped (group.Add, member.AdsPath)
+      exc.wrapped (group.Add, member.AdsPath)
     for member in (original - self):
       print u"Removing", member
       #~ group.Remove (member.AdsPath)
-      wrapped (group.Remove, member.AdsPath)
+      exc.wrapped (group.Remove, member.AdsPath)
 
   def update (self, *others):
     original = set (self)
@@ -571,16 +246,16 @@ class ADSimple (object):
   _properties = []
 
   def __init__ (self, obj):
-    _set (self, u"com_object", obj)
-    _set (self, u"properties", self._properties)
+    utils._set (self, u"com_object", obj)
+    utils._set (self, u"properties", self._properties)
     self.path = obj.ADsPath
 
   def __getattr__ (self, name):
     try:
-      return wrapped (getattr, self.com_object, name)
+      return exc.wrapped (getattr, self.com_object, name)
     except AttributeError:
       try:
-        return wrapped (self.com_object.GetEx, name)
+        return exc.wrapped (self.com_object.GetEx, name)
       except NotImplementedError:
         raise AttributeError
 
@@ -641,7 +316,7 @@ supportedLDAPVersion
 supportedSASLMechanisms
   """.split ()
 
-#~ ROOT_DSE = RootDSE (wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
+#~ ROOT_DSE = RootDSE (exc.wrapped (adsi.ADsGetObject, "LDAP://rootDSE"))
 
 class ADBase (ADSimple):
   u"""Wrap an active-directory object for easier access
@@ -666,11 +341,11 @@ class ADBase (ADSimple):
     schema = None
     if parse_schema:
       try:
-        schema = wrapped (adsi.ADsGetObject, wrapped (getattr, obj, u"Schema", None))
+        schema = exc.wrapped (adsi.ADsGetObject, exc.wrapped (getattr, obj, u"Schema", None))
       except ActiveDirectoryError:
         schema = None
     properties, is_container = self._schema (schema)
-    _set (self, u"properties", properties)
+    utils._set (self, u"properties", properties)
     self.is_container = is_container
 
     #
@@ -680,9 +355,8 @@ class ADBase (ADSimple):
     #
     self.username = username
     self.password = password
-    self.connection = connect (username=username, password=password)
-    self.dn = wrapped (getattr, self.com_object, u"distinguishedName", None) or self.com_object.name
-    self._property_map = _PROPERTY_MAP
+    self.connection = core.connect (username=username, password=password)
+    self.dn = exc.wrapped (getattr, self.com_object, u"distinguishedName", None) or self.com_object.name
     self._delegate_map = dict ()
 
   def __getitem__ (self, key):
@@ -736,8 +410,8 @@ class ADBase (ADSimple):
     #  fields.
     #
     if name in self.properties:
-      wrapped (self.com_object.Put, name, value)
-      wrapped (self.com_object.SetInfo)
+      exc.wrapped (self.com_object.Put, name, value)
+      exc.wrapped (self.com_object.SetInfo)
       #
       # Invalidate to ensure map is refreshed on next get
       #
@@ -753,7 +427,7 @@ class ADBase (ADSimple):
     return self.as_string ()
 
   def __repr__ (self):
-    return u"<%s: %s>" % (wrapped (getattr, self.com_object, u"Class") or u"AD", self.dn)
+    return u"<%s: %s>" % (exc.wrapped (getattr, self.com_object, u"Class") or u"AD", self.dn)
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
@@ -787,13 +461,13 @@ class ADBase (ADSimple):
 
     if cschema.ADsPath not in cls._schema_cache:
       properties = \
-        wrapped (getattr, cschema, u"mandatoryProperties", []) + \
-        wrapped (getattr, cschema, u"optionalProperties", [])
-      cls._schema_cache[cschema.ADsPath] = properties, wrapped (getattr, cschema, u"Container", False)
+        exc.wrapped (getattr, cschema, u"mandatoryProperties", []) + \
+        exc.wrapped (getattr, cschema, u"optionalProperties", [])
+      cls._schema_cache[cschema.ADsPath] = properties, exc.wrapped (getattr, cschema, u"Container", False)
     return cls._schema_cache[cschema.ADsPath]
 
   def refresh (self):
-    wrapped (self.com_object.GetInfo)
+    exc.wrapped (self.com_object.GetInfo)
 
   def walk (self):
     u"""Analogous to os.walk, traverse this AD subtree,
@@ -826,8 +500,8 @@ class ADBase (ADSimple):
       user.set (displayName = "Tim Golden", description="SQL Developer")
     """
     for k, v in kwds.items ():
-      wrapped (self.com_object.Put, k, v)
-    wrapped (self.com_object.SetInfo)
+      exc.wrapped (self.com_object.Put, k, v)
+    exc.wrapped (self.com_object.SetInfo)
 
   def _find (self, object_class):
     u"""Helper function to allow general-purpose searching for
@@ -862,10 +536,10 @@ class ADBase (ADSimple):
     u"""Make a special case of (the common need of) finding a user
     either by username or by display name
     """
-    name = name or win32api.GetUserName ()
-    filter = and_ (
-      or_ (sAMAccountName=name, displayName=name, cn=name),
-      sAMAccountType=SAM_ACCOUNT_TYPES.USER_OBJECT
+    name = name or exc.wrapped (win32api.GetUserName )
+    filter = core.and_ (
+      core.or_ (sAMAccountName=name, displayName=name, cn=name),
+      sAMAccountType=constants.SAM_ACCOUNT_TYPES.USER_OBJECT
     )
     for user in self.search (filter):
       return user
@@ -875,41 +549,42 @@ class ADBase (ADSimple):
     return self.find_organizational_unit (name)
 
   def search (self, *args, **kwargs):
-    filter = and_ (*args, **kwargs)
+    filter = core.and_ (*args, **kwargs)
+    #~ query_string = core.qs (base=self.ADsPath, filter=filter, attributes=["objectGuid"])
     query_string = u"<%s>;(%s);objectGuid;Subtree" % (self.ADsPath, filter)
-    for result in query (query_string, connection=self.connection):
+    for result in core.query (query_string, connection=self.connection):
       guid = u"".join (u"%02X" % ord (i) for i in result['objectGuid'])
       yield ad (u"LDAP://<GUID=%s>" % guid, username=self.username, password=self.password)
 
   def get (self, object_class, relative_path):
-    return ad (wrapped (self.com_object.GetObject, object_class, relative_path))
+    return ad (exc.wrapped (self.com_object.GetObject, object_class, relative_path))
 
   def new_ou (self, name, description=None, **kwargs):
-    obj = wrapped (self.com_object.Create, u"organizationalUnit", u"ou=%s" % name)
-    wrapped (obj.Put, u"description", description or name)
-    wrapped (obj.SetInfo)
+    obj = exc.wrapped (self.com_object.Create, u"organizationalUnit", u"ou=%s" % name)
+    exc.wrapped (obj.Put, u"description", description or name)
+    exc.wrapped (obj.SetInfo)
     for name, value in kwargs.items ():
-      wrapped (obj.Put, name, value)
-    wrapped (obj.SetInfo)
+      exc.wrapped (obj.Put, name, value)
+    exc.wrapped (obj.SetInfo)
     return ad (obj)
 
-  def new_group (self, name, type=GROUP_TYPES.DOMAIN_LOCAL | GROUP_TYPES.SECURITY_ENABLED, **kwargs):
-    obj = wrapped (self.com_object.Create, u"group", u"cn=%s" % name)
-    wrapped (obj.Put, u"sAMAccountName", name)
-    wrapped (obj.Put, u"groupType", type)
-    wrapped (obj.SetInfo)
+  def new_group (self, name, type=constants.GROUP_TYPES.DOMAIN_LOCAL | constants.GROUP_TYPES.SECURITY_ENABLED, **kwargs):
+    obj = exc.wrapped (self.com_object.Create, u"group", u"cn=%s" % name)
+    exc.wrapped (obj.Put, u"sAMAccountName", name)
+    exc.wrapped (obj.Put, u"groupType", type)
+    exc.wrapped (obj.SetInfo)
     for name, value in kwargs.items ():
-      wrapped (obj.Put, name, value)
-    wrapped (obj.SetInfo)
+      exc.wrapped (obj.Put, name, value)
+    exc.wrapped (obj.SetInfo)
     return ad (obj)
 
   def new (self, object_class, sam_account_name, **kwargs):
-    obj = wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
-    wrapped (obj.Put, u"sAMAccountName", sam_account_name)
-    wrapped (obj.SetInfo)
+    obj = exc.wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
+    exc.wrapped (obj.Put, u"sAMAccountName", sam_account_name)
+    exc.wrapped (obj.SetInfo)
     for name, value in kwargs.items ():
-      wrapped (obj.Put, name, value)
-    wrapped (obj.SetInfo)
+      exc.wrapped (obj.Put, name, value)
+    exc.wrapped (obj.SetInfo)
     return ad (obj)
 
 class WinNT (ADBase):
@@ -932,11 +607,11 @@ class Group (ADBase):
     print u"new_members - original", new_members - original
     for member in (new_members - original):
       print u"Adding", member
-      wrapped (self.com_object.Add, member.AdsPath)
+      exc.wrapped (self.com_object.Add, member.AdsPath)
     print u"original - new_members", original - new_members
     for member in (original - new_members):
       print u"Removing", member
-      wrapped (self.com_object.Remove, member.AdsPath)
+      exc.wrapped (self.com_object.Remove, member.AdsPath)
   members = property (_get_members, _set_members)
 
   def walk (self):
@@ -1012,7 +687,7 @@ def ad (obj_or_path, username=None, password=None):
     else:
       moniker = escaped_moniker (dn)
     obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
-    obj = wrapped (adsi.ADsOpenObject, obj_path, username, password, DEFAULT_BIND_FLAGS)
+    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, username, password, DEFAULT_BIND_FLAGS)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
@@ -1036,10 +711,10 @@ def AD (server=None, username=None, password=None, use_gc=False):
     root_moniker = scheme + server + u"/rootDSE"
   else:
     root_moniker = scheme + u"rootDSE"
-  root_obj = wrapped (adsi.ADsOpenObject, root_moniker, username, password, DEFAULT_BIND_FLAGS)
+  root_obj = exc.wrapped (adsi.ADsOpenObject, root_moniker, username, password, DEFAULT_BIND_FLAGS)
   default_naming_context = root_obj.Get (u"defaultNamingContext")
   moniker = scheme + default_naming_context
-  obj = wrapped (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
+  obj = exc.wrapped (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
   return ad (obj, username, password)
 
 
@@ -1083,4 +758,102 @@ def namespaces ():
 
 def root_dse (username=None, password=None):
   return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
+
+
+
+#
+# Conversions
+#
+_PROPERTY_MAP = dict (
+  accountExpires = converters.convert_to_datetime,
+  auditingPolicy = converters.convert_to_hex,
+  badPasswordTime = converters.convert_to_datetime,
+  creationTime = converters.convert_to_datetime,
+  dSASignature = converters.convert_to_hex,
+  forceLogoff = converters.convert_to_datetime,
+  #~ fSMORoleOwner = converters.convert_to_object (ad),
+  groupType = converters.convert_to_flags (constants.GROUP_TYPES),
+  isGlobalCatalogReady = converters.convert_to_boolean,
+  isSynchronized = converters.convert_to_boolean,
+  lastLogoff = converters.convert_to_datetime,
+  lastLogon = converters.convert_to_datetime,
+  lastLogonTimestamp = converters.convert_to_datetime,
+  lockoutDuration = converters.convert_to_datetime,
+  lockoutObservationWindow = converters.convert_to_datetime,
+  lockoutTime = converters.convert_to_datetime,
+  #~ manager = converters.convert_to_object (ad),
+  #~ masteredBy = converters.convert_to_objects (ad),
+  maxPwdAge = converters.convert_to_datetime,
+  #~ member = converters.convert_to_objects (ad),
+  #~ memberOf = converters.convert_to_objects (ad),
+  minPwdAge = converters.convert_to_datetime,
+  modifiedCount = converters.convert_to_datetime,
+  modifiedCountAtLastProm = converters.convert_to_datetime,
+  #~ msExchMailboxGuid = converters.convert_to_guid,
+  #~ schemaIDGUID = converters.convert_to_guid,
+  mSMQDigests = converters.convert_to_hex,
+  mSMQSignCertificates = converters.convert_to_hex,
+  objectClass = converters.convert_to_breadcrumbs,
+  #~ objectGUID = converters.convert_to_guid,
+  objectSid = converters.convert_to_sid,
+  #~ publicDelegates = converters.convert_to_objects (ad),
+  #~ publicDelegatesBL = converters.convert_to_objects (ad),
+  pwdLastSet = converters.convert_to_datetime,
+  replicationSignature = converters.convert_to_hex,
+  replUpToDateVector = converters.convert_to_hex,
+  repsFrom = converters.convert_to_hexes,
+  repsTo = converters.convert_to_hex,
+  sAMAccountType = converters.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
+  #~ subRefs = converters.convert_to_objects (ad),
+  systemFlags = converters.convert_to_flags (constants.ADS_SYSTEMFLAG),
+  userAccountControl = converters.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
+  #~ wellKnownObjects = converters.convert_to_objects (ad),
+  whenCreated = converters.convert_pytime_to_datetime,
+  whenChanged = converters.convert_pytime_to_datetime,
+)
+#~ _PROPERTY_MAP[u'msDs-masteredBy'] = converters.convert_to_objects (ad)
+
+for k, v in _PROPERTY_MAP.items ():
+  converters.register_converter (k, from_ad=v)
+
+_PROPERTY_MAP_IN = dict (
+  accountExpires = converters.convert_from_datetime,
+  badPasswordTime = converters.convert_from_datetime,
+  creationTime = converters.convert_from_datetime,
+  dSASignature = converters.convert_from_hex,
+  forceLogoff = converters.convert_from_datetime,
+  fSMORoleOwner = converters.convert_from_object,
+  groupType = converters.convert_from_flags (constants.GROUP_TYPES),
+  lastLogoff = converters.convert_from_datetime,
+  lastLogon = converters.convert_from_datetime,
+  lastLogonTimestamp = converters.convert_from_datetime,
+  lockoutDuration = converters.convert_from_datetime,
+  lockoutObservationWindow = converters.convert_from_datetime,
+  lockoutTime = converters.convert_from_datetime,
+  masteredBy = converters.convert_from_objects,
+  maxPwdAge = converters.convert_from_datetime,
+  member = converters.convert_from_objects,
+  memberOf = converters.convert_from_objects,
+  minPwdAge = converters.convert_from_datetime,
+  modifiedCount = converters.convert_from_datetime,
+  modifiedCountAtLastProm = converters.convert_from_datetime,
+  msExchMailboxGuid = converters.convert_from_guid,
+  #~ objectGUID = converters.convert_from_guid,
+  objectSid = converters.convert_from_sid,
+  publicDelegates = converters.convert_from_objects,
+  publicDelegatesBL = converters.convert_from_objects,
+  pwdLastSet = converters.convert_from_datetime,
+  replicationSignature = converters.convert_from_hex,
+  replUpToDateVector = converters.convert_from_hex,
+  repsFrom = converters.convert_from_hex,
+  repsTo = converters.convert_from_hex,
+  sAMAccountType = converters.convert_from_enum (constants.SAM_ACCOUNT_TYPES),
+  subRefs = converters.convert_from_objects,
+  userAccountControl = converters.convert_from_flags (constants.USER_ACCOUNT_CONTROL),
+  wellKnownObjects = converters.convert_from_objects
+)
+_PROPERTY_MAP_IN['msDs-masteredBy'] = converters.convert_from_objects
+
+for k, v in _PROPERTY_MAP_IN.items ():
+  converters.register_converter (k, to_ad=v)
 
