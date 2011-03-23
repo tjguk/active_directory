@@ -32,3 +32,14 @@ def i32(x):
   # i32(0x80000001L) -> -2147483647L     etc.
   return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
 
+def escaped_moniker (moniker):
+  #
+  # If the moniker *appears* to have been escaped
+  # already, return it straight. This is obviously
+  # fragile but seems to work for now.
+  #
+  if moniker.find (u"\\/") > -1:
+    return moniker
+  else:
+    return moniker.replace (u"/", u"\\/")
+
