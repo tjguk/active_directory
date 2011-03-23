@@ -278,11 +278,7 @@ class ADBase (ADSimple):
     either by username or by display name
     """
     name = name or exc.wrapped (win32api.GetUserName)
-    filter = core.and_ (
-      core.or_ (sAMAccountName=name, displayName=name, cn=name),
-      sAMAccountType=constants.SAM_ACCOUNT_TYPES.USER_OBJECT
-    )
-    for user in self.search (filter):
+    for user in self.search (anr=name):
       return user
 
   def find_ou (self, name):
