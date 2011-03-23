@@ -99,18 +99,9 @@ more work...)
 __VERSION__ = u"1.0rc1"
 
 import os, sys
-import datetime
 import logging
-import re
-import struct
 
-import pythoncom
-import pywintypes
-import win32api
-import win32com.client
-import win32security
 from win32com import adsi
-from win32com.adsi import adsicon
 
 from . import base
 from . import constants
@@ -123,13 +114,6 @@ logger = logging.getLogger ("active_directory")
 def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
-
-try:
-  import collections
-  SetBase = collections.MutableSet
-except (ImportError, AttributeError):
-  logger.warn ("Unable to use collections.MutableSet; using object instead")
-  SetBase = object
 
 schema = types.Attributes ()
 
@@ -265,6 +249,7 @@ _PROPERTY_MAP = dict (
   wellKnownObjects = types.convert_to_objects (base.ad),
   whenCreated = types.convert_pytime_to_datetime,
   whenChanged = types.convert_pytime_to_datetime,
+  showInAddressbook = types.convert_to_objects (base.ad),
 )
 _PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (base.ad)
 

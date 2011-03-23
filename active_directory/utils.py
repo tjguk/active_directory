@@ -1,4 +1,6 @@
 # -*- coding: iso-8859-1 -*-
+import struct
+
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
 
