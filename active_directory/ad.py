@@ -112,6 +112,10 @@ import win32security
 from win32com import adsi
 from win32com.adsi import adsicon
 
+from . import converters
+from . import utils
+from . import core
+
 logger = logging.getLogger ("active_directory")
 def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
@@ -124,106 +128,7 @@ except (ImportError, AttributeError):
   logger.warn ("Unable to use collections.MutableSet; using object instead")
   SetBase = object
 
-class ActiveDirectoryError (Exception):
-  u"""Base class for all AD Exceptions"""
-  pass
-
-class MemberAlreadyInGroupError (ActiveDirectoryError):
-  pass
-
-class MemberNotInGroupError (ActiveDirectoryError):
-  pass
-
-class BadPathnameError (ActiveDirectoryError):
-  pass
-
-class AttributeNotFound (ActiveDirectoryError):
-  pass
-
-ERROR_DS_NO_SUCH_OBJECT = 0x80072030
-ERROR_OBJECT_ALREADY_EXISTS = 0x80071392
-ERROR_MEMBER_NOT_IN_ALIAS = 0x80070561
-ERROR_MEMBER_IN_ALIAS = 0x80070562
-E_ADS_BAD_PATHNAME = 0x80005000
-ERROR_NOT_IMPLEMENTED = 0x80004001
-E_ADS_PROPERTY_NOT_FOUND = 0x8000500D
-
-def wrapper (winerror_map, default_exception):
-  u"""Used by each module to map specific windows error codes onto
-  Python exceptions. Always includes a default which is raised if
-  no specific exception is found.
-  """
-  def _wrapped (function, *args, **kwargs):
-    u"""Call a Windows API with parameters, and handle any
-    exception raised either by mapping it to a module-specific
-    one or by passing it back up the chain.
-    """
-    try:
-      return function (*args, **kwargs)
-    except pywintypes.com_error, (hresult_code, hresult_name, additional_info, parameter_in_error):
-      hresult_code = signed_to_unsigned (hresult_code)
-      exception_string = [u"%08X - %s" % (hresult_code, hresult_name)]
-      if additional_info:
-        wcode, source_of_error, error_description, whlp_file, whlp_context, scode = additional_info
-        scode = signed_to_unsigned (scode)
-        exception_string.append (u"  Error in: %s" % source_of_error)
-        exception_string.append (u"  %08X - %s" % (scode, (error_description or "").strip ()))
-      else:
-        scode = None
-      exception = winerror_map.get (hresult_code, winerror_map.get (scode, default_exception))
-      raise exception (hresult_code, hresult_name, u"\n".join (exception_string))
-    except pywintypes.error, (errno, errctx, errmsg):
-      exception = winerror_map.get (errno, default_exception)
-      raise exception (errno, errctx, errmsg)
-    except (WindowsError, IOError), err:
-      exception = winerror_map.get (err.errno, default_exception)
-      if exception:
-        raise exception (err.errno, u"", err.strerror)
-  return _wrapped
-
-WINERROR_MAP = {
-  ERROR_MEMBER_NOT_IN_ALIAS : MemberNotInGroupError,
-  ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError,
-  E_ADS_BAD_PATHNAME : BadPathnameError,
-  ERROR_NOT_IMPLEMENTED : NotImplementedError,
-  E_ADS_PROPERTY_NOT_FOUND : AttributeError
-}
-wrapped = wrapper (WINERROR_MAP, ActiveDirectoryError)
-
 DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION
-
-def delta_as_microseconds (delta) :
-  return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
-
-def signed_to_unsigned (signed):
-  u"""Convert a (possibly signed) long to unsigned hex"""
-  unsigned, = struct.unpack ("L", struct.pack ("l", signed))
-  return unsigned
-
-def _set (obj, attribute, value):
-  u"""Helper function to add an attribute directly into the instance
-   dictionary, bypassing possible __getattr__ calls
-  """
-  obj.__dict__[attribute] = value
-
-#
-# Code contributed by Stian Søiland <stian@soiland.no>
-#
-def i32(x):
-  u"""Converts a long (for instance 0x80005000L) to a signed 32-bit-int.
-
-  Python2.4 will convert numbers >= 0x80005000 to large numbers
-  instead of negative ints.    This is not what we want for
-  typical win32 constants.
-
-  Usage:
-      >>> i32(0x80005000L)
-      -2147363168
-  """
-  # x > 0x80000000L should be negative, such that:
-  # i32(0x80000000L) -> -2147483648L
-  # i32(0x80000001L) -> -2147483647L     etc.
-  return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
 
 #
 # For ease of presentation, ms-style constant lists are
@@ -244,14 +149,14 @@ class Enum (object):
     self._name_map = {}
     self._number_map = {}
     for k, v in kwargs.items ():
-      self._name_map[k] = i32 (v)
-      self._number_map[i32 (v)] = k
+      self._name_map[k] = utils.i32 (v)
+      self._number_map[utils.i32 (v)] = k
 
   def __getitem__ (self, item):
     try:
       return self._name_map[item]
     except KeyError:
-      return self._number_map[i32 (item)]
+      return self._number_map[utils.i32 (item)]
 
   def __getattr__ (self, attr):
     try:
@@ -293,18 +198,18 @@ GROUP_TYPES = Enum (
 )
 
 AUTHENTICATION_TYPES = Enum (
-  SECURE_AUTHENTICATION = i32 (0x01),
-  USE_ENCRYPTION = i32 (0x02),
-  USE_SSL = i32 (0x02),
-  READONLY_SERVER = i32 (0x04),
-  PROMPT_CREDENTIALS = i32 (0x08),
-  NO_AUTHENTICATION = i32 (0x10),
-  FAST_BIND = i32 (0x20),
-  USE_SIGNING = i32 (0x40),
-  USE_SEALING = i32 (0x80),
-  USE_DELEGATION = i32 (0x100),
-  SERVER_BIND = i32 (0x200),
-  AUTH_RESERVED = i32 (0x800000000)
+  SECURE_AUTHENTICATION = utils.i32 (0x01),
+  USE_ENCRYPTION = utils.i32 (0x02),
+  USE_SSL = utils.i32 (0x02),
+  READONLY_SERVER = utils.i32 (0x04),
+  PROMPT_CREDENTIALS = utils.i32 (0x08),
+  NO_AUTHENTICATION = utils.i32 (0x10),
+  FAST_BIND = utils.i32 (0x20),
+  USE_SIGNING = utils.i32 (0x40),
+  USE_SEALING = utils.i32 (0x80),
+  USE_DELEGATION = utils.i32 (0x100),
+  SERVER_BIND = utils.i32 (0x200),
+  AUTH_RESERVED = utils.i32 (0x800000000)
 )
 
 SAM_ACCOUNT_TYPES = Enum (
@@ -362,184 +267,24 @@ ENUMS = {
   u"ADS_SYSTEMFLAG" : ADS_SYSTEMFLAG,
 }
 
-#
-# Converters
-#
-BASE_TIME = datetime.datetime (1601, 1, 1)
-def ad_time_to_datetime (ad_time):
-  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
-  ns100 = (hi << 32) + lo
-  delta = datetime.timedelta (microseconds=ns100 / 10)
-  return BASE_TIME + delta
-
-def datetime_to_ad_time (datetime):
-  return datetime.strftime ("%y%m%d%H%M%SZ")
-
-def pytime_to_datetime (pytime):
-  return datetime.datetime.fromtimestamp (int (pytime))
-
-def pytime_from_datetime (datetime):
-  raise NotImplementedError
-
-def convert_to_object (item):
-  if item is None: return None
-  return ad (item)
-
-def convert_to_objects (items):
-  if items is None:
-    return []
-  else:
-    if not isinstance (items, (tuple, list)):
-      items = [items]
-    return [ad (item) for item in items]
-
-def convert_to_boolean (item):
-  if item is None: return None
-  return item == u"TRUE"
-
-def convert_to_datetime (item):
-  if item is None: return None
-  return ad_time_to_datetime (item)
-
-def convert_pytime_to_datetime (item):
-  if item is None: return None
-  return pytime_to_datetime (item)
-
-def convert_to_sid (item):
-  if item is None: return None
-  return win32security.SID (item)
-
-def convert_to_guid (item):
-  if item is None: return None
-  guid = convert_to_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
-
-def convert_to_hex (item):
-  if item is None: return None
-  return u"<%s>" % u"".join ([u"%02x" % ord (i) for i in item])
-
-def convert_to_hexes (item):
-  if item is None: return None
-  return [convert_to_hex (i) for i in item]
-
-def convert_to_enum (name):
-  def _convert_to_enum (item):
-    if item is None: return None
-    return ENUMS[name][item]
-  return _convert_to_enum
-
-def convert_to_flags (enum_name):
-  def _convert_to_flags (item):
-    if item is None: return None
-    item = i32 (item)
-    enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
-  return _convert_to_flags
-
-def convert_to_breadcrumbs (item):
-  return u" > ".join (item)
-
-def convert_to_long (item):
-  return (item.HighPart << 32) + item.LowPart
-
-def convert_from_object (item):
-  if item is None: return None
-  return item.com_object
-
-def convert_from_objects (items):
-  if items == []:
-    return None
-  else:
-    return [obj.com_object for obj in items]
-
-def convert_from_datetime (item):
-  if item is None: return None
-  try:
-    return pytime_to_datetime (item)
-  except:
-    return ad_time_to_datetime (item)
-
-def convert_from_sid (item):
-  if item is None: return None
-  return win32security.SID (item)
-
-def convert_from_guid (item):
-  if item is None: return None
-  guid = convert_from_hex (item)
-  return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
-
-def convert_from_hex (item):
-  if item is None: return None
-  return u"".join ([u"%x" % ord (i) for i in item])
-
-def convert_from_enum (name):
-  def _convert_from_enum (item):
-    if item is None: return None
-    return ENUMS[name][item]
-  return _convert_from_enum
-
-def convert_from_flags (enum_name):
-  def _convert_from_flags (item):
-    if item is None: return None
-    item = i32 (item)
-    enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
-  return _convert_from_flags
-
-converters = {}
-def register_converter (attribute_name, from_ad=None, to_ad=None):
-  from_to = converters.get (attribute_name, [None, None])
-  if from_ad:
-    from_to[0] = from_ad
-  if to_ad:
-    from_to[1] = to_ad
-  converters[attribute_name] = from_to
-
-"""
-Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
-2.5.5.1	DN String	DN String
-2.5.5.2	Object ID	CaseIgnore String
-2.5.5.3	Case Sensitive String	CaseExact String
-2.5.5.4	Case Ignored String	CaseIgnore String
-2.5.5.5	Print Case String	Printable String
-2.5.5.6	Numeric String	Numeric String
-2.5.5.7	OR Name DNWithOctetString	Not Supported
-2.5.5.8	Boolean	Boolean
-2.5.5.9	Integer	Integer
-2.5.5.10	Octet String	Octet String
-2.5.5.11	Time	UTC Time
-2.5.5.12	Unicode	Case Ignore String
-2.5.5.13	Address	Not Supported
-2.5.5.14	Distname-Address
-2.5.5.15	NT Security Descriptor	IADsSecurityDescriptor
-2.5.5.16	Large Integer	IADsLargeInteger
-2.5.5.17	SID	Octet String
-"""
-TYPE_CONVERTERS = {
-  "2.5.5.11" : ad_time_to_datetime,
-  "2.5.5.16" : convert_to_long,
-  "2.5.5.17" : convert_to_sid,
-  "2.5.5.10" : convert_to_hex
-}
-
 def get_converter (name):
   print "Getting converter for", name
-  if name not in converters:
+  if name not in converters.converters:
     obj = None ## attribute (name)
     if obj and obj.attributeSyntax in TYPE_CONVERTERS:
-      register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
+      converters.register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
     elif name.endswith ("GUID"):
-      register_converter (name, from_ad=convert_to_guid)
-  from_ad, _ = converters.get (name, (None, None))
+      converters.register_converter (name, from_ad=convert_to_guid)
+  from_ad, _ = converters.converters.get (name, (None, None))
   return from_ad or (lambda x : x)
 
 def attribute (attribute_name, root=None):
   schemaNamingContext, = (root or root_dse ()).schemaNamingContext
-  qs = query_string (
+  qs = core.query_string (
     base="LDAP://%s" % schemaNamingContext,
     filter="ldapDisplayName=%s" % attribute_name
   )
-  for item in query (qs):
+  for item in core.query (qs):
     path = item['ADsPath']
     return ad (path)
   else:
@@ -652,8 +397,8 @@ _PROPERTY_MAP = dict (
   creationTime = convert_to_datetime,
   dSASignature = convert_to_hex,
   forceLogoff = convert_to_datetime,
-  fSMORoleOwner = convert_to_object,
-  groupType = convert_to_flags (u"GROUP_TYPES"),
+  fSMORoleOwner = convert_to_object (ad),
+  groupType = convert_to_flags (GROUP_TYPES),
   isGlobalCatalogReady = convert_to_boolean,
   isSynchronized = convert_to_boolean,
   lastLogoff = convert_to_datetime,
@@ -662,11 +407,11 @@ _PROPERTY_MAP = dict (
   lockoutDuration = convert_to_datetime,
   lockoutObservationWindow = convert_to_datetime,
   lockoutTime = convert_to_datetime,
-  manager = convert_to_object,
-  masteredBy = convert_to_objects,
+  manager = convert_to_object (ad),
+  masteredBy = convert_to_objects (ad),
   maxPwdAge = convert_to_datetime,
-  member = convert_to_objects,
-  memberOf = convert_to_objects,
+  member = convert_to_objects (ad),
+  memberOf = convert_to_objects (ad),
   minPwdAge = convert_to_datetime,
   modifiedCount = convert_to_datetime,
   modifiedCountAtLastProm = convert_to_datetime,
@@ -677,22 +422,22 @@ _PROPERTY_MAP = dict (
   objectClass = convert_to_breadcrumbs,
   #~ objectGUID = convert_to_guid,
   objectSid = convert_to_sid,
-  publicDelegates = convert_to_objects,
-  publicDelegatesBL = convert_to_objects,
+  publicDelegates = convert_to_objects (ad),
+  publicDelegatesBL = convert_to_objects (ad),
   pwdLastSet = convert_to_datetime,
   replicationSignature = convert_to_hex,
   replUpToDateVector = convert_to_hex,
   repsFrom = convert_to_hexes,
   repsTo = convert_to_hex,
-  sAMAccountType = convert_to_enum (u"SAM_ACCOUNT_TYPES"),
-  subRefs = convert_to_objects,
-  systemFlags = convert_to_flags (u"ADS_SYSTEMFLAG"),
-  userAccountControl = convert_to_flags (u"USER_ACCOUNT_CONTROL"),
-  wellKnownObjects = convert_to_objects,
+  sAMAccountType = convert_to_enum (SAM_ACCOUNT_TYPES),
+  subRefs = convert_to_objects (ad),
+  systemFlags = convert_to_flags (ADS_SYSTEMFLAG),
+  userAccountControl = convert_to_flags (USER_ACCOUNT_CONTROL),
+  wellKnownObjects = convert_to_objects (ad),
   whenCreated = convert_pytime_to_datetime,
   whenChanged = convert_pytime_to_datetime,
 )
-_PROPERTY_MAP[u'msDs-masteredBy'] = convert_to_objects
+_PROPERTY_MAP[u'msDs-masteredBy'] = convert_to_objects (ad)
 
 for k, v in _PROPERTY_MAP.items ():
   register_converter (k, from_ad=v)
@@ -704,7 +449,7 @@ _PROPERTY_MAP_IN = dict (
   dSASignature = convert_from_hex,
   forceLogoff = convert_from_datetime,
   fSMORoleOwner = convert_from_object,
-  groupType = convert_from_flags (u"GROUP_TYPES"),
+  groupType = convert_from_flags (GROUP_TYPES),
   lastLogoff = convert_from_datetime,
   lastLogon = convert_from_datetime,
   lastLogonTimestamp = convert_from_datetime,
@@ -728,9 +473,9 @@ _PROPERTY_MAP_IN = dict (
   replUpToDateVector = convert_from_hex,
   repsFrom = convert_from_hex,
   repsTo = convert_from_hex,
-  sAMAccountType = convert_from_enum (u"SAM_ACCOUNT_TYPES"),
+  sAMAccountType = convert_from_enum (SAM_ACCOUNT_TYPES),
   subRefs = convert_from_objects,
-  userAccountControl = convert_from_flags (u"USER_ACCOUNT_CONTROL"),
+  userAccountControl = convert_from_flags (USER_ACCOUNT_CONTROL),
   wellKnownObjects = convert_from_objects
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
@@ -738,102 +483,9 @@ _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 for k, v in _PROPERTY_MAP_IN.items ():
   register_converter (k, to_ad=v)
 
-def connect (username=None, password=None):
-  u"""Return an ADODB connection, optionally authenticated by
-  username & password.
-  """
-  connection = win32com.client.Dispatch (u"ADODB.Connection")
-  connection.Provider = u"ADsDSOObject"
-  if username:
-    connection.Open (u"Active Directory Provider", username, password)
-  else:
-    connection.Open (u"Active Directory Provider")
-  return connection
-
-def and_ (*args, **kwargs):
-  return u"&%s" % "".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
-
-def or_ (*args, **kwargs):
-  return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
-
-_command_properties = {
-  u"Page Size" : 500,
-  u"Asynchronous" : True
-}
-def query (query_string, connection=None, **command_properties):
-  u"""Basic AD query, passing a raw query string straight through to an
-  Active Directory, optionally using a (possibly pre-authenticated) connection
-  or creating one on demand. command_properties may be specified which will be
-  passed through to the ADO command with underscores replaced by spaces. Useful
-  values include:
-
-  =============== ==========================================================
-  page_size       How many records to return in one go
-  size_limit      Stop after returning this many records
-  cache_results   Boolean: cache results; turn off if a large result
-  time_limit      Stop returning records after this many seconds
-  timeout         Stop waiting for the records to start after this many seconds
-  asynchronous    Boolean: Start returning records immediately
-  sort_on         field name to sort on
-  =============== ==========================================================
-
-  :param query_string: An AD query string in any acceptable format. See :func:`query_string`
-                       for an easy way of producing this
-  :param connection: (optional) An ADODB.Connection, as provided by :func:`connect`. If
-                     this is supplied it will be used and not closed. If it is not supplied,
-                     a default connection will be created, used and then closed.
-  :param command_properties: A collection of keywords which will be passed through to the
-                             ADO query as Properties.
-  """
-  command = win32com.client.Dispatch (u"ADODB.Command")
-  _connection = connection or connect ()
-  command.ActiveConnection = _connection
-
-  for k, v in _command_properties.items ():
-    command.Properties (k.replace (u"_", u" ")).Value = v
-  for k, v in command_properties.items ():
-    command.Properties (k.replace (u"_", u" ")).Value = v
-  command.CommandText = query_string
-
-  results = []
-  recordset, result = command.Execute ()
-  while not recordset.EOF:
-    yield dict ((field.Name, field.Value) for field in recordset.Fields)
-    recordset.MoveNext ()
-
-  if connection is None:
-    _connection.Close ()
-
-def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtree", range=None):
-  u"""Easy way to produce a valid AD query string, with meaningful defaults. This
-  is the first parameter to the :func:`query` function so the following will
-  yield the display name of every user in the domain::
-
-    import active_directory as ad
-
-    qs = ad.query_string (filter="(objectClass=User)", attributes=["displayName"])
-    for u in ad.query (qs):
-      print u['displayName']
-
-  :param base: An LDAP:// moniker representing the starting point of the search [domain root]
-  :param filter: An AD filter string to limit the search [no filter]
-  :param attributes: Iterable of attribute names [ADsPath]
-  :param scope: One of - Subtree, Base, OneLevel [Subtree]
-  :param range: Limit the number of returns of multivalued attributes [no range]
-  """
-  if base is None:
-    base = u"LDAP://" + wrapped (adsi.ADsGetObject, "LDAP://rootDSE").Get (u"defaultNamingContext")
-  if not filter.startswith ("("):
-    filter = u"(%s)" % filter
-  segments = [u"<%s>" % base, filter, ",".join (attributes)]
-  if range:
-    segments += [u"Range=%s-%s" % range]
-  segments += [scope]
-  return u";".join (segments)
-
 def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
-  return query (query_string, connection=connect (username, password))
+  return core.query (query_string, connection=connect (username, password))
 
 class _Members (set):
 
