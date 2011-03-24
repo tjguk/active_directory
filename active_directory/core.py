@@ -6,9 +6,37 @@ from win32com.adsi import adsicon
 from . import exc
 
 def and_ (*args, **kwargs):
+  """Combine its arguments together as a valid LDAP AND-search. Positional
+  arguments are taken to be strings already in the correct format (eg
+  'displayName=tim*') while keyword arguments will be converted into
+  an equals condition for the names and values::
+
+    from active_directory.core import and_
+
+    print and_ (
+      "whenCreated>=2010-01-01",
+      displayName="tim*", objectCategory="person"
+    )
+
+    # &(whenCreated>=2010-01-01)(displayName=tim*)(objectCategory=person)
+  """
   return u"&%s" % "".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 def or_ (*args, **kwargs):
+  """Combine its arguments together as a valid LDAP OR-search. Positional
+  arguments are taken to be strings already in the correct format (eg
+  'displayName=tim*') while keyword arguments will be converted into
+  an equals condition for the names and values::
+
+    from active_directory.core import or_
+
+    print or_ (
+      "whenCreated>=2010-01-01",
+      objectCategory="person"
+    )
+
+    # |(whenCreated>=2010-01-01)(objectCategory=person)
+  """
   return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 def connect (username=None, password=None):
@@ -83,7 +111,9 @@ def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtre
       print u['displayName']
 
   :param base: An LDAP:// moniker representing the starting point of the search [domain root]
-  :param filter: An AD filter string to limit the search [no filter]
+  :param filter: An AD filter string to limit the search [no filter]. The :func:`or_` and :func:`and_`
+                 functions provide an easy way to produce a valid filter, optionally combined with the
+                 schema class.
   :param attributes: Iterable of attribute names [ADsPath]
   :param scope: One of - Subtree, Base, OneLevel [Subtree]
   :param range: Limit the number of returns of multivalued attributes [no range]

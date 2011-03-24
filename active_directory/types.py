@@ -187,7 +187,7 @@ class _Proxy (object):
 
   @staticmethod
   def _munge (other):
-    if isinstance (other, ADBase):
+    if hasattr (other, "dn"):
       return other.dn
 
     if isinstance (other, datetime.date):
@@ -228,12 +228,14 @@ class _Proxy (object):
     return u"!%s=%s" % (self._name, self._munge (other))
 
   def __gt__ (self, other):
+    return u"!%s<=%s" % (self._name, self._munge (other))
     raise NotImplementedError (u"> Not implemented")
 
   def __ge__ (self, other):
     return u"%s>=%s" % (self._name, self._munge (other))
 
   def __lt__ (self, other):
+    return u"!%s>=%s" % (self._name, self._munge (other))
     raise NotImplementedError (u"< Not implemented")
 
   def __le__ (self, other):
@@ -291,4 +293,3 @@ def attribute (attribute_name, root=None):
     return item
   else:
     return {}
-
