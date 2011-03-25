@@ -157,10 +157,10 @@ def AD (server=None, username=None, password=None, use_gc=False):
     root_moniker = scheme + server + u"/rootDSE"
   else:
     root_moniker = scheme + u"rootDSE"
-  root_obj = exc.wrapped (adsi.ADsOpenObject, root_moniker, username, password, constants.DEFAULT_BIND_FLAGS)
+  root_obj = exc.wrapped (adsi.ADsOpenObject, root_moniker, username, password, constants.AUTHENTICATION_TYPES.DEFAULT)
   default_naming_context = root_obj.Get (u"defaultNamingContext")
   moniker = scheme + default_naming_context
-  obj = exc.wrapped (adsi.ADsOpenObject, moniker, username, password, constants.DEFAULT_BIND_FLAGS)
+  obj = exc.wrapped (adsi.ADsOpenObject, moniker, username, password, constants.AUTHENTICATION_TYPES.DEFAULT)
   return base.ad (obj, username, password)
 
 #
@@ -199,7 +199,7 @@ def root (username=None, password=None):
   return _ad
 
 def root_dse (username=None, password=None):
-  return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, constants.DEFAULT_BIND_FLAGS))
+  return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, constants.AUTHENTICATION_TYPES.DEFAULT))
 
 #
 # Register known attributes

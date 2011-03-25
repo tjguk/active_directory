@@ -487,7 +487,7 @@ def ad (obj_or_path, username=None, password=None):
     else:
       moniker = utils.escaped_moniker (dn)
     obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
-    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, username, password, constants.DEFAULT_BIND_FLAGS)
+    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, username, password, constants.AUTHENTICATION_TYPES.DEFAULT)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
