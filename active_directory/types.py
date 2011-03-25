@@ -271,6 +271,8 @@ class Attributes (object):
       self._proxies[item] = _Proxy (item)
     return self._proxies[item]
 
+schema = Attributes ()
+
 def get_converter (name):
   if name not in _converters:
     obj = None ## attribute (name)

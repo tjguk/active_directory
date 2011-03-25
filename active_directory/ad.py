@@ -115,8 +115,6 @@ def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
 
-schema = types.Attributes ()
-
 def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
   return core.query (query_string, connection=connect (username, password))
