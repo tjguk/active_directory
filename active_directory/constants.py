@@ -4,6 +4,8 @@ from win32com.adsi import adsicon
 
 from . import utils
 
+Unset = object ()
+
 #
 # For ease of presentation, ms-style constant lists are
 # held as Enum objects, allowing access by number or
@@ -18,6 +20,14 @@ from . import utils
 # readable piece of code, without magic numbers.
 #
 class Enum (object):
+
+  #
+  # By aliasing the UNSET object here, we can give
+  # formal parameter definitions of, eg, ADS_SYSTEMFLAG.Unset
+  # indicating clearly what flags are expected while allowing
+  # it to be tested against Constants.Unset
+  #
+  Unset = Unset
 
   def __init__ (self, **kwargs):
     self._name_map = {}
@@ -85,6 +95,8 @@ AUTHENTICATION_TYPES = Enum (
   SERVER_BIND = utils.i32 (0x200),
   AUTH_RESERVED = utils.i32 (0x800000000)
 )
+AUTHENTICATION_TYPES.DEFAULT = \
+  AUTHENTICATION_TYPES.SECURE_AUTHENTICATION | AUTHENTICATION_TYPES.SERVER_BIND
 
 SAM_ACCOUNT_TYPES = Enum (
   DOMAIN_OBJECT = 0x0 ,
@@ -131,6 +143,3 @@ ADS_PROPERTY = Enum (
   APPEND = 3,
   DELETE = 4
 )
-
-DEFAULT_BIND_FLAGS = adsicon.ADS_SECURE_AUTHENTICATION
-

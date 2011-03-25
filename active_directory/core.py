@@ -3,6 +3,7 @@ import win32com.client
 from win32com import adsi
 from win32com.adsi import adsicon
 
+from . import constants
 from . import exc
 
 def and_ (*args, **kwargs):
@@ -39,18 +40,32 @@ def or_ (*args, **kwargs):
   """
   return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
-def connect (username=None, password=None):
+def connect (
+  username=None,
+  password=None,
+  is_password_encrypted=False,
+  adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
+):
   u"""Return an ADODB connection, optionally authenticated by
   username & password.
   """
   connection = exc.wrapped (win32com.client.Dispatch, u"ADODB.Connection")
   connection.Provider = u"ADsDSOObject"
   if username:
-    exc.wrapped (connection.Open, u"Active Directory Provider", username, password)
-  else:
-    exc.wrapped (connection.Open, u"Active Directory Provider")
+    connection.Properties["User ID"] = username
+  if password:
+    connection.Properties["Password"] = password
+  connection.Properties["Encrypt Password"] = is_password_encrypted
+  connection.Properties["ADSI Flag"] = adsi_flags
+  exc.wrapped (connection.Open, u"Active Directory Provider")
   return connection
 
+#
+# If Page Size is unset (system default is 0) then a maximum of 1000
+# records will be returned from any query before an error is raised
+# by the AD provider. Therefore we default to 500 to give a reasonable
+# default. This can still be overridden at query level.
+#
 _command_properties = {
   u"Page Size" : 500,
   u"Asynchronous" : True
