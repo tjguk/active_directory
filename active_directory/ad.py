@@ -110,6 +110,9 @@ from . import exc
 from . import types
 from . import utils
 
+from .core import connect, query, query_string, and_, or_
+from .types import schema
+
 logger = logging.getLogger ("active_directory")
 def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
