@@ -99,7 +99,7 @@ def query (query_string, connection=None, **command_properties):
   if connection is None:
     exc.wrapped (_connection.Close)
 
-def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtree", range=None):
+def query_string (filter, base=None, attributes=[u"ADsPath"], scope=u"Subtree", range=None):
   u"""Easy way to produce a valid AD query string, with meaningful defaults. This
   is the first parameter to the :func:`query` function so the following will
   yield the display name of every user in the domain::
@@ -110,10 +110,10 @@ def query_string (base=None, filter=u"", attributes=[u"ADsPath"], scope=u"Subtre
     for u in ad.query (qs):
       print u['displayName']
 
-  :param base: An LDAP:// moniker representing the starting point of the search [domain root]
   :param filter: An AD filter string to limit the search [no filter]. The :func:`or_` and :func:`and_`
                  functions provide an easy way to produce a valid filter, optionally combined with the
                  schema class.
+  :param base: An LDAP:// moniker representing the starting point of the search [domain root]
   :param attributes: Iterable of attribute names [ADsPath]
   :param scope: One of - Subtree, Base, OneLevel [Subtree]
   :param range: Limit the number of returns of multivalued attributes [no range]
