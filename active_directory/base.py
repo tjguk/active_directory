@@ -7,18 +7,33 @@ from win32com import adsi
 
 from . import core
 from . import constants
+from . import credentials
 from . import exc
 from . import types
 from . import utils
 
 class ADSimple (object):
+  """A slender wrapper around an AD COM object which facilitates getting,
+  setting and clearing an object's attributes plus pretty-printing to stdout.
+  It does no validation of the names passed and an no conversions of the
+  values. It can be used alone (most easily via the :func:`adsimple` function
+  which takes an AD path and returns an ADSimple object). It also provides the
+  basis for the other AD classes below.
+  """
 
-  _properties = []
+   #
+   # For speed, hardcode the known properties of the IADs class
+   #
+  _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
 
   def __init__ (self, obj):
-    utils._set (self, u"com_object", obj)
-    utils._set (self, u"properties", self._properties)
-    self.path = obj.ADsPath
+    utils._set (self, "com_object", obj)
+    utils._set (self, "properties", self._properties)
+    utils._set (self, "path", obj.ADsPath)
+
+  def _put (self, name, value):
+    operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
+    exc.wrapped (self.com_object.PutEx, operation, name, value)
 
   def __getattr__ (self, name):
     try:
@@ -29,16 +44,43 @@ class ADSimple (object):
       except NotImplementedError:
         raise AttributeError
 
+  def __setattr__ (self, name, value):
+    self._put (name, value)
+    exc.wrapped (self.com_object.SetInfo)
+
+  def __delattr__ (self, name):
+    self._put (name, None)
+    exc.wrapped (self.com_object.SetInfo)
+
+  def __repr__ (self):
+    return "<%s: %s>" % (self.__class__.__name__, self.as_string ())
+
+  def __str__ (self):
+    return self.as_string ()
+
+  @classmethod
+  def from_path (cls, path, cred=credentials.Passthrough):
+    return cls (adsi.ADsOpenObject (path, cred.username, cred.password, cred.authentication_type))
+
   def as_string (self):
     return self.path
 
-  def dump (self, ofile=sys.stdout):
-    def encode (text):
-      if isinstance (text, unicode):
-        return unicode (text).encode (sys.stdout.encoding, "backslashreplace")
-      else:
-        return text
+  def munge_attribute_for_dump (self, name, value):
+    if value is None:
+      return ""
+    if isinstance (value, unicode):
+      value = value.encode ("ascii", "backslashreplace")
+    return str (value)
 
+  def munge2 (self, name, value):
+    if isinstance (value, (tuple, list)):
+      value = "[(%d items)]" % len (value)
+    if isinstance (value, unicode):
+      value = encode (value)
+      if len (value) > 60:
+        value = value[:25] + "..." + value[-25:]
+
+  def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + u"\n")
     ofile.write ("{\n")
     for name in self.properties:
@@ -47,17 +89,11 @@ class ADSimple (object):
       except:
         raise
         value = "Unable to get value"
-      if value:
-        if isinstance (name, unicode):
-          name = encode (name)
-        if isinstance (value, (tuple, list)):
-          value = "[(%d items)]" % len (value)
-        if isinstance (value, unicode):
-          value = encode (value)
-          if len (value) > 60:
-            value = value[:25] + "..." + value[-25:]
-        ofile.write ("  %s => %s\n" % (encode (name), encode (value)))
+      ofile.write ("  %s => %s\n" % (name, self.munge_attribute_for_dump (name, value)))
     ofile.write ("}\n")
+
+def adsimple (path, cred=credentials.Passthrough):
+  return ADSimple.from_path (path, cred)
 
 class ADBase (ADSimple):
   u"""Wrap an active-directory object for easier access
@@ -139,8 +175,7 @@ class ADBase (ADSimple):
     return self._delegate_map[name]
 
   def __setitem__ (self, key, value):
-    _, convert_to = types.get_converter (name)
-    setattr (self, key, convert_to (value))
+    setattr (self, key, value)
 
   def __setattr__ (self, name, value):
     #
@@ -148,8 +183,8 @@ class ADBase (ADSimple):
     #  fields.
     #
     if name in self.properties:
-      exc.wrapped (self.com_object.Put, name, value)
-      exc.wrapped (self.com_object.SetInfo)
+      _, convert_to = types.get_converter (name)
+      super (ADBase, self).__setattr__ (name, convert_to (value))
       self._invalidate (name)
     else:
       super (ADBase, self).__setattr__ (name, value)
@@ -208,6 +243,7 @@ class ADBase (ADSimple):
     return cls._schema_cache[cschema.ADsPath]
 
   def refresh (self):
+    self._delegate_map.clear ()
     exc.wrapped (self.com_object.GetInfo)
 
   def walk (self):
@@ -241,7 +277,7 @@ class ADBase (ADSimple):
       user.set (displayName = "Tim Golden", description="SQL Developer")
     """
     for k, v in kwds.items ():
-      exc.wrapped (self.com_object.Put, k, v)
+      self._put (k, v)
     exc.wrapped (self.com_object.SetInfo)
 
   def _find (self, object_class):

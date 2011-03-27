@@ -4,6 +4,7 @@ from win32com import adsi
 from win32com.adsi import adsicon
 
 from . import constants
+from . import credentials
 from . import exc
 
 def and_ (*args, **kwargs):
@@ -41,9 +42,8 @@ def or_ (*args, **kwargs):
   return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 def connect (
-  username=None,
-  password=None,
-  is_password_encrypted=False,
+  cred=credentials.Passthrough,
+  #~ is_password_encrypted=False,
   adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
 ):
   u"""Return an ADODB connection, optionally authenticated by
@@ -51,12 +51,12 @@ def connect (
   """
   connection = exc.wrapped (win32com.client.Dispatch, u"ADODB.Connection")
   connection.Provider = u"ADsDSOObject"
-  if username:
-    connection.Properties["User ID"] = username
-  if password:
-    connection.Properties["Password"] = password
-  connection.Properties["Encrypt Password"] = is_password_encrypted
-  connection.Properties["ADSI Flag"] = adsi_flags
+  if cred.username:
+    connection.Properties ("User ID").Value = cred.username
+  if cred.password:
+    connection.Properties ("Password").Value = cred.password
+  #~ connection.Properties ("Encrypt Password").Value = is_password_encrypted
+  connection.Properties ("ADSI Flag").Value = adsi_flags
   exc.wrapped (connection.Open, u"Active Directory Provider")
   return connection
 
@@ -114,7 +114,7 @@ def query (query_string, connection=None, **command_properties):
   if connection is None:
     exc.wrapped (_connection.Close)
 
-def query_string (filter, base=None, attributes=[u"ADsPath"], scope=u"Subtree", range=None):
+def query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree", range=None):
   u"""Easy way to produce a valid AD query string, with meaningful defaults. This
   is the first parameter to the :func:`query` function so the following will
   yield the display name of every user in the domain::
@@ -130,12 +130,14 @@ def query_string (filter, base=None, attributes=[u"ADsPath"], scope=u"Subtree", 
                  schema class.
   :param base: An LDAP:// moniker representing the starting point of the search [domain root]
   :param attributes: Iterable of attribute names [ADsPath]
-  :param scope: One of - Subtree, Base, OneLevel [Subtree]
+  :param scope: One of - Subtree, Base, OneLevel. Subtree (the default) is the most common and does
+                the search you expect. OneLevel enumerates the children of the base item. Base
+                checks for the existence of the object itself. [Subtree].
   :param range: Limit the number of returns of multivalued attributes [no range]
   """
   if base is None:
     base = u"LDAP://" + exc.wrapped (adsi.ADsGetObject, "LDAP://rootDSE").Get (u"defaultNamingContext")
-  if not filter.startswith ("("):
+  if filter and not filter.startswith ("("):
     filter = u"(%s)" % filter
   segments = [u"<%s>" % base, filter, ",".join (attributes)]
   if range:
