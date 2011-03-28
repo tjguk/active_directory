@@ -12,10 +12,17 @@ from . import exc
 from . import types
 from . import utils
 
+class NotAContainerError (exc.ActiveDirectoryError):
+  pass
+
 class ADContainer (object):
 
   def __init__ (self, ad_com_object):
-    self.container = exc.wrapped (ad_com_object.QueryInterface, adsi.IID_IADsContainer)
+    try:
+      self.container = exc.wrapped (ad_com_object.QueryInterface, adsi.IID_IADsContainer)
+    except exc.ActiveDirectoryError, (error_code, _, _):
+      if error_code == exc.E_NOINTERFACE:
+        raise NotAContainerError
 
   def __iter__ (self):
     enumerator = exc.wrapped (adsi.ADsBuildEnumerator, self.container)
@@ -74,8 +81,11 @@ class ADSimple (object):
     return self.as_string ()
 
   def __iter__(self):
-    for item in ADContainer (self.com_object):
-      yield self.__class__ (item)
+    try:
+      for item in ADContainer (self.com_object):
+        yield self.__class__ (item)
+    except NotAContainerError:
+      raise TypeError ("%r is not iterable" % self)
 
   @classmethod
   def from_path (cls, path, cred=credentials.Passthrough):
@@ -549,7 +559,9 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
       moniker = utils.escaped_moniker (dn)
     obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
     flags = cred.authentication_type
-    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, cred.authentication_type)
+    if server:
+      flags |= constants.AUTHENTICATION_TYPES.SERVER_BIND
+    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, flags)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
@@ -561,4 +573,4 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
   else:
     class_map = _CLASS_MAP.get (obj.Class.lower (), ADBase)
-  return class_map (obj)
+  return class_map (obj, cred)
