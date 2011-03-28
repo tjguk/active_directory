@@ -49,6 +49,7 @@ def connect (
   u"""Return an ADODB connection, optionally authenticated by
   username & password.
   """
+  cred = credentials.credentials (cred)
   connection = exc.wrapped (win32com.client.Dispatch, u"ADODB.Connection")
   connection.Provider = u"ADsDSOObject"
   if cred.username:
@@ -56,7 +57,7 @@ def connect (
   if cred.password:
     connection.Properties ("Password").Value = cred.password
   #~ connection.Properties ("Encrypt Password").Value = is_password_encrypted
-  connection.Properties ("ADSI Flag").Value = adsi_flags
+  connection.Properties ("ADSI Flag").Value = adsi_flags | cred.authentication_type
   exc.wrapped (connection.Open, u"Active Directory Provider")
   return connection
 

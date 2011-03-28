@@ -4,7 +4,13 @@ import win32cred
 from . import constants
 from . import exc
 
-class NetrcNotFound (exc.ActiveDirectoryError):
+class CredentialsError (exc.ActiveDirectoryError):
+  pass
+
+class NetrcNotFoundError (CredentialsError):
+  pass
+
+class InvalidCredentialsError (CredentialsError):
   pass
 
 class Credentials (object):
@@ -35,7 +41,7 @@ class Credentials (object):
       login, _, password = auth
       return cls (login, password)
     else:
-      raise NetrcNotFound ("No entry for %s in netrc" % host)
+      raise NetrcNotFoundError ("No entry for %s in netrc" % host)
 
   @classmethod
   def from_cache (cls, target):
@@ -43,3 +49,12 @@ class Credentials (object):
 
 Passthrough = Credentials (None, None, Credentials.PASSTHROUGH)
 Anonymous = Credentials (None, None, Credentials.ANONYMOUS)
+
+def credentials (cred):
+  if isinstance (cred, Credentials):
+    return cred
+  else:
+    try:
+      return Credentials (*cred)
+    except (ValueError, TypeError):
+      raise InvalidCredentialsError ("Credentials must be a Credentials object or (username, password[, type])")

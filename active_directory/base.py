@@ -38,7 +38,7 @@ class ADSimple (object):
   def __getattr__ (self, name):
     try:
       return exc.wrapped (getattr, self.com_object, name)
-    except AttributeError:
+    except (AttributeError, NotImplementedError):
       try:
         return exc.wrapped (self.com_object.GetEx, name)
       except NotImplementedError:
@@ -60,6 +60,7 @@ class ADSimple (object):
 
   @classmethod
   def from_path (cls, path, cred=credentials.Passthrough):
+    cred = credentials.credentials (cred)
     return cls (adsi.ADsOpenObject (path, cred.username, cred.password, cred.authentication_type))
 
   def as_string (self):
@@ -72,28 +73,23 @@ class ADSimple (object):
       value = value.encode ("ascii", "backslashreplace")
     return str (value)
 
-  def munge2 (self, name, value):
-    if isinstance (value, (tuple, list)):
-      value = "[(%d items)]" % len (value)
-    if isinstance (value, unicode):
-      value = encode (value)
-      if len (value) > 60:
-        value = value[:25] + "..." + value[-25:]
-
   def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + u"\n")
     ofile.write ("{\n")
     for name in self.properties:
       try:
         value = getattr (self, name)
-      except:
-        raise
+      except AttributeError:
         value = "Unable to get value"
       ofile.write ("  %s => %s\n" % (name, self.munge_attribute_for_dump (name, value)))
     ofile.write ("}\n")
 
 def adsimple (path, cred=credentials.Passthrough):
-  return ADSimple.from_path (path, cred)
+  cred = credentials.credentials (cred)
+  if isinstance (obj_or_path, ADSimple):
+    return obj_or_path
+  else:
+    return ADSimple.from_path (path, cred)
 
 class ADBase (ADSimple):
   u"""Wrap an active-directory object for easier access
@@ -110,31 +106,38 @@ class ADBase (ADSimple):
      users = ad.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
-  _default_properties = [u"Name", u"Class", u"GUID", u"ADsPath", u"Parent", u"Schema"]
   _schema_cache = {}
 
-  def __init__ (self, obj, username=None, password=None, parse_schema=True):
-    super (ADBase, self).__init__ (obj)
+  def __init__ (self, obj, cred=credentials.Passthrough, parse_schema=True):
+    cred = credentials.credentials (cred)
+    ADSimple.__init__ (self, obj)
     schema = None
+    properties = self._properties
+    is_container = False
     if parse_schema:
       try:
-        schema = exc.wrapped (adsi.ADsGetObject, exc.wrapped (getattr, obj, u"Schema", None))
+        schema = exc.wrapped (
+          adsi.ADsOpenObject,
+          exc.wrapped (getattr, obj, u"Schema", None),
+          cred.username, cred.password,
+          cred.authentication_type ## TODO: | constants.ADS_AUTHENTICATION.FAST_BIND
+        )
       except exc.ActiveDirectoryError:
-        schema = None
-    properties, is_container = self._schema (schema)
+        pass
+      else:
+        properties, is_container = self._schema (schema)
     utils._set (self, u"properties", properties)
-    self.is_container = is_container
+    utils._set (self, "is_container", is_container)
 
     #
     # At this point, __getattr__ & __setattr__ have enough
     # to decide whether an attribute belongs to the delegated
     # object or not.
     #
-    self.username = username
-    self.password = password
-    self.connection = core.connect (username=username, password=password)
-    self.dn = exc.wrapped (getattr, self.com_object, u"distinguishedName", None) or self.com_object.name
-    self._delegate_map = dict ()
+    utils._set (self, "cred", cred)
+    utils._set (self, "connection", core.connect (cred=self.cred))
+    utils._set (self, "dn", exc.wrapped (getattr, self.com_object, u"distinguishedName", None) or self.com_object.name)
+    utils._set (self, "_delegate_map", dict ())
 
   def __getitem__ (self, key):
     return getattr (self, key)
@@ -233,14 +236,26 @@ class ADBase (ADSimple):
   @classmethod
   def _schema (cls, cschema):
     if cschema is None:
-      return cls._default_properties, False
+      return cls._properties, False
 
     if cschema.ADsPath not in cls._schema_cache:
       properties = \
         exc.wrapped (getattr, cschema, u"mandatoryProperties", []) + \
         exc.wrapped (getattr, cschema, u"optionalProperties", [])
-      cls._schema_cache[cschema.ADsPath] = properties, exc.wrapped (getattr, cschema, u"Container", False)
+      print "properties:", properties
+      #~ print "container:", exc.wrapped (getattr, cschema, u"Container", False)
+      cls._schema_cache[cschema.ADsPath] = properties, False ## exc.wrapped (getattr, cschema, u"Container", False)
     return cls._schema_cache[cschema.ADsPath]
+
+  def munge_attribute_for_dump (self, name, value):
+    if isinstance (value, (tuple, list)):
+      value = "[(%d items)]" % len (value)
+    else:
+      value = super (ADBase, self).munge_attribute_for_dump (name, value)
+      if isinstance (value, unicode):
+        if len (value) > 60:
+          value = value[:25] + "..." + value[-25:]
+    return value
 
   def refresh (self):
     self._delegate_map.clear ()
@@ -327,7 +342,7 @@ class ADBase (ADSimple):
     query_string = u"<%s>;(%s);objectGuid;Subtree" % (self.ADsPath, filter)
     for result in core.query (query_string, connection=self.connection):
       guid = u"".join (u"%02X" % ord (i) for i in result['objectGuid'])
-      yield ad (u"LDAP://<GUID=%s>" % guid, username=self.username, password=self.password)
+      yield ad (u"LDAP://<GUID=%s>" % guid, cred=self.cred)
 
   def get (self, object_class, relative_path):
     return ad (exc.wrapped (self.com_object.GetObject, object_class, relative_path))
@@ -479,8 +494,11 @@ class Group (ADBase):
 class WinNTGroup (WinNT, Group):
   pass
 
-def namespaces ():
-  return ADBase (adsi.ADsGetObject (u"ADs:"), parse_schema=False)
+def namespaces (cred=credentials.Passthrough):
+  cred = credentials.credentials (cred)
+  return ADSimple (
+    adsi.ADsOpenObject (u"ADs:", cred.username, cred.password, cred.authentication_type)
+  )
 
 _CLASS_MAP = {
   u"group" : Group,
@@ -489,7 +507,7 @@ _WINNT_CLASS_MAP = {
   u"group" : WinNTGroup
 }
 _namespace_names = None
-def ad (obj_or_path, username=None, password=None):
+def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
   u"""Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
   is now  intended to be:
@@ -501,19 +519,21 @@ def ad (obj_or_path, username=None, password=None):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
+  cred = credentials.credentials (cred)
   if isinstance (obj_or_path, ADBase):
     return obj_or_path
 
   global _namespace_names
   if _namespace_names is None:
-    _namespace_names = [u"GC:"] + [ns.Name for ns in adsi.ADsGetObject (u"ADs:")]
+    _namespace_names = ["GC:", "LDAP:", "WinNT:"]
+    #~ _namespace_names = [u"GC:"] + [ns.Name for ns in exc.wrapped (adsi.ADsOpenObject, u"ADs:", cred.username, cred.password, cred.authentication_type)]
   matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?([A-za-z0-9-_]+/)?(.*)")
   if isinstance (obj_or_path, basestring):
     #
     # Special-case the "ADs:" moniker which isn't a child of IADs
     #
     if obj_or_path == u"ADs:":
-      return namespaces ()
+      return namespaces (cred)
 
     scheme, slashes, server, dn = matcher.match (obj_or_path).groups ()
     if scheme is None:
@@ -522,14 +542,16 @@ def ad (obj_or_path, username=None, password=None):
       moniker = dn
     else:
       moniker = utils.escaped_moniker (dn)
+    print repr (scheme), repr (slashes), repr (server), repr (moniker)
     obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
-    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, username, password, constants.AUTHENTICATION_TYPES.DEFAULT)
+    print "obj_path:", obj_path
+    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, cred.authentication_type)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
 
   if dn == u"rootDSE":
-    return ADBase (obj, username, password, parse_schema=False)
+    return ADBase (obj, cred, parse_schema=False)
 
   if scheme == u"WinNT:":
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
