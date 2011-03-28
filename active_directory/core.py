@@ -44,7 +44,7 @@ def or_ (*args, **kwargs):
 def connect (
   cred=credentials.Passthrough,
   #~ is_password_encrypted=False,
-  adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
+  adsi_flags=None
 ):
   u"""Return an ADODB connection, optionally authenticated by
   username & password.
@@ -104,6 +104,7 @@ def query (query_string, connection=None, **command_properties):
     command.Properties (k.replace (u"_", u" ")).Value = v
   for k, v in command_properties.items ():
     command.Properties (k.replace (u"_", u" ")).Value = v
+  print "query_string:", query_string
   command.CommandText = query_string
 
   results = []

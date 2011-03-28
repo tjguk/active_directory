@@ -3,6 +3,7 @@ import re
 from win32com.adsi import adsi, adsicon
 
 from . import constants
+from . import core
 from . import credentials
 from . import exc
 from . import simple
@@ -25,23 +26,19 @@ class ADBase (simple.ADSimple):
 
   _schema_cache = {}
 
-  def __init__ (self, obj, cred=credentials.Passthrough, parse_schema=True):
+  def __init__ (self, obj, cred=credentials.Passthrough, connection=None):
+    utils._set (self, "_delegate_map", dict ())
     cred = credentials.credentials (cred)
+    utils._set (self, "cred", cred)
+    utils._set (self, "connection", connection or core.connect (cred=self.cred))
     simple.ADSimple.__init__ (self, obj)
     schema = None
     properties = self._properties
-    if parse_schema:
-      try:
-        schema = exc.wrapped (
-          adsi.ADsOpenObject,
-          exc.wrapped (getattr, obj, u"Schema", None),
-          cred.username, cred.password,
-          cred.authentication_type, ## TODO: | constants.ADS_AUTHENTICATION.FAST_BIND
-        )
-      except exc.ActiveDirectoryError:
-        pass
-      else:
-        properties = self._schema (schema)
+    schema_path = exc.wrapped (getattr, obj, u"Schema", None)
+    print "schema_path:", schema_path
+    if schema_path:
+      properties = self._schema (schema_path)
+
     utils._set (self, u"properties", properties)
 
     #
@@ -49,10 +46,7 @@ class ADBase (simple.ADSimple):
     # to decide whether an attribute belongs to the delegated
     # object or not.
     #
-    utils._set (self, "cred", cred)
-    utils._set (self, "connection", core.connect (cred=self.cred))
     utils._set (self, "dn", exc.wrapped (getattr, self.com_object, u"distinguishedName", None) or self.com_object.name)
-    utils._set (self, "_delegate_map", dict ())
 
   def __getitem__ (self, key):
     return getattr (self, key)
@@ -133,15 +127,18 @@ class ADBase (simple.ADSimple):
     return self.__class__ (self.com_object.Parent)
   parent = property (_get_parent)
 
-  @classmethod
-  def _schema (cls, cschema):
-    print cschema.ADsPath
-    if cschema.ADsPath not in cls._schema_cache:
-      properties = \
-        exc.wrapped (getattr, cschema, u"mandatoryProperties") + \
-        exc.wrapped (getattr, cschema, u"optionalProperties")
-      cls._schema_cache[cschema.ADsPath] = properties
-    return cls._schema_cache[cschema.ADsPath]
+  def _schema (self, schema_path):
+    if schema_path not in self.__class__._schema_cache:
+      schema_qs = core.query_string (
+        base=schema_path,
+        attributes=['mandatoryProperties', 'optionalProperties'],
+        scope="Base"
+      )
+      for schema in core.query (query_string=schema_qs, connection=self.connection):
+        cls._schema_cache[schema_path] = \
+          (schema['mandatoryProperties'] or []) + \
+          (schema['optionalProperties'] or [])
+    return self.__class__._schema_cache[schema_path]
 
   def munge_attribute_for_dump (self, name, value):
     if isinstance (value, (tuple, list)):
@@ -428,6 +425,7 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
     flags = cred.authentication_type
     if server:
       flags |= constants.AUTHENTICATION_TYPES.SERVER_BIND
+    print "obj_path:", obj_path
     obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, flags, adsi.IID_IADs)
   else:
     obj = obj_or_path
