@@ -3,6 +3,7 @@ import re
 from win32com.adsi import adsi, adsicon
 
 from . import constants
+from . import credentials
 from . import exc
 from . import simple
 from . import utils
@@ -29,21 +30,19 @@ class ADBase (simple.ADSimple):
     simple.ADSimple.__init__ (self, obj)
     schema = None
     properties = self._properties
-    is_container = False
     if parse_schema:
       try:
         schema = exc.wrapped (
           adsi.ADsOpenObject,
           exc.wrapped (getattr, obj, u"Schema", None),
           cred.username, cred.password,
-          cred.authentication_type ## TODO: | constants.ADS_AUTHENTICATION.FAST_BIND
+          cred.authentication_type, ## TODO: | constants.ADS_AUTHENTICATION.FAST_BIND
         )
       except exc.ActiveDirectoryError:
         pass
       else:
-        properties, is_container = self._schema (schema)
+        properties = self._schema (schema)
     utils._set (self, u"properties", properties)
-    utils._set (self, "is_container", is_container)
 
     #
     # At this point, __getattr__ & __setattr__ have enough
@@ -136,16 +135,12 @@ class ADBase (simple.ADSimple):
 
   @classmethod
   def _schema (cls, cschema):
-    if cschema is None:
-      return cls._properties, False
-
+    print cschema.ADsPath
     if cschema.ADsPath not in cls._schema_cache:
       properties = \
-        exc.wrapped (getattr, cschema, u"mandatoryProperties", []) + \
-        exc.wrapped (getattr, cschema, u"optionalProperties", [])
-      print "properties:", properties
-      #~ print "container:", exc.wrapped (getattr, cschema, u"Container", False)
-      cls._schema_cache[cschema.ADsPath] = properties, False ## exc.wrapped (getattr, cschema, u"Container", False)
+        exc.wrapped (getattr, cschema, u"mandatoryProperties") + \
+        exc.wrapped (getattr, cschema, u"optionalProperties")
+      cls._schema_cache[cschema.ADsPath] = properties
     return cls._schema_cache[cschema.ADsPath]
 
   def munge_attribute_for_dump (self, name, value):
@@ -422,7 +417,7 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
 
   cred = credentials.credentials (cred)
   if isinstance (obj_or_path, basestring):
-    scheme, slashes, server, dn = re.match ("(([^:]+:)//)?([A-za-z0-9-_]+/)?(.*)", obj_or_path).groups ()
+    scheme, slashes, server, dn = re.match ("([^:]+:)(//)([A-za-z0-9-_]+/)?(.*)", obj_or_path).groups ()
     if scheme is None:
       scheme, slashes = u"LDAP:", u"//"
     if scheme == u"WinNT:":
@@ -433,7 +428,7 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
     flags = cred.authentication_type
     if server:
       flags |= constants.AUTHENTICATION_TYPES.SERVER_BIND
-    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, flags)
+    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, flags, adsi.IID_IADs)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
