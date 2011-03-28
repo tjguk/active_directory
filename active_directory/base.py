@@ -357,10 +357,10 @@ class ADBase (ADSimple):
     query_string = u"<%s>;(%s);objectGuid;Subtree" % (self.ADsPath, filter)
     for result in core.query (query_string, connection=self.connection):
       guid = u"".join (u"%02X" % ord (i) for i in result['objectGuid'])
-      yield ad (u"LDAP://<GUID=%s>" % guid, cred=self.cred)
+      yield self.__class__ (u"LDAP://<GUID=%s>" % guid, cred=self.cred)
 
   def get (self, object_class, relative_path):
-    return ad (exc.wrapped (self.com_object.GetObject, object_class, relative_path))
+    return self.__class__ (exc.wrapped (self.com_object.GetObject, object_class, relative_path), self.cred)
 
   def new_ou (self, name, description=None, **kwargs):
     obj = exc.wrapped (self.com_object.Create, u"organizationalUnit", u"ou=%s" % name)
@@ -369,7 +369,7 @@ class ADBase (ADSimple):
     for name, value in kwargs.items ():
       exc.wrapped (obj.Put, name, value)
     exc.wrapped (obj.SetInfo)
-    return ad (obj)
+    return self.__class__ (obj, self.cred)
 
   def new_group (self, name, type=constants.GROUP_TYPES.DOMAIN_LOCAL | constants.GROUP_TYPES.SECURITY_ENABLED, **kwargs):
     obj = exc.wrapped (self.com_object.Create, u"group", u"cn=%s" % name)
@@ -379,7 +379,7 @@ class ADBase (ADSimple):
     for name, value in kwargs.items ():
       exc.wrapped (obj.Put, name, value)
     exc.wrapped (obj.SetInfo)
-    return ad (obj)
+    return self.__class_ (obj, self.cred)
 
   def new (self, object_class, sam_account_name, **kwargs):
     obj = exc.wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
@@ -388,7 +388,7 @@ class ADBase (ADSimple):
     for name, value in kwargs.items ():
       exc.wrapped (obj.Put, name, value)
     exc.wrapped (obj.SetInfo)
-    return ad (obj)
+    return self.__class__ (obj, self.cred)
 
 class WinNT (ADBase):
 
@@ -534,23 +534,9 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
   if isinstance (obj_or_path, ADBase):
     return obj_or_path
 
-  global _namespace_names
-  if _namespace_names is None:
-    if cred.type == credentials.Credentials.PASSTHROUGH:
-      _namespace_names = [u"GC:"] + [ns.Name for ns in exc.wrapped (adsi.ADsGetObject, u"ADs:")]
-    else:
-      _namespace_names = ["GC:", "LDAP:", "WinNT:"]
-  matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?([A-za-z0-9-_]+/)?(.*)")
-
   cred = credentials.credentials (cred)
   if isinstance (obj_or_path, basestring):
-    #
-    # Special-case the "ADs:" moniker which isn't a child of IADs
-    #
-    if obj_or_path == u"ADs:":
-      return namespaces ()
-
-    scheme, slashes, server, dn = matcher.match (obj_or_path).groups ()
+    scheme, slashes, server, dn = re.match ("(([^:]+:)//)?([A-za-z0-9-_]+/)?(.*)", obj_or_path).groups ()
     if scheme is None:
       scheme, slashes = u"LDAP:", u"//"
     if scheme == u"WinNT:":
@@ -565,9 +551,6 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
-
-  if dn == u"rootDSE":
-    return ADSimple (obj)
 
   if scheme == u"WinNT:":
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
