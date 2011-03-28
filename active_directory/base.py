@@ -12,6 +12,21 @@ from . import exc
 from . import types
 from . import utils
 
+class ADContainer (object):
+
+  def __init__ (self, ad_com_object):
+    self.container = exc.wrapped (ad_com_object.QueryInterface, adsi.IID_IADsContainer)
+
+  def __iter__ (self):
+    enumerator = exc.wrapped (adsi.ADsBuildEnumerator, self.container)
+    while True:
+      items = exc.wrapped (adsi.ADsEnumerateNext, enumerator, 10)
+      if items:
+        for item in items:
+          yield exc.wrapped (item.QueryInterface, adsi.IID_IADs)
+      else:
+        break
+
 class ADSimple (object):
   """A slender wrapper around an AD COM object which facilitates getting,
   setting and clearing an object's attributes plus pretty-printing to stdout.
@@ -27,7 +42,7 @@ class ADSimple (object):
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
 
   def __init__ (self, obj):
-    utils._set (self, "com_object", obj)
+    utils._set (self, "com_object", obj.QueryInterface (adsi.IID_IADs))
     utils._set (self, "properties", self._properties)
     utils._set (self, "path", obj.ADsPath)
 
@@ -40,7 +55,7 @@ class ADSimple (object):
       return exc.wrapped (getattr, self.com_object, name)
     except (AttributeError, NotImplementedError):
       try:
-        return exc.wrapped (self.com_object.GetEx, name)
+        return exc.wrapped (self.com_object.Get, name)
       except NotImplementedError:
         raise AttributeError
 
@@ -57,6 +72,10 @@ class ADSimple (object):
 
   def __str__ (self):
     return self.as_string ()
+
+  def __iter__(self):
+    for item in ADContainer (self.com_object):
+      yield self.__class__ (item)
 
   @classmethod
   def from_path (cls, path, cred=credentials.Passthrough):
@@ -77,19 +96,20 @@ class ADSimple (object):
     ofile.write (self.as_string () + u"\n")
     ofile.write ("{\n")
     for name in self.properties:
+      ofile.write ("  %s => " % name)
       try:
         value = getattr (self, name)
       except AttributeError:
         value = "Unable to get value"
-      ofile.write ("  %s => %s\n" % (name, self.munge_attribute_for_dump (name, value)))
+      ofile.write ("%s\n" % self.munge_attribute_for_dump (name, value))
     ofile.write ("}\n")
 
-def adsimple (path, cred=credentials.Passthrough):
+def adsimple (obj_or_path, cred=credentials.Passthrough):
   cred = credentials.credentials (cred)
   if isinstance (obj_or_path, ADSimple):
     return obj_or_path
   else:
-    return ADSimple.from_path (path, cred)
+    return ADSimple.from_path (obj_or_path, cred)
 
 class ADBase (ADSimple):
   u"""Wrap an active-directory object for easier access
@@ -213,21 +233,6 @@ class ADBase (ADSimple):
 
   def __hash__ (self):
     return hash (self.com_object.Guid)
-
-  class AD_iterator:
-    u""" Inner class for wrapping iterated objects
-    (This class and the __iter__ method supplied by
-    Stian Søiland <stian@soiland.no>)
-    """
-    def __init__ (self, com_object):
-      self._iter = iter (com_object)
-    def __iter__ (self):
-      return self
-    def next (self):
-      return ad (self._iter.next ())
-
-  def __iter__(self):
-    return self.AD_iterator (self.com_object)
 
   def _get_parent (self):
     return self.__class__ (self.com_object.Parent)
@@ -494,11 +499,8 @@ class Group (ADBase):
 class WinNTGroup (WinNT, Group):
   pass
 
-def namespaces (cred=credentials.Passthrough):
-  cred = credentials.credentials (cred)
-  return ADSimple (
-    adsi.ADsOpenObject (u"ADs:", cred.username, cred.password, cred.authentication_type)
-  )
+def namespaces ():
+  return ADSimple (adsi.ADsGetObject (u"ADs:"))
 
 _CLASS_MAP = {
   u"group" : Group,
@@ -519,39 +521,41 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  cred = credentials.credentials (cred)
   if isinstance (obj_or_path, ADBase):
     return obj_or_path
 
   global _namespace_names
   if _namespace_names is None:
-    _namespace_names = ["GC:", "LDAP:", "WinNT:"]
-    #~ _namespace_names = [u"GC:"] + [ns.Name for ns in exc.wrapped (adsi.ADsOpenObject, u"ADs:", cred.username, cred.password, cred.authentication_type)]
+    if cred.type == credentials.Credentials.PASSTHROUGH:
+      _namespace_names = [u"GC:"] + [ns.Name for ns in exc.wrapped (adsi.ADsGetObject, u"ADs:")]
+    else:
+      _namespace_names = ["GC:", "LDAP:", "WinNT:"]
   matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?([A-za-z0-9-_]+/)?(.*)")
+
+  cred = credentials.credentials (cred)
   if isinstance (obj_or_path, basestring):
     #
     # Special-case the "ADs:" moniker which isn't a child of IADs
     #
     if obj_or_path == u"ADs:":
-      return namespaces (cred)
+      return namespaces ()
 
     scheme, slashes, server, dn = matcher.match (obj_or_path).groups ()
     if scheme is None:
-        scheme, slashes = u"LDAP:", u"//"
+      scheme, slashes = u"LDAP:", u"//"
     if scheme == u"WinNT:":
       moniker = dn
     else:
       moniker = utils.escaped_moniker (dn)
-    print repr (scheme), repr (slashes), repr (server), repr (moniker)
     obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
-    print "obj_path:", obj_path
+    flags = cred.authentication_type
     obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, cred.authentication_type)
   else:
     obj = obj_or_path
     scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
 
   if dn == u"rootDSE":
-    return ADBase (obj, cred, parse_schema=False)
+    return ADSimple (obj)
 
   if scheme == u"WinNT:":
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
