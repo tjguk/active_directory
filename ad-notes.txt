@@ -22,7 +22,7 @@ IADsContainer.Delete (class, relativeName)
 
 
 group = IADsContainer.Create ("group", "cn=MyGroup")
-group.groupType = ADS_GROUP_TYPE_ENUM 
+group.groupType = ADS_GROUP_TYPE_ENUM
 group.sAMAccountName = "mygroup"
 
 group = group.QueryInterface (IADsGroup)
@@ -47,7 +47,7 @@ IADs.get_Parent
 --------
 Binding anonymously: specify ADS_NO_AUTHENTICATION in the call to ADsOpenObject
 Binding with authentication: specify ADS_SECURE_AUTHENTICATION
-
+ADSI will cache authenticated binding after first time; only pass username, not password
 
 --------
 Fast sea4rching: Use indexed attributes (eg objectCategory, not objectClass)
