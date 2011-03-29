@@ -44,7 +44,7 @@ def or_ (*args, **kwargs):
 def connect (
   cred=credentials.Passthrough,
   #~ is_password_encrypted=False,
-  adsi_flags=None
+  adsi_flags=0
 ):
   u"""Return an ADODB connection, optionally authenticated by
   username & password.
