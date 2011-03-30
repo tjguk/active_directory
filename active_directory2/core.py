@@ -146,3 +146,12 @@ def query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree
     segments += [u"Range=%s-%s" % range]
   segments += [scope]
   return u";".join (segments)
+
+def root_dse (server=None, use_gc=False):
+  scheme = "GC://" if use_gc else "LDAP://"
+  if server:
+    root_moniker = scheme + server + "/rootDSE"
+  else:
+    root_moniker = scheme + "rootDSE"
+  return exc.wrapped (win32com.client.GetObject, root_moniker)
+

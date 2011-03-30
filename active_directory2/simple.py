@@ -3,7 +3,7 @@ import os, sys
 import re
 
 import win32api
-from win32com import adsi
+from win32com.adsi import adsi, adsicon
 
 from . import core
 from . import constants
@@ -47,11 +47,13 @@ class ADSimple (object):
    # For speed, hardcode the known properties of the IADs class
    #
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
+  _class_properties = {}
+  _property_schemas = {}
 
   def __init__ (self, obj):
     utils._set (self, "com_object", obj.QueryInterface (adsi.IID_IADs))
     utils._set (self, "properties", self._properties)
-    utils._set (self, "path", obj.ADsPath)
+    utils._set (self, "path", self.com_object.ADsPath)
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
@@ -90,7 +92,40 @@ class ADSimple (object):
   @classmethod
   def from_path (cls, path, cred=credentials.Passthrough):
     cred = credentials.credentials (cred)
-    return cls (adsi.ADsOpenObject (path, cred.username, cred.password, cred.authentication_type))
+    return cls (
+      exc.wrapped (
+        adsi.ADsOpenObject,
+        path,
+        cred.username,
+        cred.password,
+        cred.authentication_type,
+        adsi.IID_IADs
+      )
+    )
+
+  def query (self, filter, attributes=None):
+    SEARCH_PREFERENCES = {
+      adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
+      adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
+    }
+    directory_search = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IDirectorySearch)
+    directory_search.SetSearchPreference ([(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
+    hSearch = directory_search.ExecuteSearch (filter, attributes)
+    try:
+      hResult = directory_search.GetFirstRow (hSearch)
+      while hResult == 0:
+        results = dict ()
+        while True:
+          attr = exc.wrapped (directory_search.GetNextColumnName, hSearch)
+          if attr is None:
+            break
+          _, _, attr_values = exc.wrapped (directory_search.GetColumn, hSearch, attr)
+          results[attr] = [value for (value, _) in attr_values]
+        yield results
+        hResult = directory_search.GetNextRow (hSearch)
+    finally:
+      directory_search.AbandonSearch (hSearch)
+      directory_search.CloseSearchHandle (hSearch)
 
   def as_string (self):
     return self.path
@@ -103,15 +138,21 @@ class ADSimple (object):
     return str (value)
 
   def dump (self, ofile=sys.stdout):
+    object_class = self.com_object.Class
     ofile.write (self.as_string () + u"\n")
     ofile.write ("{\n")
-    for name in self.properties:
+    obj = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IDirectoryObject)
+    attributes = dict ((a.AttrName, a) for a in obj.GetObjectAttributes (None))
+    if object_class not in self._class_properties:
+      self._class_properties[object_class] = list (attributes)
+    for name, attribute in attributes.items (): ##self._class_properties[object_class].items ():
       ofile.write ("  %s => " % name)
-      try:
-        value = getattr (self, name)
-      except AttributeError:
-        value = "Unable to get value"
-      ofile.write ("%s\n" % self.munge_attribute_for_dump (name, value))
+      ofile.write ("%s\n" % attribute.Values)
+      #~ try:
+        #~ value = getattr (self, name)
+      #~ except AttributeError:
+        #~ value = "Unable to get value"
+      #~ ofile.write ("%s\n" % self.munge_attribute_for_dump (name, value))
     ofile.write ("}\n")
 
 def adsimple (obj_or_path, cred=credentials.Passthrough):

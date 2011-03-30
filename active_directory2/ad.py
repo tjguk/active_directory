@@ -102,11 +102,14 @@ import os, sys
 import logging
 
 from win32com import adsi
+import win32com.client
 
 from . import base
 from . import constants
 from . import core
+from . import credentials
 from . import exc
+from . import simple
 from . import types
 from . import utils
 
@@ -122,7 +125,7 @@ def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
   return core.query (query_string, connection=connect (username, password))
 
-class RootDSE (base.ADSimple):
+class RootDSE (simple.ADSimple):
 
   _properties = u"""configurationNamingContext
 currentTime
@@ -148,20 +151,21 @@ supportedLDAPVersion
 supportedSASLMechanisms
   """.split ()
 
-def AD (server=None, username=None, password=None, use_gc=False):
+def AD (server=None, cred=credentials.Passthrough, use_gc=False):
+  cred = credentials.credentials (cred)
   if use_gc:
     scheme = u"GC://"
   else:
     scheme = u"LDAP://"
   if server:
-    root_moniker = scheme + server + u"/rootDSE"
+    base_moniker = scheme + server + "/"
   else:
-    root_moniker = scheme + u"rootDSE"
-  root_obj = exc.wrapped (adsi.ADsOpenObject, root_moniker, username, password, constants.AUTHENTICATION_TYPES.DEFAULT)
-  default_naming_context = root_obj.Get (u"defaultNamingContext")
-  moniker = scheme + default_naming_context
-  obj = exc.wrapped (adsi.ADsOpenObject, moniker, username, password, constants.AUTHENTICATION_TYPES.DEFAULT)
-  return base.ad (obj, username, password)
+    base_moniker = scheme
+  root_obj = core.root_dse (server, use_gc)
+  default_naming_context = exc.wrapped (root_obj.Get, u"defaultNamingContext")
+  moniker = base_moniker + default_naming_context
+  obj = exc.wrapped (adsi.ADsOpenObject, moniker, cred.username, cred.password, cred.authentication_type)
+  return simple.ADSimple (obj)
 
 #
 # Convenience functions for common needs
@@ -192,14 +196,11 @@ def search (*args, **kwargs):
 #  root of the logged-on active directory tree.
 #
 _ad = None
-def root (username=None, password=None):
+def root (cred=credentials.Passthrough):
   global _ad
   if _ad is None:
-    _ad = AD (username=username, password=password)
+    _ad = AD (cred=cred)
   return _ad
-
-def root_dse (username=None, password=None):
-  return RootDSE (adsi.ADsOpenObject (u"LDAP://rootDSE", username, password, constants.AUTHENTICATION_TYPES.DEFAULT))
 
 #
 # Register known attributes
