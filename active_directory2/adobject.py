@@ -6,10 +6,10 @@ from . import constants
 from . import core
 from . import credentials
 from . import exc
-from . import simple
+from . import adbase
 from . import utils
 
-class ADObject (simple.ADSimple):
+class ADObject (adbase.ADBase):
   u"""Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
    either directly from a COM object or from an ADs Path.
@@ -31,7 +31,7 @@ class ADObject (simple.ADSimple):
     cred = credentials.credentials (cred)
     utils._set (self, "cred", cred)
     utils._set (self, "connection", connection or core.connect (cred=self.cred))
-    simple.ADSimple.__init__ (self, obj)
+    adbase.ADBase.__init__ (self, obj)
     schema = None
     properties = self._properties
     #~ schema_path = exc.wrapped (getattr, obj, u"Schema", None)
@@ -397,7 +397,7 @@ class WinNTGroup (WinNT, Group):
   pass
 
 def namespaces ():
-  return ADSimple (adsi.ADsGetObject (u"ADs:"))
+  return ADBase (adsi.ADsGetObject (u"ADs:"))
 
 _CLASS_MAP = {
   u"group" : Group,

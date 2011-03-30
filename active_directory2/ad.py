@@ -110,7 +110,7 @@ from . import core
 from . import credentials
 from .credentials import credentials as session
 from . import exc
-from . import simple
+from . import adbase
 from . import types
 from . import utils
 
@@ -126,7 +126,7 @@ def search_ex (query_string=u"", username=None, password=None):
   u"""FIXME: Historical version of :func:`query`"""
   return core.query (query_string, connection=connect (username, password))
 
-class RootDSE (simple.ADSimple):
+class RootDSE (adbase.ADBase):
 
   _properties = u"""configurationNamingContext
 currentTime
@@ -164,7 +164,7 @@ def AD (server=None, cred=None, use_gc=False):
   root_obj = core.root_dse (server, use_gc)
   default_naming_context = exc.wrapped (root_obj.Get, u"defaultNamingContext")
   moniker = base_moniker + default_naming_context
-  return simple.ADSimple (core.open_object (moniker, cred))
+  return adbase.ADBase (core.open_object (moniker, cred))
 
 #
 # Convenience functions for common needs
