@@ -397,7 +397,7 @@ _WINNT_CLASS_MAP = {
   u"group" : WinNTGroup
 }
 _namespace_names = None
-def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
+def ad (obj_or_path, cred=None):
   u"""Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
   is now  intended to be:
@@ -412,24 +412,13 @@ def ad (obj_or_path, cred=credentials.Passthrough, connection=None):
   if isinstance (obj_or_path, ADBase):
     return obj_or_path
 
-  cred = credentials.credentials (cred)
   if isinstance (obj_or_path, basestring):
-    scheme, slashes, server, dn = re.match ("([^:]+:)(//)([A-za-z0-9-_]+/)?(.*)", obj_or_path).groups ()
-    if scheme is None:
-      scheme, slashes = u"LDAP:", u"//"
-    if scheme == u"WinNT:":
-      moniker = dn
-    else:
-      moniker = utils.escaped_moniker (dn)
-    obj_path = scheme + (slashes or u"") + (server or u"") + (moniker or u"")
-    flags = cred.authentication_type
-    if server:
-      flags |= constants.AUTHENTICATION_TYPES.SERVER_BIND
-    print "obj_path:", obj_path
-    obj = exc.wrapped (adsi.ADsOpenObject, obj_path, cred.username, cred.password, flags, adsi.IID_IADs)
+    scheme, server, dn = utils.parse_moniker (obj_or_path)
+    obj_path = scheme + u"//" + (server or u"") + (dn or u"")
+    obj = core.open_object (obj_path, cred)
   else:
     obj = obj_or_path
-    scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
+    scheme, server, dn = utils.parse_moniker (obj_or_path.AdsPath)
 
   if scheme == u"WinNT:":
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)

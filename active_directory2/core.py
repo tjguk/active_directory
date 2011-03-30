@@ -6,6 +6,7 @@ from win32com.adsi import adsicon
 from . import constants
 from . import credentials
 from . import exc
+from . import utils
 
 def and_ (*args, **kwargs):
   """Combine its arguments together as a valid LDAP AND-search. Positional
@@ -155,3 +156,21 @@ def root_dse (server=None, use_gc=False):
     root_moniker = scheme + "rootDSE"
   return exc.wrapped (win32com.client.GetObject, root_moniker)
 
+def open_object (moniker, cred=None, flags=0):
+  """Attempt to open an AD object making use of
+  credentials stored in the Credentials cache.
+  """
+  scheme, server, dn = utils.parse_moniker (moniker)
+  cred = credentials.credentials (cred)
+  if cred is None:
+    cred = credentials.Credentials.cache.get (server)
+  if cred is None:
+    cred = credentials.Passthrough
+  return exc.wrapped (
+    adsi.ADsOpenObject,
+    moniker,
+    cred.username,
+    cred.password,
+    flags | (constants.AUTHENTICATION_TYPES.SERVER_BIND if server else 0) | cred.authentication_type,
+    adsi.IID_IADs
+  )

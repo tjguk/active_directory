@@ -151,8 +151,7 @@ supportedLDAPVersion
 supportedSASLMechanisms
   """.split ()
 
-def AD (server=None, cred=credentials.Passthrough, use_gc=False):
-  cred = credentials.credentials (cred)
+def AD (server=None, cred=None, use_gc=False):
   if use_gc:
     scheme = u"GC://"
   else:
@@ -164,8 +163,7 @@ def AD (server=None, cred=credentials.Passthrough, use_gc=False):
   root_obj = core.root_dse (server, use_gc)
   default_naming_context = exc.wrapped (root_obj.Get, u"defaultNamingContext")
   moniker = base_moniker + default_naming_context
-  obj = exc.wrapped (adsi.ADsOpenObject, moniker, cred.username, cred.password, cred.authentication_type)
-  return simple.ADSimple (obj)
+  return simple.ADSimple (core.open_object (moniker, cred))
 
 #
 # Convenience functions for common needs

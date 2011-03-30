@@ -1,4 +1,5 @@
 # -*- coding: iso-8859-1 -*-
+import re
 import struct
 
 def delta_as_microseconds (delta) :
@@ -45,3 +46,10 @@ def escaped_moniker (moniker):
   else:
     return moniker.replace (u"/", u"\\/")
 
+def parse_moniker (moniker):
+  scheme, server, dn = re.match ("([^:]+://)([A-za-z0-9-_]+/)?(.*)", moniker).groups ()
+  if scheme is None:
+    scheme = u"LDAP://"
+  if scheme != u"WinNT:":
+    dn = escaped_moniker (dn)
+  return scheme or u"", (server + u"/") if server else u"", dn or u""

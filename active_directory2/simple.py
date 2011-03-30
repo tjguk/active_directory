@@ -3,6 +3,7 @@ import os, sys
 import re
 
 import win32api
+import win32com.client
 from win32com.adsi import adsi, adsicon
 
 from . import core
@@ -50,12 +51,19 @@ class ADSimple (object):
   _class_properties = {}
   _property_schemas = {}
 
-  def __init__ (self, obj):
+  def __init__ (self, obj, root=None, cred=None):
     utils._set (self, "com_object", obj.QueryInterface (adsi.IID_IADs))
     utils._set (self, "properties", self._properties)
     utils._set (self, "path", self.com_object.ADsPath)
-    path = self.com_object.ADsPath
-
+    if not root:
+      scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
+      root = exc.wrapped (win32com.client.GetObject, scheme + server + "rootDSE")
+    schema = self.__class__ (
+      core.open_object (scheme + server + root.Get ("schemaNamingContext"), cred),
+      root=root,
+      cred=cred
+    )
+    utils._set (self, "schema", schema)
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
@@ -92,18 +100,8 @@ class ADSimple (object):
       raise TypeError ("%r is not iterable" % self)
 
   @classmethod
-  def from_path (cls, path, cred=credentials.Passthrough):
-    cred = credentials.credentials (cred)
-    return cls (
-      exc.wrapped (
-        adsi.ADsOpenObject,
-        path,
-        cred.username,
-        cred.password,
-        cred.authentication_type,
-        adsi.IID_IADs
-      )
-    )
+  def from_path (cls, path, cred=None):
+    return cls (core.open_object (path, cred))
 
   def query (self, filter, attributes=None):
     SEARCH_PREFERENCES = {
@@ -147,9 +145,9 @@ class ADSimple (object):
     attributes = dict ((a.AttrName, a) for a in obj.GetObjectAttributes (None))
     if object_class not in self._class_properties:
       self._class_properties[object_class] = list (attributes)
-      unknown_attributes = a for a in attributes if a not in self._property_schemas
-      filter = "(%s)" % core.or_ (*[ldapDisplayName=ua for ua in unknown_attributes])
-      schema = core.root_dse (
+      unknown_attributes = [a for a in attributes if a not in self._property_schemas]
+      filter = "(%s)" % core.or_ (*["ldapDisplayName=%s" % ua for ua in unknown_attributes])
+      #~ schema = core.root_dse (
     for name, attribute in attributes.items (): ##self._class_properties[object_class].items ():
       ofile.write ("  %s => " % name)
       ofile.write ("%s\n" % attribute.Values)
