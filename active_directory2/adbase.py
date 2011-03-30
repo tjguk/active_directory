@@ -35,12 +35,12 @@ class ADContainer (object):
       else:
         break
 
-class ADSimple (object):
+class ADBase (object):
   """A slender wrapper around an AD COM object which facilitates getting,
   setting and clearing an object's attributes plus pretty-printing to stdout.
   It does no validation of the names passed and an no conversions of the
-  values. It can be used alone (most easily via the :func:`adsimple` function
-  which takes an AD path and returns an ADSimple object). It also provides the
+  values. It can be used alone (most easily via the :func:`ADBase` function
+  which takes an AD path and returns an ADBase object). It also provides the
   basis for the other AD classes below.
   """
 
@@ -133,27 +133,17 @@ class ADSimple (object):
   def as_string (self):
     return self.path
 
-  def munge_attribute_for_dump (self, name, value):
-    if value is None:
-      return ""
-    if isinstance (value, unicode):
-      value = value.encode ("ascii", "backslashreplace")
-    return str (value)
-
   def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + u"\n")
     ofile.write ("{\n")
     for property in self.__class__._class_properties[self.cls]:
-      ofile.write ("  %s => " % property)
-      try:
-        value = exc.wrapped (getattr, self, property)
-      except AttributeError:
-        value = "<Unknown>"
-      ofile.write ("%s\n" % self.munge_attribute_for_dump (property, value))
+      value = exc.wrapped (getattr, self, property, None)
+      if value:
+        ofile.write ("  %s => %r\n" % (property, value))
     ofile.write ("}\n")
 
-def adsimple (obj_or_path, cred=None):
-  if isinstance (obj_or_path, ADSimple):
+def adbase (obj_or_path, cred=None):
+  if isinstance (obj_or_path, ADBase):
     return obj_or_path
   else:
-    return ADSimple.from_path (obj_or_path, cred)
+    return ADBase.from_path (obj_or_path, cred)
