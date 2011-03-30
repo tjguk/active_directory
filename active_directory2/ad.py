@@ -104,7 +104,7 @@ import logging
 from win32com import adsi
 import win32com.client
 
-from . import base
+from . import adobject
 from . import constants
 from . import core
 from . import credentials
@@ -211,7 +211,7 @@ _PROPERTY_MAP = dict (
   creationTime = types.convert_to_datetime,
   dSASignature = types.convert_to_hex,
   forceLogoff = types.convert_to_datetime,
-  fSMORoleOwner = types.convert_to_object (base.ad),
+  fSMORoleOwner = types.convert_to_object (adobject.ad),
   groupType = types.convert_to_flags (constants.GROUP_TYPES),
   isGlobalCatalogReady = types.convert_to_boolean,
   isSynchronized = types.convert_to_boolean,
@@ -221,11 +221,11 @@ _PROPERTY_MAP = dict (
   lockoutDuration = types.convert_to_datetime,
   lockoutObservationWindow = types.convert_to_datetime,
   lockoutTime = types.convert_to_datetime,
-  manager = types.convert_to_object (base.ad),
-  masteredBy = types.convert_to_objects (base.ad),
+  manager = types.convert_to_object (adobject.ad),
+  masteredBy = types.convert_to_objects (adobject.ad),
   maxPwdAge = types.convert_to_datetime,
-  member = types.convert_to_objects (base.ad),
-  memberOf = types.convert_to_objects (base.ad),
+  member = types.convert_to_objects (adobject.ad),
+  memberOf = types.convert_to_objects (adobject.ad),
   minPwdAge = types.convert_to_datetime,
   modifiedCount = types.convert_to_datetime,
   modifiedCountAtLastProm = types.convert_to_datetime,
@@ -236,23 +236,23 @@ _PROPERTY_MAP = dict (
   objectClass = types.convert_to_breadcrumbs,
   objectGUID = types.convert_to_guid,
   objectSid = types.convert_to_sid,
-  publicDelegates = types.convert_to_objects (base.ad),
-  publicDelegatesBL = types.convert_to_objects (base.ad),
+  publicDelegates = types.convert_to_objects (adobject.ad),
+  publicDelegatesBL = types.convert_to_objects (adobject.ad),
   pwdLastSet = types.convert_to_datetime,
   replicationSignature = types.convert_to_hex,
   replUpToDateVector = types.convert_to_hex,
   repsFrom = types.convert_to_hexes,
   repsTo = types.convert_to_hex,
   sAMAccountType = types.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
-  subRefs = types.convert_to_objects (base.ad),
+  subRefs = types.convert_to_objects (adobject.ad),
   systemFlags = types.convert_to_flags (constants.ADS_SYSTEMFLAG),
   userAccountControl = types.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
-  wellKnownObjects = types.convert_to_objects (base.ad),
+  wellKnownObjects = types.convert_to_objects (adobject.ad),
   whenCreated = types.convert_pytime_to_datetime,
   whenChanged = types.convert_pytime_to_datetime,
-  showInAddressbook = types.convert_to_objects (base.ad),
+  showInAddressbook = types.convert_to_objects (adobject.ad),
 )
-_PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (base.ad)
+_PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (adobject.ad)
 
 for k, v in _PROPERTY_MAP.items ():
   types.register_converter (k, from_ad=v)

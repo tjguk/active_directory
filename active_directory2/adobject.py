@@ -9,7 +9,7 @@ from . import exc
 from . import simple
 from . import utils
 
-class ADBase (simple.ADSimple):
+class ADObject (simple.ADSimple):
   u"""Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
    either directly from a COM object or from an ADs Path.
@@ -90,7 +90,7 @@ class ADBase (simple.ADSimple):
     # method. Not clear why.
     #
     if name not in self._delegate_map:
-      value = super (ADBase, self).__getattr__ (name)
+      value = super (ADObject, self).__getattr__ (name)
       convert_from, _ = types.get_converter (name)
       self._delegate_map[name] = convert_from (value)
     return self._delegate_map[name]
@@ -105,10 +105,10 @@ class ADBase (simple.ADSimple):
     #
     if name in self.properties:
       _, convert_to = types.get_converter (name)
-      super (ADBase, self).__setattr__ (name, convert_to (value))
+      super (ADObject, self).__setattr__ (name, convert_to (value))
       self._invalidate (name)
     else:
-      super (ADBase, self).__setattr__ (name, value)
+      super (ADObject, self).__setattr__ (name, value)
 
   def _invalidate (self, name):
     #
@@ -153,7 +153,7 @@ class ADBase (simple.ADSimple):
     if isinstance (value, (tuple, list)):
       value = "[(%d items)]" % len (value)
     else:
-      value = super (ADBase, self).munge_attribute_for_dump (name, value)
+      value = super (ADObject, self).munge_attribute_for_dump (name, value)
       if isinstance (value, unicode):
         if len (value) > 60:
           value = value[:25] + "..." + value[-25:]
@@ -277,7 +277,7 @@ class ADBase (simple.ADSimple):
     exc.wrapped (obj.SetInfo)
     return self.__class__ (obj, self.cred)
 
-class WinNT (ADBase):
+class WinNT (ADObject):
 
   def __eq__ (self, other):
     return self.com_object.ADsPath.lower () == other.com_object.ADsPath.lower ()
@@ -362,7 +362,7 @@ class _Members (set):
   def __contains__ (self, element):
     return  super (_Members, self).__contains__ (ad (element))
 
-class Group (ADBase):
+class Group (ADObject):
 
   def _get_members (self):
     return _Members (self)
@@ -418,7 +418,7 @@ def ad (obj_or_path, cred=None):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  if isinstance (obj_or_path, ADBase):
+  if isinstance (obj_or_path, ADObject):
     return obj_or_path
 
   if isinstance (obj_or_path, basestring):
@@ -432,5 +432,5 @@ def ad (obj_or_path, cred=None):
   if scheme == u"WinNT:":
     class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
   else:
-    class_map = _CLASS_MAP.get (obj.Class.lower (), ADBase)
+    class_map = _CLASS_MAP.get (obj.Class.lower (), ADObject)
   return class_map (obj, cred)
