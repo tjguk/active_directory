@@ -6,6 +6,7 @@ from win32com.adsi import adsicon
 from . import constants
 from . import credentials
 from . import exc
+from .log import logger
 from . import utils
 
 def and_ (*args, **kwargs):
@@ -105,7 +106,6 @@ def query (query_string, connection=None, **command_properties):
     command.Properties (k.replace (u"_", u" ")).Value = v
   for k, v in command_properties.items ():
     command.Properties (k.replace (u"_", u" ")).Value = v
-  print "query_string:", query_string
   command.CommandText = query_string
 
   results = []
@@ -163,7 +163,7 @@ def open_object (moniker, cred=None, flags=0):
   scheme, server, dn = utils.parse_moniker (moniker)
   cred = credentials.credentials (cred)
   if cred is None:
-    cred = credentials.Credentials.cache.get (server)
+    cred = credentials.Credentials.cache.get (server.rstrip ("/"))
   if cred is None:
     cred = credentials.Passthrough
   return exc.wrapped (

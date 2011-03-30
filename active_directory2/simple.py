@@ -51,19 +51,18 @@ class ADSimple (object):
   _class_properties = {}
   _property_schemas = {}
 
-  def __init__ (self, obj, root=None, cred=None):
-    utils._set (self, "com_object", obj.QueryInterface (adsi.IID_IADs))
-    utils._set (self, "properties", self._properties)
+  def __init__ (self, obj, cred=None):
+    com_object = obj.QueryInterface (adsi.IID_IADs)
+    utils._set (self, "com_object", com_object)
     utils._set (self, "path", self.com_object.ADsPath)
-    if not root:
-      scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
-      root = exc.wrapped (win32com.client.GetObject, scheme + server + "rootDSE")
-    schema = self.__class__ (
-      core.open_object (scheme + server + root.Get ("schemaNamingContext"), cred),
-      root=root,
-      cred=cred
-    )
-    utils._set (self, "schema", schema)
+    cls = exc.wrapped (getattr, com_object, "Class")
+    #~ cls = exc.wrapped (com_object.Get, "Class")
+    utils._set (self, "cls", cls)
+    if cls not in self.__class__._class_properties:
+      schema_path = exc.wrapped (getattr, com_object, "Schema")
+      schema_obj = core.open_object (schema_path, cred=cred)
+      properties = exc.wrapped (getattr, schema_obj, "mandatoryProperties") + exc.wrapped (getattr, schema_obj, "optionalProperties")
+      self.__class__._class_properties[cls] = properties
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
@@ -103,7 +102,7 @@ class ADSimple (object):
   def from_path (cls, path, cred=None):
     return cls (core.open_object (path, cred))
 
-  def query (self, filter, attributes=None):
+  def query (self, filter, attributes=None, flags=0):
     SEARCH_PREFERENCES = {
       adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
       adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
@@ -127,6 +126,10 @@ class ADSimple (object):
       directory_search.AbandonSearch (hSearch)
       directory_search.CloseSearchHandle (hSearch)
 
+  def search (self, filter, cred=None):
+    for result in self.query (filter, ['ADsPath']):
+      yield self.__class__ (core.open_object (result['ADsPath'][0], cred=cred))
+
   def as_string (self):
     return self.path
 
@@ -138,30 +141,19 @@ class ADSimple (object):
     return str (value)
 
   def dump (self, ofile=sys.stdout):
-    object_class = self.com_object.Class
     ofile.write (self.as_string () + u"\n")
     ofile.write ("{\n")
-    obj = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IDirectoryObject)
-    attributes = dict ((a.AttrName, a) for a in obj.GetObjectAttributes (None))
-    if object_class not in self._class_properties:
-      self._class_properties[object_class] = list (attributes)
-      unknown_attributes = [a for a in attributes if a not in self._property_schemas]
-      filter = "(%s)" % core.or_ (*["ldapDisplayName=%s" % ua for ua in unknown_attributes])
-      #~ schema = core.root_dse (
-    for name, attribute in attributes.items (): ##self._class_properties[object_class].items ():
-      ofile.write ("  %s => " % name)
-      ofile.write ("%s\n" % attribute.Values)
-      #~ try:
-        #~ value = getattr (self, name)
-      #~ except AttributeError:
-        #~ value = "Unable to get value"
-      #~ ofile.write ("%s\n" % self.munge_attribute_for_dump (name, value))
+    for property in self.__class__._class_properties[self.cls]:
+      ofile.write ("  %s => " % property)
+      try:
+        value = exc.wrapped (getattr, self, property)
+      except AttributeError:
+        value = "<Unknown>"
+      ofile.write ("%s\n" % self.munge_attribute_for_dump (property, value))
     ofile.write ("}\n")
 
-def adsimple (obj_or_path, cred=credentials.Passthrough):
-  cred = credentials.credentials (cred)
+def adsimple (obj_or_path, cred=None):
   if isinstance (obj_or_path, ADSimple):
     return obj_or_path
   else:
     return ADSimple.from_path (obj_or_path, cred)
-

@@ -3,6 +3,7 @@ import win32cred
 
 from . import constants
 from . import exc
+from .log import logger
 
 class CredentialsError (exc.ActiveDirectoryError):
   pass
@@ -25,10 +26,11 @@ class CredentialsCache (object):
   def __init__ (self):
     self._cache = {}
 
-  def push (self, server, cred):
-    if server in self._cache:
-      raise CredentialsAlreadyCachedError ("Credentials already cached for %s; please pop them before replacing" % server)
-    self._cache[server] = cred
+  def push (self, cred):
+    cred = credentials (cred)
+    if cred.server in self._cache:
+      raise CredentialsAlreadyCachedError ("Credentials already cached for %s; please pop them before replacing" % cred.server)
+    self._cache[cred.server] = cred
 
   def pop (self, server):
     return self._cache.pop (server)
@@ -37,7 +39,7 @@ class CredentialsCache (object):
     return self._cache.get (server)
 
   def __iter__ (self):
-    return iter (self._cache.items ())
+    return iter (self._cache.values ())
 
   def clear (self):
     self._cache.clear ()
@@ -64,7 +66,7 @@ class Credentials (object):
     return "<%s: %r %r on %s>" % (self.__class__.__name__, self.username, self.password, self.server)
 
   def __enter__ (self):
-    self.__class__.cache.push (self.server, self)
+    self.__class__.cache.push (self)
     return self
 
   def __exit__ (self, *args):
@@ -96,3 +98,10 @@ def credentials (cred):
       return Credentials (*cred)
     except (ValueError, TypeError):
       raise InvalidCredentialsError ("Credentials must be a Credentials object or (username, password[, type])")
+
+def push (cred):
+  cred = credentials (cred)
+  Credentials.cache.push (cred)
+
+def pop (server):
+  return Credentials.cache.pop (server)

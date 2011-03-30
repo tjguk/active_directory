@@ -34,10 +34,19 @@ class ADBase (simple.ADSimple):
     simple.ADSimple.__init__ (self, obj)
     schema = None
     properties = self._properties
-    schema_path = exc.wrapped (getattr, obj, u"Schema", None)
-    print "schema_path:", schema_path
-    if schema_path:
-      properties = self._schema (schema_path)
+    #~ schema_path = exc.wrapped (getattr, obj, u"Schema", None)
+    #~ print "schema_path:", schema_path
+    #~ if schema_path:
+      #~ properties = self._schema (schema_path)
+    #~ if not root:
+      #~ scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
+      #~ root = exc.wrapped (win32com.client.GetObject, scheme + server + "rootDSE")
+    #~ schema = self.__class__ (
+      #~ core.open_object (scheme + server + root.Get ("schemaNamingContext"), cred),
+      #~ root=root,
+      #~ cred=cred
+    #~ )
+    #~ utils._set (self, "schema", schema)
 
     utils._set (self, u"properties", properties)
 

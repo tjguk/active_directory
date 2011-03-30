@@ -108,6 +108,7 @@ from . import base
 from . import constants
 from . import core
 from . import credentials
+from .credentials import credentials as session
 from . import exc
 from . import simple
 from . import types
