@@ -1,4 +1,6 @@
 # -*- coding: iso-8859-1 -*-
+import re
+
 import win32com.client
 from win32com import adsi
 from win32com.adsi import adsicon
@@ -44,7 +46,7 @@ def or_ (*args, **kwargs):
   return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
 
 def connect (
-  cred=credentials.Passthrough,
+  cred=None,
   #~ is_password_encrypted=False,
   adsi_flags=0
 ):
@@ -52,6 +54,8 @@ def connect (
   username & password.
   """
   cred = credentials.credentials (cred)
+  if cred is None:
+    cred = credentials.Passthrough
   connection = exc.wrapped (win32com.client.Dispatch, u"ADODB.Connection")
   connection.Provider = u"ADsDSOObject"
   if cred.username:
@@ -139,8 +143,8 @@ def query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree
   :param range: Limit the number of returns of multivalued attributes [no range]
   """
   if base is None:
-    base = u"LDAP://" + exc.wrapped (adsi.ADsGetObject, "LDAP://rootDSE").Get (u"defaultNamingContext")
-  if filter and not filter.startswith ("("):
+    base = core.root_moniker ()
+  if filter and not re.match (r"\([^)]+\)", filter):
     filter = u"(%s)" % filter
   segments = [u"<%s>" % base, filter, ",".join (attributes)]
   if range:
@@ -148,13 +152,82 @@ def query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree
   segments += [scope]
   return u";".join (segments)
 
-def root_dse (server=None, use_gc=False):
-  scheme = "GC://" if use_gc else "LDAP://"
-  if server:
-    root_moniker = scheme + server + "/rootDSE"
-  else:
-    root_moniker = scheme + "rootDSE"
-  return exc.wrapped (win32com.client.GetObject, root_moniker)
+_base_monikers = {}
+def _base_moniker (server=None, scheme="LDAP:"):
+  if (server, scheme) not in _base_monikers:
+    if server:
+      _base_monikers[server, scheme] = scheme + "//" + server + "/"
+    else:
+      _base_monikers[server, scheme] = scheme + "//"
+  return _base_monikers[server, scheme]
+
+_root_dses = {}
+def root_dse (server=None, scheme="LDAP:"):
+  if (server, scheme) not in _root_dses:
+    _root_dses[server, scheme] = exc.wrapped (
+      win32com.client.GetObject,
+      _base_moniker (server, scheme) + "rootDSE"
+    )
+  return _root_dses[server, scheme]
+
+_root_monikers = {}
+def root_moniker (server=None, scheme="LDAP:"):
+  if (server, scheme) not in _root_monikers:
+    dse = root_dse (server, scheme)
+    _root_monikers[server, scheme] = _base_moniker (server, scheme) + dse.Get ("defaultNamingContext")
+  return _root_monikers[server, scheme]
+
+_root_objs = {}
+def root_obj (server=None, scheme="LDAP:", cred=None):
+  return open_object (root_moniker (server, scheme), cred=cred)
+
+_schema_objs = {}
+def schema_obj (server=None, cred=None):
+  if server not in _schema_objs:
+    dse = root_dse (server)
+    _schema_objs[server] = open_object (
+      _base_moniker (server) + dse.Get ("schemaNamingContext"),
+      cred=cred
+    )
+  return _schema_objs[server]
+
+_attributes = {}
+def attributes (names, server=None, cred=None):
+  schema = schema_obj (server, cred)
+  unknown_names = set (names) - set (_attributes)
+  if unknown_names:
+    filter = or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
+    for row in dquery (schema, filter, ['lDAPDisplayName', 'instanceType', 'oMObjectClass', 'oMSyntax', 'attributeId', 'isSingleValued']):
+      _attributes[row['lDAPDisplayName'][0]] = dict ((k, v[0]) for (k, v) in row.items ())
+
+  for name in names:
+    yield name, _attributes[name]
+
+def dquery (obj, filter, attributes=None, flags=0):
+  SEARCH_PREFERENCES = {
+    adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
+    adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
+  }
+  directory_search = exc.wrapped (obj.QueryInterface, adsi.IID_IDirectorySearch)
+  directory_search.SetSearchPreference ([(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
+  if filter and not re.match (r"\([^)]+\)", filter):
+    filter = u"(%s)" % filter
+  hSearch = directory_search.ExecuteSearch (filter, attributes)
+  try:
+    hResult = directory_search.GetFirstRow (hSearch)
+    while hResult == 0:
+      results = dict ()
+      while True:
+        attr = exc.wrapped (directory_search.GetNextColumnName, hSearch)
+        if attr is None:
+          break
+        _, _, attr_values = exc.wrapped (directory_search.GetColumn, hSearch, attr)
+        results[attr] = [value for (value, _) in attr_values]
+      yield results
+      hResult = directory_search.GetNextRow (hSearch)
+  finally:
+    directory_search.AbandonSearch (hSearch)
+    directory_search.CloseSearchHandle (hSearch)
 
 def open_object (moniker, cred=None, flags=0):
   """Attempt to open an AD object making use of

@@ -52,4 +52,4 @@ def parse_moniker (moniker):
     scheme = u"LDAP://"
   if scheme != u"WinNT:":
     dn = escaped_moniker (dn)
-  return scheme or u"", (server + u"/") if server else u"", dn or u""
+  return scheme or u"", (server.rstrip (u"/") + u"/") if server else u"", dn or u""

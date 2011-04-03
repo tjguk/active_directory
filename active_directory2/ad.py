@@ -195,7 +195,7 @@ def search (*args, **kwargs):
 #  root of the logged-on active directory tree.
 #
 _ad = None
-def root (cred=credentials.Passthrough):
+def root (server=None, cred=None):
   global _ad
   if _ad is None:
     _ad = AD (cred=cred)

@@ -103,28 +103,11 @@ class ADBase (object):
     return cls (core.open_object (path, cred))
 
   def query (self, filter, attributes=None, flags=0):
-    SEARCH_PREFERENCES = {
-      adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
-      adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
-    }
-    directory_search = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IDirectorySearch)
-    directory_search.SetSearchPreference ([(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
-    hSearch = directory_search.ExecuteSearch (filter, attributes)
-    try:
-      hResult = directory_search.GetFirstRow (hSearch)
-      while hResult == 0:
-        results = dict ()
-        while True:
-          attr = exc.wrapped (directory_search.GetNextColumnName, hSearch)
-          if attr is None:
-            break
-          _, _, attr_values = exc.wrapped (directory_search.GetColumn, hSearch, attr)
-          results[attr] = [value for (value, _) in attr_values]
-        yield results
-        hResult = directory_search.GetNextRow (hSearch)
-    finally:
-      directory_search.AbandonSearch (hSearch)
-      directory_search.CloseSearchHandle (hSearch)
+    for row in core.query (self, filter, attributes, flags):
+      result = {}
+      for attribute, values in row.items ():
+        result[attribute] = values[0] if types.attribute (attribute, server).get ("isSingleValued", False) else values
+      yield result
 
   def search (self, filter, cred=None):
     for result in self.query (filter, ['ADsPath']):

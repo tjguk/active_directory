@@ -283,15 +283,13 @@ def get_converter (name):
   from_ad, to_ad = _converters.get (name, (None, None))
   return from_ad or (lambda x : x), to_ad or (lambda x : x)
 
-def attribute (attribute_name, root=None):
-  root_dse = root or win32com.client.GetObject ("LDAP://rootDSE")
-  schemaNamingContext = root_dse.Get ("schemaNamingContext")
-  qs = core.query_string (
-    base="LDAP://%s" % schemaNamingContext,
-    filter="ldapDisplayName=%s" % attribute_name,
-    attributes="*"
-  )
-  for item in core.query (qs):
-    return item
-  else:
-    return {}
+_attributes = {}
+_ATTRIBUTE_DATA = ['instanceType', 'oMObjectClass', 'oMSyntax', 'attributeId', 'isSingleValued']
+def attribute (attribute_name, server=None, cred=None):
+  if attribute_name not in _attributes:
+    for attribute_info in core.query (core.schema (server, cred), ("ldapDisplayName=%s" % attribute_name), _ATTRIBUTE_DATA):
+      _attributes[attribute_name] = dict ((k, v[0]) for (k, v) in attribute_info.items ())
+      break
+    else:
+      _attributes[attribute_name] = {}
+  return _attributes[attribute_name]
