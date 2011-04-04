@@ -97,7 +97,7 @@ class ADBase (object):
   def __iter__(self):
     try:
       for item in ADContainer (self.com_object):
-        yield self.__class__ (item)
+        yield self.__class__ (item, self.cred)
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
 
