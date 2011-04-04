@@ -26,29 +26,9 @@ class ADObject (adbase.ADBase):
 
   _schema_cache = {}
 
-  def __init__ (self, obj, cred=credentials.Passthrough, connection=None):
+  def __init__ (self, obj, cred=None):
+    adbase.ADBase.__init__ (self, obj, cred)
     utils._set (self, "_delegate_map", dict ())
-    cred = credentials.credentials (cred)
-    utils._set (self, "cred", cred)
-    utils._set (self, "connection", connection or core.connect (cred=self.cred))
-    adbase.ADBase.__init__ (self, obj)
-    schema = None
-    properties = self._properties
-    #~ schema_path = exc.wrapped (getattr, obj, u"Schema", None)
-    #~ print "schema_path:", schema_path
-    #~ if schema_path:
-      #~ properties = self._schema (schema_path)
-    #~ if not root:
-      #~ scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
-      #~ root = exc.wrapped (win32com.client.GetObject, scheme + server + "rootDSE")
-    #~ schema = self.__class__ (
-      #~ core.open_object (scheme + server + root.Get ("schemaNamingContext"), cred),
-      #~ root=root,
-      #~ cred=cred
-    #~ )
-    #~ utils._set (self, "schema", schema)
-
-    utils._set (self, u"properties", properties)
 
     #
     # At this point, __getattr__ & __setattr__ have enough

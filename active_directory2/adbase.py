@@ -135,8 +135,10 @@ class ADBase (object):
         ofile.write ("  %s => %r\n" % (property, value))
     ofile.write ("}\n")
 
-def adbase (obj_or_path, cred=None):
-  if isinstance (obj_or_path, ADBase):
+def adbase (obj_or_path=None, cred=None):
+  if obj_or_path is None:
+    return ADBase (core.root_obj (), cred=cred)
+  elif isinstance (obj_or_path, ADBase):
     return obj_or_path
   else:
     return ADBase.from_path (obj_or_path, cred)
