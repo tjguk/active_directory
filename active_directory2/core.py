@@ -48,10 +48,13 @@ def or_ (*args, **kwargs):
 def connect (
   cred=None,
   #~ is_password_encrypted=False,
-  adsi_flags=0
+  adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
 ):
-  u"""Return an ADODB connection, optionally authenticated by
-  username & password.
+  u"""Return an ADODB connection, optionally authenticated by cred
+
+  :param cred: anything accepted by :func:`credentials.credentials`
+  :param adsi_flags: any combination of :data:`constants.AUTHENTICATION_TYPES`
+  :returns: an ADO connection, optionally authenticated by `cred`
   """
   cred = credentials.credentials (cred)
   if cred is None:
@@ -163,6 +166,13 @@ def _base_moniker (server=None, scheme="LDAP:"):
 
 _root_dses = {}
 def root_dse (server=None, scheme="LDAP:"):
+  u"""Return the object representing the RootDSE for a domain, optionally
+  specified by a server and a scheme (typically LDAP: or GC:).
+
+  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param scheme: Typically LDAP: or GC: [LDAP:]
+  :returns: The COM Object corresponding to the RootDSE for the server or domain
+  """
   if (server, scheme) not in _root_dses:
     _root_dses[server, scheme] = exc.wrapped (
       win32com.client.GetObject,
@@ -172,6 +182,14 @@ def root_dse (server=None, scheme="LDAP:"):
 
 _root_monikers = {}
 def root_moniker (server=None, scheme="LDAP:"):
+  u"""Return the moniker representing the domain specified by a server and
+  a scheme (typically LDAP: or GC:). If you need the corresponding object,
+  use :func:`root_obj`.
+
+  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param scheme: Typically LDAP: or GC: [LDAP:]
+  :returns: The moniker corresponding to the domain
+  """
   if (server, scheme) not in _root_monikers:
     dse = root_dse (server, scheme)
     _root_monikers[server, scheme] = _base_moniker (server, scheme) + dse.Get ("defaultNamingContext")
@@ -179,10 +197,26 @@ def root_moniker (server=None, scheme="LDAP:"):
 
 _root_objs = {}
 def root_obj (server=None, scheme="LDAP:", cred=None):
+  u"""Return the COM object representing the domain specified by a server and
+  a scheme (typically LDAP: or GC:), optionally authenticated. If you only
+  need the moniker, use :func:`root_moniker`.
+
+  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param scheme: Typically LDAP: or GC: [LDAP:]
+  :param cred: anything accepted by :func:`credentials.credentials`
+  :returns: The COM object corresponding to the domain
+  """
   return open_object (root_moniker (server, scheme), cred=cred)
 
 _schema_objs = {}
 def schema_obj (server=None, cred=None):
+  u"""Return the COM object representing the schema for the domain specified
+  by a server, optionally authenticated.
+
+  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param cred: anything accepted by :func:`credentials.credentials`
+  :returns: The COM object corresponding to the domain schema
+  """
   if server not in _schema_objs:
     dse = root_dse (server)
     _schema_objs[server] = open_object (
@@ -192,14 +226,25 @@ def schema_obj (server=None, cred=None):
   return _schema_objs[server]
 
 _attributes = {}
-def attributes (names, server=None, cred=None):
+_attribute_info = ['lDAPDisplayName', 'instanceType', 'oMObjectClass', 'oMSyntax', 'attributeId', 'isSingleValued']
+def attribute_info (names=["*"], server=None, cred=None):
+  u"""Return an iteration of name, dict pairs representing all the attributes named.
+  The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
+
+  :param names: A list of names for attributes to be returned [all attributes]
+  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param cred: anything accepted by :func:`credentials.credentials`
+  :returns: An iteration of tuples containing (name, info)
+  """
   schema = schema_obj (server, cred)
   unknown_names = set (names) - set (_attributes)
   if unknown_names:
     filter = or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
-    for row in dquery (schema, filter, ['lDAPDisplayName', 'instanceType', 'oMObjectClass', 'oMSyntax', 'attributeId', 'isSingleValued']):
+    for row in dquery (schema, filter, _attribute_info):
       _attributes[row['lDAPDisplayName'][0]] = dict ((k, v[0]) for (k, v) in row.items ())
 
+  if names == ['*']:
+    names = iter (_attributes)
   for name in names:
     yield name, _attributes[name]
 
@@ -229,9 +274,37 @@ def dquery (obj, filter, attributes=None, flags=0):
     directory_search.AbandonSearch (hSearch)
     directory_search.CloseSearchHandle (hSearch)
 
-def open_object (moniker, cred=None, flags=0):
-  """Attempt to open an AD object making use of
-  credentials stored in the Credentials cache.
+def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAULT):
+  """Open an AD object represented by `moniker`, optionally authenticated. You
+  will not normally call this yourself: it is used internally by the AD objects.
+
+  :param moniker: A complete AD moniker representing an AD object
+  :param cred: anything accepted by :func:`credentials.credentials`
+  :param flags: optional :data:`constants.AUTHENTICATION_TYPES` flags. The credentials
+  will set the appropriate flags for authentication, and server binding will be used
+  if the moniker is server-based.
+  :returns: a COM object corresponding to `moniker` and authenticated according to `cred`
+
+  This function is at the heart of authenticated access to AD offered by this package.
+  The credentials work as follows:
+
+  * `cred` is passed to :func:`credentials.credentials` for initial processing
+  * If `cred` is now a :class:`credentials.Credentials` object, this is used for authentication
+  * `moniker` is parsed to determine the (optional) server name and the cache is checked
+    for corresponding credentials.
+  * If no cached credentials are found, passthrough authentication is assumed.
+
+  This will normally do what you expect. The default (passthrough) is far and away
+  the most common. Specific credentials can either be passed in, eg, as a tuple,
+  or can be held in the credentials cache and inferred from the server::
+
+  from active_directory2 import core, credentials
+
+  me = core.open_object ("LDAP://cn=Tim Golden,dc=goldent,dc=local")
+  me = core.open_object ("LDAP://cn=Tim Golden,dc=goldent,dc=local", cred=("goldent\\tim", "pa55w0rd"))
+  with credentials.credentials (("goldent\\tim", "5ecret", "testing")):
+    me = core.open_object (core.root_moniker ())
+  me = core.open_object ("LDAP://testing/dc=test,dc=local", cred=credentials.Anonymous)
   """
   scheme, server, dn = utils.parse_moniker (moniker)
   cred = credentials.credentials (cred)
