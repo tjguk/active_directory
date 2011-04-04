@@ -49,20 +49,23 @@ class ADBase (object):
    #
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
   _class_properties = {}
+  _class_containers = {}
   _property_schemas = {}
 
   def __init__ (self, obj, cred=None):
     com_object = obj.QueryInterface (adsi.IID_IADs)
     utils._set (self, "com_object", com_object)
+    utils._set (self, "cred", cred)
     utils._set (self, "path", self.com_object.ADsPath)
     cls = exc.wrapped (getattr, com_object, "Class")
-    #~ cls = exc.wrapped (com_object.Get, "Class")
     utils._set (self, "cls", cls)
     if cls not in self.__class__._class_properties:
       schema_path = exc.wrapped (getattr, com_object, "Schema")
       schema_obj = core.open_object (schema_path, cred=cred)
-      properties = exc.wrapped (getattr, schema_obj, "mandatoryProperties") + exc.wrapped (getattr, schema_obj, "optionalProperties")
-      self.__class__._class_properties[cls] = properties
+      self.__class__._class_properties[cls] = \
+        exc.wrapped (getattr, schema_obj, "mandatoryProperties") + \
+        exc.wrapped (getattr, schema_obj, "optionalProperties")
+      self.__class__._class_containers[cls] = exc.wrapped (getattr, schema_obj, "container")
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
@@ -102,16 +105,23 @@ class ADBase (object):
   def from_path (cls, path, cred=None):
     return cls (core.open_object (path, cred))
 
-  def query (self, filter, attributes=None, flags=0):
-    for row in core.query (self, filter, attributes, flags):
-      result = {}
-      for attribute, values in row.items ():
-        result[attribute] = values[0] if types.attribute (attribute, server).get ("isSingleValued", False) else values
-      yield result
+  query = core.dquery
 
-  def search (self, filter, cred=None):
+  def search (self, filter):
     for result in self.query (filter, ['ADsPath']):
-      yield self.__class__ (core.open_object (result['ADsPath'][0], cred=cred))
+      yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
+
+  def walk (self, level=0):
+    subordinates = list (self)
+    yield (
+      level,
+      self,
+      (s for s in subordinates if self.__class__._class_containers[s.cls]),
+      (s for s in subordinates if not self.__class__._class_containers[s.cls])
+    )
+    for subordinate in (s for s in subordinates if self.__class__._class_containers[s.cls]):
+      for walked in subordinate.walk (level+1):
+        yield walked
 
   def as_string (self):
     return self.path
