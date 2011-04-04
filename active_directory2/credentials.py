@@ -26,6 +26,12 @@ class CredentialsCache (object):
   def __init__ (self):
     self._cache = {}
 
+  def __repr__ (self):
+    return "<%s: %s>" % (self.__class__.__name__, list (self._cache) or "Empty")
+
+  def __str__ (self):
+    return str (self._cache)
+
   def push (self, cred):
     cred = credentials (cred)
     if cred.server in self._cache:
