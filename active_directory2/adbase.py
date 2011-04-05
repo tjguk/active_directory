@@ -47,17 +47,29 @@ class Schema (object):
     self.__dict__.update ((p, getattr (obj, p)) for p in self._properties)
 
 class ADBase (object):
-  """A slender wrapper around an AD COM object which facilitates getting,
-  setting and clearing an object's attributes plus pretty-printing to stdout.
-  It does no validation of the names passed and an no conversions of the
-  values. It can be used alone (most easily via the :func:`ADBase` function
+  """A slender wrapper around an AD COM object.
+
+  Attributes can be read, set and cleared. If the underlying object is a
+  container it can be iterated over and subobjects can be retrieved, added
+  and removed. It can also be walked (in the style of Python's os.walk) and
+  flattened: :meth:`walk`, :meth:`flat`.
+
+  Pretty-printing to stdout is via the :meth:`dump` method.
+
+  There is simple searching with filters, returning the
+  results as objects if its own type: :meth:`search`, :meth:`find`.
+
+  The underlying object can itself be deleted via :meth:`delete`
+
+  No validation is done of the names passed and an no conversions of the
+  values. It can be used alone (most easily via the :func:`adbase` function
   which takes an AD path and returns an ADBase object). It also provides the
-  basis for the other AD classes below.
+  basis for the ADObject class.
   """
 
-   #
-   # For speed, hardcode the known properties of the IADs class
-   #
+  #
+  # For speed, hardcode the known properties of the IADs class
+  #
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
   _schemas = {}
 
@@ -100,8 +112,7 @@ class ADBase (object):
 
   def __getitem__ (self, item):
     item_type, item_identifier = item
-    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
-    obj = exc.wrapped (container.GetObject, item_type, item_identifier)
+    obj = exc.wrapped (self.com_object.GetObject, item_type, item_identifier)
     return self.__class__ (obj, self.cred)
 
   def __setitem__ (self, item, info):
@@ -115,8 +126,7 @@ class ADBase (object):
 
   def __delitem__ (self, item):
     item_type, item_identifier = item
-    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
-    container.Delete (item_type, item_identifier)
+    exc.wrapped (com_object.Delete, item_type, item_identifier)
 
   def as_string (self):
     return self.path
@@ -185,13 +195,13 @@ class ADBase (object):
     for property in self._properties:
       value = exc.wrapped (getattr, self, property, None)
       if value:
-        ofile.write ("  %s => %r\n" % (property, value))
+        ofile.write ("  %s => %r\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
     ofile.write ("]\n")
     ofile.write ("{\n")
     for property in sorted (self.properties):
       value = exc.wrapped (getattr, self, property, None)
       if value:
-        ofile.write ("  %s => %r\n" % (property, value))
+        ofile.write ("  %s => %r\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
     ofile.write ("}\n")
 
 def adbase (obj_or_path=None, cred=None):
