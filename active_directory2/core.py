@@ -281,8 +281,8 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
   :param moniker: A complete AD moniker representing an AD object
   :param cred: anything accepted by :func:`credentials.credentials`
   :param flags: optional :data:`constants.AUTHENTICATION_TYPES` flags. The credentials
-  will set the appropriate flags for authentication, and server binding will be used
-  if the moniker is server-based.
+                will set the appropriate flags for authentication, and server binding will be used
+                if the moniker is server-based.
   :returns: a COM object corresponding to `moniker` and authenticated according to `cred`
 
   This function is at the heart of authenticated access to AD offered by this package.
@@ -298,13 +298,13 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
   the most common. Specific credentials can either be passed in, eg, as a tuple,
   or can be held in the credentials cache and inferred from the server::
 
-  from active_directory2 import core, credentials
+    from active_directory2 import core, credentials
 
-  me = core.open_object ("LDAP://cn=Tim Golden,dc=goldent,dc=local")
-  me = core.open_object ("LDAP://cn=Tim Golden,dc=goldent,dc=local", cred=("goldent\\tim", "pa55w0rd"))
-  with credentials.credentials (("goldent\\tim", "5ecret", "testing")):
-    me = core.open_object (core.root_moniker ())
-  me = core.open_object ("LDAP://testing/dc=test,dc=local", cred=credentials.Anonymous)
+    me = core.open_object ("LDAP://cn=Tim Golden,dc=goldent,dc=local")
+    me = core.open_object ("LDAP://cn=Tim Golden,dc=goldent,dc=local", cred=("goldent\\tim", "pa55w0rd"))
+    with credentials.credentials (("goldent\\tim", "5ecret", "testing")):
+      me = core.open_object (core.root_moniker ())
+    me = core.open_object ("LDAP://testing/dc=test,dc=local", cred=credentials.Anonymous)
   """
   scheme, server, dn = utils.parse_moniker (moniker)
   cred = credentials.credentials (cred)

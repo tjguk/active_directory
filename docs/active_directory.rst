@@ -1,30 +1,19 @@
-:mod:`active_directory` -- Windows Active Directory Management
-==============================================================
+:mod:`active_directory2` -- Windows Active Directory Management
+===============================================================
 
-..  automodule:: active_directory
+..  automodule:: active_directory2.core
+    :members:
+
+..  automodule:: active_directory2.adbase
+    :members:
+
+..  autoclass:: active_directory2.adbase.ADBase
+    :members:
 
 Exceptions
 ----------
 
-All COM-related exceptions are wrapped in :exc:`ActiveDirectoryError` or one of its
-subclasses. Therefore you can safely trap :exc:`ActiveDirectoryError` as a root exception.
+All COM-related exceptions are wrapped in :exc:`active_directory2.exc.ActiveDirectoryError` or one of its
+subclasses. Therefore you can safely trap :exc:`active_directory2.exc.ActiveDirectoryError` as a root exception.
 
-..  autoexception:: ActiveDirectoryError
-
-Support Classes & Functions
----------------------------
-
-..  autofunction:: connect
-..  autofunction:: query
-..  autofunction:: query_string
-
-Main Entry Points
------------------
-
-..  autofunction:: ad
-
-..  autofunction:: find_user
-..  autofunction:: find_group
-..  autofunction:: find_ou
-..  autofunction:: search
-
+..  autoexception:: active_directory2.exc.ActiveDirectoryError

@@ -7,14 +7,14 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>active_directory – Windows Active Directory Management &mdash; active_directory v1.0rc1 documentation</title>
+    <title>active_directory2 – Windows Active Directory Management &mdash; active_directory v1.0rc1 documentation</title>
     <link rel="stylesheet" href="_static/active_directory.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
       var DOCUMENTATION_OPTIONS = {
-        URL_ROOT:    '#',
+        URL_ROOT:    '',
         VERSION:     '1.0rc1',
-        COLLAPSE_MODINDEX: false,
+        COLLAPSE_INDEX: false,
         FILE_SUFFIX: '.html',
         HAS_SOURCE:  true
       };
@@ -34,8 +34,8 @@
           <a href="genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="modindex.html" title="Global Module Index"
-             accesskey="M">modules</a> |</li>
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
         <li class="right" >
           <a href="changes.html" title="Changes"
              accesskey="N">next</a> |</li>
@@ -45,119 +45,181 @@
         <li><a href="contents.html">active_directory v1.0rc1 documentation</a> &raquo;</li> 
       </ul>
     </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="contents.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#"><tt class="docutils literal"><span class="pre">active_directory2</span></tt> &#8211; Windows Active Directory Management</a><ul>
+<li><a class="reference internal" href="#exceptions">Exceptions</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="cookbook.html"
+                        title="previous chapter">active_directory Cookbook</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="changes.html"
+                        title="next chapter">Changes</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/active_directory.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
 
     <div class="document">
       <div class="documentwrapper">
+        <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="module-active_directory">
-<h1><a title="" class="reference external" href="#module-active_directory"><tt class="xref docutils literal"><span class="pre">active_directory</span></tt></a> &#8211; Windows Active Directory Management<a class="headerlink" href="#module-active_directory" title="Permalink to this headline">¶</a></h1>
-<dl class="docutils">
-<dt>active_directory - a lightweight wrapper around COM support</dt>
-<dd>for Microsoft&#8217;s Active Directory</dd>
-</dl>
-<p>Active Directory is Microsoft&#8217;s answer to LDAP, the industry-standard
-directory service holding information about users, computers and
-other resources in a tree structure, arranged by departments or
-geographical location, and optimized for searching.</p>
-<p>There are several ways of attaching to Active Directory. This
-module uses the Dispatchable <a class="reference external" href="LDAP://">LDAP://</a> objects and wraps them
-lightly in helpful Python classes which do a bit of the
-otherwise tedious plumbing. The module is quite naive, and
-has only really been developed to aid searching, but since
-you can always access the original COM object, there&#8217;s nothing
-to stop you using it for any AD operations.</p>
-<ul>
-<li><p class="first">The active directory class (_AD_object or a subclass) will determine
-its properties and allow you to access them as instance properties:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">active_directory</span>
-<span class="n">goldent</span> <span class="o">=</span> <span class="n">active_directory</span><span class="o">.</span><span class="n">find_user</span> <span class="p">(</span><span class="s">&quot;goldent&quot;</span><span class="p">)</span>
-<span class="k">print</span> <span class="n">ad</span><span class="o">.</span><span class="n">displayName</span>
+  <div class="section" id="module-active_directory2.core">
+<span id="active-directory2-windows-active-directory-management"></span><h1><tt class="xref py py-mod docutils literal"><span class="pre">active_directory2</span></tt> &#8211; Windows Active Directory Management<a class="headerlink" href="#module-active_directory2.core" title="Permalink to this headline">¶</a></h1>
+<dl class="function">
+<dt id="active_directory2.core.and_">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">and_</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#active_directory2.core.and_" title="Permalink to this definition">¶</a></dt>
+<dd><p>Combine its arguments together as a valid LDAP AND-search. Positional
+arguments are taken to be strings already in the correct format (eg
+&#8216;displayName=tim*&#8217;) while keyword arguments will be converted into
+an equals condition for the names and values:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory.core</span> <span class="kn">import</span> <span class="n">and_</span>
+
+<span class="k">print</span> <span class="n">and_</span> <span class="p">(</span>
+  <span class="s">&quot;whenCreated&gt;=2010-01-01&quot;</span><span class="p">,</span>
+  <span class="n">displayName</span><span class="o">=</span><span class="s">&quot;tim*&quot;</span><span class="p">,</span> <span class="n">objectCategory</span><span class="o">=</span><span class="s">&quot;person&quot;</span>
+<span class="p">)</span>
+
+<span class="c"># &amp;(whenCreated&gt;=2010-01-01)(displayName=tim*)(objectCategory=person)</span>
 </pre></div>
 </div>
-</li>
-<li><p class="first">Any object returned by the AD object&#8217;s operations is themselves
-wrapped as AD objects so you get the same benefits:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">active_directory</span>
-<span class="n">users</span> <span class="o">=</span> <span class="n">active_directory</span><span class="o">.</span><span class="n">root</span> <span class="p">()</span><span class="o">.</span><span class="n">child</span> <span class="p">(</span><span class="s">&quot;cn=users&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">users</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span><span class="s">&quot;displayName=&#39;Tim*&#39;&quot;</span><span class="p">):</span>
-  <span class="k">print</span> <span class="n">user</span><span class="o">.</span><span class="n">displayName</span>
-</pre></div>
-</div>
-</li>
-<li><p class="first">To search the AD, there are two module-level general
-search functions, and module-level convenience functions
-to find a user, computer etc. Usage is illustrated below:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">active_directory</span> <span class="kn">as</span> <span class="nn">ad</span>
+</dd></dl>
 
-<span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">ad</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span>
-  <span class="s">&quot;objectClass=&#39;User&#39;&quot;</span><span class="p">,</span>
-  <span class="s">&quot;displayName=&#39;Tim Golden&#39; OR sAMAccountName=&#39;goldent&#39;&quot;</span>
-<span class="p">):</span>
-  <span class="c">#</span>
-  <span class="c"># This search returns an _AD_object</span>
-  <span class="c">#</span>
-  <span class="k">print</span> <span class="n">user</span>
-
-<span class="n">query</span> <span class="o">=</span> <span class="s">&quot;&quot;&quot;</span>
-<span class="s">  SELECT Name, displayName</span>
-<span class="s">  FROM &#39;LDAP://cn=users,DC=gb,DC=vo,DC=local&#39;</span>
-<span class="s">  WHERE displayName = &#39;John*&#39;</span>
-<span class="s">&quot;&quot;&quot;</span>
-<span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">ad</span><span class="o">.</span><span class="n">search_ex</span> <span class="p">(</span><span class="n">query</span><span class="p">):</span>
-  <span class="c">#</span>
-  <span class="c"># This search returns an ADO_object, which</span>
-  <span class="c">#  is faster but doesn&#39;t give the convenience</span>
-  <span class="c">#  of the AD methods etc.</span>
-  <span class="c">#</span>
-  <span class="k">print</span> <span class="n">user</span>
-
-<span class="k">print</span> <span class="n">ad</span><span class="o">.</span><span class="n">find_user</span> <span class="p">(</span><span class="s">&quot;goldent&quot;</span><span class="p">)</span>
-
-<span class="k">print</span> <span class="n">ad</span><span class="o">.</span><span class="n">find_computer</span> <span class="p">(</span><span class="s">&quot;vogbp200&quot;</span><span class="p">)</span>
-
-<span class="n">users</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">AD</span> <span class="p">()</span><span class="o">.</span><span class="n">child</span> <span class="p">(</span><span class="s">&quot;cn=users&quot;</span><span class="p">)</span>
-<span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">users</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span><span class="s">&quot;displayName=&#39;Tim*&#39;&quot;</span><span class="p">):</span>
-  <span class="k">print</span> <span class="n">u</span>
-</pre></div>
-</div>
-</li>
-<li><p class="first">Typical usage will be:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">active_directory</span>
-
-<span class="k">for</span> <span class="n">computer</span> <span class="ow">in</span> <span class="n">active_directory</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span><span class="s">&quot;objectClass=&#39;computer&#39;&quot;</span><span class="p">):</span>
-  <span class="k">print</span> <span class="n">computer</span><span class="o">.</span><span class="n">displayName</span>
-</pre></div>
-</div>
-</li>
+<dl class="function">
+<dt id="active_directory2.core.attribute_info">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">attribute_info</tt><big>(</big><em>names=['*'], server=None, cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.attribute_info" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iteration of name, dict pairs representing all the attributes named.
+The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>names</strong> &#8211; A list of names for attributes to be returned [all attributes]</li>
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
 </ul>
-<p>(c) Tim Golden &lt;<a class="reference external" href="mailto:active-directory&#37;&#52;&#48;timgolden&#46;me&#46;uk">active-directory<span>&#64;</span>timgolden<span>&#46;</span>me<span>&#46;</span>uk</a>&gt; October 2004
-Licensed under the (GPL-compatible) MIT License:
-<a class="reference external" href="http://www.opensource.org/licenses/mit-license.php">http://www.opensource.org/licenses/mit-license.php</a></p>
-<p>Many thanks, obviously to Mark Hammond for creating
-the pywin32 extensions without which this wouldn&#8217;t
-have been possible.</p>
-<div class="section" id="exceptions">
-<h2>Exceptions<a class="headerlink" href="#exceptions" title="Permalink to this headline">¶</a></h2>
-<p>All COM-related exceptions are wrapped in <a title="active_directory.ActiveDirectoryError" class="reference internal" href="#active_directory.ActiveDirectoryError"><tt class="xref docutils literal"><span class="pre">ActiveDirectoryError</span></tt></a> or one of its
-subclasses. Therefore you can safely trap <a title="active_directory.ActiveDirectoryError" class="reference internal" href="#active_directory.ActiveDirectoryError"><tt class="xref docutils literal"><span class="pre">ActiveDirectoryError</span></tt></a> as a root exception.</p>
-<dl class="exception">
-<dt id="active_directory.ActiveDirectoryError">
-<em class="property">exception </em><tt class="descclassname">active_directory.</tt><tt class="descname">ActiveDirectoryError</tt><a class="headerlink" href="#active_directory.ActiveDirectoryError" title="Permalink to this definition">¶</a></dt>
-<dd>Base class for all AD Exceptions</dd></dl>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">An iteration of tuples containing (name, info)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
+<dl class="function">
+<dt id="active_directory2.core.connect">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">connect</tt><big>(</big><em>cred=None</em>, <em>adsi_flags=0</em><big>)</big><a class="headerlink" href="#active_directory2.core.connect" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an ADODB connection, optionally authenticated by cred</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+<li><strong>adsi_flags</strong> &#8211; any combination of <tt class="xref py py-data docutils literal"><span class="pre">constants.AUTHENTICATION_TYPES</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">an ADO connection, optionally authenticated by <cite>cred</cite></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.open_object">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">open_object</tt><big>(</big><em>moniker</em>, <em>cred=None</em>, <em>flags=0</em><big>)</big><a class="headerlink" href="#active_directory2.core.open_object" title="Permalink to this definition">¶</a></dt>
+<dd><p>Open an AD object represented by <cite>moniker</cite>, optionally authenticated. You
+will not normally call this yourself: it is used internally by the AD objects.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>moniker</strong> &#8211; A complete AD moniker representing an AD object</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+<li><strong>flags</strong> &#8211; optional <tt class="xref py py-data docutils literal"><span class="pre">constants.AUTHENTICATION_TYPES</span></tt> flags. The credentials
+will set the appropriate flags for authentication, and server binding will be used
+if the moniker is server-based.</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a COM object corresponding to <cite>moniker</cite> and authenticated according to <cite>cred</cite></p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>This function is at the heart of authenticated access to AD offered by this package.
+The credentials work as follows:</p>
+<ul class="simple">
+<li><cite>cred</cite> is passed to <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt> for initial processing</li>
+<li>If <cite>cred</cite> is now a <tt class="xref py py-class docutils literal"><span class="pre">credentials.Credentials</span></tt> object, this is used for authentication</li>
+<li><cite>moniker</cite> is parsed to determine the (optional) server name and the cache is checked
+for corresponding credentials.</li>
+<li>If no cached credentials are found, passthrough authentication is assumed.</li>
+</ul>
+<p>This will normally do what you expect. The default (passthrough) is far and away
+the most common. Specific credentials can either be passed in, eg, as a tuple,
+or can be held in the credentials cache and inferred from the server:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">core</span><span class="p">,</span> <span class="n">credentials</span>
+
+<span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="s">&quot;LDAP://cn=Tim Golden,dc=goldent,dc=local&quot;</span><span class="p">)</span>
+<span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="s">&quot;LDAP://cn=Tim Golden,dc=goldent,dc=local&quot;</span><span class="p">,</span> <span class="n">cred</span><span class="o">=</span><span class="p">(</span><span class="s">&quot;goldent</span><span class="se">\t</span><span class="s">im&quot;</span><span class="p">,</span> <span class="s">&quot;pa55w0rd&quot;</span><span class="p">))</span>
+<span class="k">with</span> <span class="n">credentials</span><span class="o">.</span><span class="n">credentials</span> <span class="p">((</span><span class="s">&quot;goldent</span><span class="se">\t</span><span class="s">im&quot;</span><span class="p">,</span> <span class="s">&quot;5ecret&quot;</span><span class="p">,</span> <span class="s">&quot;testing&quot;</span><span class="p">)):</span>
+  <span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">root_moniker</span> <span class="p">())</span>
+<span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="s">&quot;LDAP://testing/dc=test,dc=local&quot;</span><span class="p">,</span> <span class="n">cred</span><span class="o">=</span><span class="n">credentials</span><span class="o">.</span><span class="n">Anonymous</span><span class="p">)</span>
+</pre></div>
 </div>
-<div class="section" id="support-classes-functions">
-<h2>Support Classes &amp; Functions<a class="headerlink" href="#support-classes-functions" title="Permalink to this headline">¶</a></h2>
-<dl class="function">
-<dt id="active_directory.connect">
-<tt class="descclassname">active_directory.</tt><tt class="descname">connect</tt><big>(</big><em>username=None</em>, <em>password=None</em><big>)</big><a class="headerlink" href="#active_directory.connect" title="Permalink to this definition">¶</a></dt>
-<dd>Return an ADODB connection, optionally authenticated by
-username &amp; password.</dd></dl>
+</dd></dl>
 
 <dl class="function">
-<dt id="active_directory.query">
-<tt class="descclassname">active_directory.</tt><tt class="descname">query</tt><big>(</big><em>query_string</em>, <em>connection=None</em>, <em>**command_properties</em><big>)</big><a class="headerlink" href="#active_directory.query" title="Permalink to this definition">¶</a></dt>
+<dt id="active_directory2.core.or_">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">or_</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#active_directory2.core.or_" title="Permalink to this definition">¶</a></dt>
+<dd><p>Combine its arguments together as a valid LDAP OR-search. Positional
+arguments are taken to be strings already in the correct format (eg
+&#8216;displayName=tim*&#8217;) while keyword arguments will be converted into
+an equals condition for the names and values:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory.core</span> <span class="kn">import</span> <span class="n">or_</span>
+
+<span class="k">print</span> <span class="n">or_</span> <span class="p">(</span>
+  <span class="s">&quot;whenCreated&gt;=2010-01-01&quot;</span><span class="p">,</span>
+  <span class="n">objectCategory</span><span class="o">=</span><span class="s">&quot;person&quot;</span>
+<span class="p">)</span>
+
+<span class="c"># |(whenCreated&gt;=2010-01-01)(objectCategory=person)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.query">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">query</tt><big>(</big><em>query_string</em>, <em>connection=None</em>, <em>**command_properties</em><big>)</big><a class="headerlink" href="#active_directory2.core.query" title="Permalink to this definition">¶</a></dt>
 <dd><p>Basic AD query, passing a raw query string straight through to an
 Active Directory, optionally using a (possibly pre-authenticated) connection
 or creating one on demand. command_properties may be specified which will be
@@ -197,12 +259,12 @@ values include:</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><em>query_string</em> &#8211; An AD query string in any acceptable format. See <a title="active_directory.query_string" class="reference internal" href="#active_directory.query_string"><tt class="xref docutils literal"><span class="pre">query_string()</span></tt></a>
+<li><strong>query_string</strong> &#8211; An AD query string in any acceptable format. See <a class="reference internal" href="#active_directory2.core.query_string" title="active_directory2.core.query_string"><tt class="xref py py-func docutils literal"><span class="pre">query_string()</span></tt></a>
 for an easy way of producing this</li>
-<li><em>connection</em> &#8211; (optional) An ADODB.Connection, as provided by <a title="active_directory.connect" class="reference internal" href="#active_directory.connect"><tt class="xref docutils literal"><span class="pre">connect()</span></tt></a>. If
-this is supplied it will be used and not closed. If it is not supplied, a default connection
-will be created, used and then closed.</li>
-<li><em>command_properties</em> &#8211; A collection of keywords which will be passed through to the
+<li><strong>connection</strong> &#8211; (optional) An ADODB.Connection, as provided by <a class="reference internal" href="#active_directory2.core.connect" title="active_directory2.core.connect"><tt class="xref py py-func docutils literal"><span class="pre">connect()</span></tt></a>. If
+this is supplied it will be used and not closed. If it is not supplied,
+a default connection will be created, used and then closed.</li>
+<li><strong>command_properties</strong> &#8211; A collection of keywords which will be passed through to the
 ADO query as Properties.</li>
 </ul>
 </td>
@@ -212,16 +274,15 @@ ADO query as Properties.</li>
 </dd></dl>
 
 <dl class="function">
-<dt id="active_directory.query_string">
-<tt class="descclassname">active_directory.</tt><tt class="descname">query_string</tt><big>(</big><em>base=None</em>, <em>filter=''</em>, <em>attributes='*'</em>, <em>scope='Subtree'</em>, <em>range=None</em><big>)</big><a class="headerlink" href="#active_directory.query_string" title="Permalink to this definition">¶</a></dt>
-<dd><p>Easy way to produce a valid AD query string, with meaninful defaults. This
-is the first parameter to the <a title="active_directory.query" class="reference internal" href="#active_directory.query"><tt class="xref docutils literal"><span class="pre">query()</span></tt></a> function so the following will
+<dt id="active_directory2.core.query_string">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">query_string</tt><big>(</big><em>filter='', base=None, attributes=[u'ADsPath'], scope=u'Subtree', range=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.query_string" title="Permalink to this definition">¶</a></dt>
+<dd><p>Easy way to produce a valid AD query string, with meaningful defaults. This
+is the first parameter to the <a class="reference internal" href="#active_directory2.core.query" title="active_directory2.core.query"><tt class="xref py py-func docutils literal"><span class="pre">query()</span></tt></a> function so the following will
 yield the display name of every user in the domain:</p>
 <div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">active_directory</span> <span class="kn">as</span> <span class="nn">ad</span>
 
-<span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">ad</span><span class="o">.</span><span class="n">query</span> <span class="p">(</span>
-  <span class="n">ad</span><span class="o">.</span><span class="n">query_string</span> <span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="s">&quot;(objectClass=User)&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="s">&quot;displayName&quot;</span><span class="p">)</span>
-<span class="p">):</span>
+<span class="n">qs</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">query_string</span> <span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="s">&quot;(objectClass=User)&quot;</span><span class="p">,</span> <span class="n">attributes</span><span class="o">=</span><span class="p">[</span><span class="s">&quot;displayName&quot;</span><span class="p">])</span>
+<span class="k">for</span> <span class="n">u</span> <span class="ow">in</span> <span class="n">ad</span><span class="o">.</span><span class="n">query</span> <span class="p">(</span><span class="n">qs</span><span class="p">):</span>
   <span class="k">print</span> <span class="n">u</span><span class="p">[</span><span class="s">&#39;displayName&#39;</span><span class="p">]</span>
 </pre></div>
 </div>
@@ -230,11 +291,15 @@ yield the display name of every user in the domain:</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><em>base</em> &#8211; An <a class="reference external" href="LDAP://">LDAP://</a> moniker representing the starting point of the search [domain root]</li>
-<li><em>filter</em> &#8211; An AD filter string to limit the search [no filter]</li>
-<li><em>attributes</em> &#8211; A comma-separated attributes string [* - ADsPath]</li>
-<li><em>scope</em> &#8211; One of - Subtree, Base, OneLevel [Subtree]</li>
-<li><em>range</em> &#8211; Limit the number of returns of multivalued attributes [no range]</li>
+<li><strong>filter</strong> &#8211; An AD filter string to limit the search [no filter]. The <a class="reference internal" href="#active_directory2.core.or_" title="active_directory2.core.or_"><tt class="xref py py-func docutils literal"><span class="pre">or_()</span></tt></a> and <a class="reference internal" href="#active_directory2.core.and_" title="active_directory2.core.and_"><tt class="xref py py-func docutils literal"><span class="pre">and_()</span></tt></a>
+functions provide an easy way to produce a valid filter, optionally combined with the
+schema class.</li>
+<li><strong>base</strong> &#8211; An <a class="reference external" href="LDAP://">LDAP://</a> moniker representing the starting point of the search [domain root]</li>
+<li><strong>attributes</strong> &#8211; Iterable of attribute names [ADsPath]</li>
+<li><strong>scope</strong> &#8211; One of - Subtree, Base, OneLevel. Subtree (the default) is the most common and does
+the search you expect. OneLevel enumerates the children of the base item. Base
+checks for the existence of the object itself. [Subtree].</li>
+<li><strong>range</strong> &#8211; Limit the number of returns of multivalued attributes [no range]</li>
 </ul>
 </td>
 </tr>
@@ -242,47 +307,149 @@ yield the display name of every user in the domain:</p>
 </table>
 </dd></dl>
 
-</div>
-<div class="section" id="main-entry-points">
-<h2>Main Entry Points<a class="headerlink" href="#main-entry-points" title="Permalink to this headline">¶</a></h2>
 <dl class="function">
-<dt id="active_directory.ad">
-<tt class="descclassname">active_directory.</tt><tt class="descname">ad</tt><big>(</big><em>obj_or_path</em>, <em>username=None</em>, <em>password=None</em><big>)</big><a class="headerlink" href="#active_directory.ad" title="Permalink to this definition">¶</a></dt>
-<dd><p>Factory function for suitably-classed Active Directory
-objects from an incoming path or object. NB The interface
-is now  intended to be:</p>
-<blockquote>
-ad (obj_or_path)</blockquote>
-<p>&#64;param obj_or_path Either an COM AD object or the path to one. If
-the path doesn&#8217;t start with &#8220;<a class="reference external" href="LDAP://">LDAP://</a>&#8221; this will be prepended.</p>
-<p>&#64;return An _AD_object or a subclass proxying for the AD object</p>
+<dt id="active_directory2.core.root_dse">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">root_dse</tt><big>(</big><em>server=None</em>, <em>scheme='LDAP:'</em><big>)</big><a class="headerlink" href="#active_directory2.core.root_dse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the object representing the RootDSE for a domain, optionally
+specified by a server and a scheme (typically LDAP: or GC:).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>scheme</strong> &#8211; Typically LDAP: or GC: [LDAP:]</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The COM Object corresponding to the RootDSE for the server or domain</p>
+</td>
+</tr>
+</tbody>
+</table>
 </dd></dl>
 
 <dl class="function">
-<dt id="active_directory.find_user">
-<tt class="descclassname">active_directory.</tt><tt class="descname">find_user</tt><big>(</big><em>name=None</em><big>)</big><a class="headerlink" href="#active_directory.find_user" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="active_directory2.core.root_moniker">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">root_moniker</tt><big>(</big><em>server=None</em>, <em>scheme='LDAP:'</em><big>)</big><a class="headerlink" href="#active_directory2.core.root_moniker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the moniker representing the domain specified by a server and
+a scheme (typically LDAP: or GC:). If you need the corresponding object,
+use <a class="reference internal" href="#active_directory2.core.root_obj" title="active_directory2.core.root_obj"><tt class="xref py py-func docutils literal"><span class="pre">root_obj()</span></tt></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>scheme</strong> &#8211; Typically LDAP: or GC: [LDAP:]</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The moniker corresponding to the domain</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="function">
-<dt id="active_directory.find_group">
-<tt class="descclassname">active_directory.</tt><tt class="descname">find_group</tt><big>(</big><em>name</em><big>)</big><a class="headerlink" href="#active_directory.find_group" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="active_directory2.core.root_obj">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">root_obj</tt><big>(</big><em>server=None</em>, <em>scheme='LDAP:'</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.root_obj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the COM object representing the domain specified by a server and
+a scheme (typically LDAP: or GC:), optionally authenticated. If you only
+need the moniker, use <a class="reference internal" href="#active_directory2.core.root_moniker" title="active_directory2.core.root_moniker"><tt class="xref py py-func docutils literal"><span class="pre">root_moniker()</span></tt></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>scheme</strong> &#8211; Typically LDAP: or GC: [LDAP:]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The COM object corresponding to the domain</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
 <dl class="function">
-<dt id="active_directory.find_ou">
-<tt class="descclassname">active_directory.</tt><tt class="descname">find_ou</tt><big>(</big><em>name</em><big>)</big><a class="headerlink" href="#active_directory.find_ou" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="active_directory2.core.schema_obj">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">schema_obj</tt><big>(</big><em>server=None</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.schema_obj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the COM object representing the schema for the domain specified
+by a server, optionally authenticated.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The COM object corresponding to the domain schema</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
 
-<dl class="function">
-<dt id="active_directory.search">
-<tt class="descclassname">active_directory.</tt><tt class="descname">search</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#active_directory.search" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<span class="target" id="module-active_directory2.adbase"></span><dl class="class">
+<dt id="active_directory2.adbase.ADBase">
+<em class="property">class </em><tt class="descclassname">active_directory2.adbase.</tt><tt class="descname">ADBase</tt><big>(</big><em>obj</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase" title="Permalink to this definition">¶</a></dt>
+<dd><p>A slender wrapper around an AD COM object.</p>
+<p>Attributes can be read, set and cleared. If the underlying object is a
+container it can be iterated over and subobjects can be retrieved, added
+and removed. It can also be walked (in the style of Python&#8217;s os.walk) and
+flattened: <tt class="xref py py-meth docutils literal"><span class="pre">walk()</span></tt>, <tt class="xref py py-meth docutils literal"><span class="pre">flat()</span></tt>.</p>
+<p>Pretty-printing to stdout is via the <tt class="xref py py-meth docutils literal"><span class="pre">dump()</span></tt> method.</p>
+<p>There is simple searching with filters, returning the
+results as objects if its own type: <tt class="xref py py-meth docutils literal"><span class="pre">search()</span></tt>, <tt class="xref py py-meth docutils literal"><span class="pre">find()</span></tt>.</p>
+<p>The underlying object can itself be deleted via <tt class="xref py py-meth docutils literal"><span class="pre">delete()</span></tt></p>
+<p>No validation is done of the names passed and an no conversions of the
+values. It can be used alone (most easily via the <tt class="xref py py-func docutils literal"><span class="pre">adbase()</span></tt> function
+which takes an AD path and returns an ADBase object). It also provides the
+basis for the ADObject class.</p>
+</dd></dl>
+
+<dl class="class">
+<dt>
+<em class="property">class </em><tt class="descclassname">active_directory2.adbase.</tt><tt class="descname">ADBase</tt><big>(</big><em>obj</em>, <em>cred=None</em><big>)</big></dt>
+<dd><p>A slender wrapper around an AD COM object.</p>
+<p>Attributes can be read, set and cleared. If the underlying object is a
+container it can be iterated over and subobjects can be retrieved, added
+and removed. It can also be walked (in the style of Python&#8217;s os.walk) and
+flattened: <tt class="xref py py-meth docutils literal"><span class="pre">walk()</span></tt>, <tt class="xref py py-meth docutils literal"><span class="pre">flat()</span></tt>.</p>
+<p>Pretty-printing to stdout is via the <tt class="xref py py-meth docutils literal"><span class="pre">dump()</span></tt> method.</p>
+<p>There is simple searching with filters, returning the
+results as objects if its own type: <tt class="xref py py-meth docutils literal"><span class="pre">search()</span></tt>, <tt class="xref py py-meth docutils literal"><span class="pre">find()</span></tt>.</p>
+<p>The underlying object can itself be deleted via <tt class="xref py py-meth docutils literal"><span class="pre">delete()</span></tt></p>
+<p>No validation is done of the names passed and an no conversions of the
+values. It can be used alone (most easily via the <tt class="xref py py-func docutils literal"><span class="pre">adbase()</span></tt> function
+which takes an AD path and returns an ADBase object). It also provides the
+basis for the ADObject class.</p>
+</dd></dl>
+
+<div class="section" id="exceptions">
+<h2>Exceptions<a class="headerlink" href="#exceptions" title="Permalink to this headline">¶</a></h2>
+<p>All COM-related exceptions are wrapped in <a class="reference internal" href="#active_directory2.exc.ActiveDirectoryError" title="active_directory2.exc.ActiveDirectoryError"><tt class="xref py py-exc docutils literal"><span class="pre">active_directory2.exc.ActiveDirectoryError</span></tt></a> or one of its
+subclasses. Therefore you can safely trap <a class="reference internal" href="#active_directory2.exc.ActiveDirectoryError" title="active_directory2.exc.ActiveDirectoryError"><tt class="xref py py-exc docutils literal"><span class="pre">active_directory2.exc.ActiveDirectoryError</span></tt></a> as a root exception.</p>
+<dl class="exception">
+<dt id="active_directory2.exc.ActiveDirectoryError">
+<em class="property">exception </em><tt class="descclassname">active_directory2.exc.</tt><tt class="descname">ActiveDirectoryError</tt><a class="headerlink" href="#active_directory2.exc.ActiveDirectoryError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Base class for all AD Exceptions</p>
+</dd></dl>
 
 </div>
 </div>
 
 
           </div>
+        </div>
       </div>
       <div class="clearer"></div>
     </div>
@@ -293,7 +460,7 @@ the path doesn&#8217;t start with &#8220;<a class="reference external" href="LDA
           <a href="genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
-          <a href="modindex.html" title="Global Module Index"
+          <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
           <a href="changes.html" title="Changes"
@@ -306,7 +473,7 @@ the path doesn&#8217;t start with &#8220;<a class="reference external" href="LDA
     </div>
     <div class="footer">
         &copy; Copyright 2010, Tim Golden.
-      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
     </div>
   </body>
 </html>

@@ -1,13 +1,6 @@
-# Sphinx inventory version 1
+# Sphinx inventory version 2
 # Project: active_directory
 # Version: 1.0
-active_directory mod active_directory.html
-active_directory.query_string function active_directory.html
-active_directory.ActiveDirectoryError exception active_directory.html
-active_directory.find_ou function active_directory.html
-active_directory.search function active_directory.html
-active_directory.connect function active_directory.html
-active_directory.query function active_directory.html
-active_directory.find_group function active_directory.html
-active_directory.find_user function active_directory.html
-active_directory.ad function active_directory.html
+# The remainder of this file is compressed using zlib.
+xÚ­“±NÃ0†÷>…%ºÆ¢»ÊÀ€„ÄXŽ}Mñ]°Ô¾=Nœ¡@QÌèÿî>ÿqþ³¤j81ô®‘%4¬Ø°ö\Ø±Àë`›öDºk€=öÒªüfhRÇ‰ÔêA:UÏ“6¶½¤†gYÁJÀàçí“šÖì~<¯¤
+æ„6T wÞr©Ké!ÚßÙä÷–}mJ”T.Ö¬¸ Ì¦U-±uhË¹Ì‹ƒ“=çØa¬²Í¤_Ž(KhÞÀå²¨T¾F1uñc8ñª+{/ÙFøþp7úQô~‰KÌ{”óÞAÊ\D†àLÙ”MC-þå³„¶°ZÌšåe¶Š×ÂŸ8)¾ÔÃ$>8GÃ.Å´Y‹©Sð2^÷{ô	"#

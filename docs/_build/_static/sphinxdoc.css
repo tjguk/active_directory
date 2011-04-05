@@ -5,7 +5,7 @@
  * Sphinx stylesheet -- sphinxdoc theme.  Originally created by
  * Armin Ronacher for Werkzeug.
  *
- * :copyright: Copyright 2007-2010 by the Sphinx team, see AUTHORS.
+ * :copyright: Copyright 2007-2011 by the Sphinx team, see AUTHORS.
  * :license: BSD, see LICENSE for details.
  *
  */
@@ -134,7 +134,7 @@ div.footer a {
 
 /* -- body styles ----------------------------------------------------------- */
 
-p {
+p {    
     margin: 0.8em 0 0.5em 0;
 }
 
@@ -327,9 +327,13 @@ div.versioninfo {
     font-size: 0.9em;
 }
 
-@media print {
-  body {
-    margin : 0 0;
-	background-color : white;
-  }
+.viewcode-back {
+    font-family: 'Lucida Grande', 'Lucida Sans Unicode', 'Geneva',
+                 'Verdana', sans-serif;
+}
+
+div.viewcode-block:target {
+    background-color: #f4debf;
+    border-top: 1px solid #ac9;
+    border-bottom: 1px solid #ac9;
 }
