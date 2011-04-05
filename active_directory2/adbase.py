@@ -118,8 +118,11 @@ class ADBase (object):
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
     container.Delete (item_type, item_identifier)
 
+  def as_string (self):
+    return self.path
+
   def __repr__ (self):
-    return u"<%s: %s>" % (self.__class__.__name__, self.path)
+    return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
 
   def __str__ (self):
     return self.as_string ()
@@ -131,9 +134,6 @@ class ADBase (object):
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
 
-  def as_string (self):
-    return self.path
-
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
 
@@ -143,6 +143,9 @@ class ADBase (object):
   @classmethod
   def from_path (cls, path, cred=None):
     return cls (core.open_object (path, cred))
+
+  def delete (self):
+    exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsDeleteOps).DeleteObject (0)
 
   query = core.dquery
 
