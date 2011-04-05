@@ -98,6 +98,26 @@ class ADBase (object):
     self._put (name, None)
     exc.wrapped (self.com_object.SetInfo)
 
+  def __getitem__ (self, item):
+    item_type, item_identifier = item
+    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
+    obj = exc.wrapped (container.GetObject, item_type, item_identifier)
+    return self.__class__ (obj, self.cred)
+
+  def __setitem__ (self, item, info):
+    item_type, item_identifier = item
+    obj = exc.wrapped (self.com_object.Create, item_type, item_identifier)
+    exc.wrapped (obj.SetInfo)
+    for k, v in info.items ():
+      setattr (obj, k, v)
+    exc.wrapped (obj.SetInfo)
+    return self.__class__ (obj, self.cred)
+
+  def __delitem__ (self, item):
+    item_type, item_identifier = item
+    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
+    container.Delete (item_type, item_identifier)
+
   def __repr__ (self):
     return u"<%s: %s>" % (self.__class__.__name__, self.path)
 
