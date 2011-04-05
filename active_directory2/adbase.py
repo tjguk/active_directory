@@ -1,16 +1,11 @@
 # -*- coding: iso-8859-1 -*-
 import os, sys
-import re
 
-import win32api
-import win32com.client
-from win32com.adsi import adsi, adsicon
+from win32com.adsi import adsi
 
 from . import core
 from . import constants
-from . import credentials
 from . import exc
-from . import types
 from . import utils
 
 class NotAContainerError (exc.ActiveDirectoryError):
