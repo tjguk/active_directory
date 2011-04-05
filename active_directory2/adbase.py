@@ -37,9 +37,14 @@ class ADContainer (object):
 
 class Schema (object):
 
+  _properties = [
+    "Abstract", "Auxiliary", "AuxDerivedFrom", "Container",
+    "DerivedFrom", "MandatoryProperties", "OID",
+    "OptionalProperties", "PossibleSuperiors"
+  ]
+
   def __init__ (self, obj):
-    directory_obj = exc.wrapped (obj.QueryInterface, adsi.IID_IDirectoryObject)
-    self.__dict__.update ((p.AttrName, p.Values[0]) for p in exc.wrapped (directory_obj.GetObjectAttributes, None))
+    self.__dict__.update ((p, getattr (obj, p)) for p in self._properties)
 
 class ADBase (object):
   """A slender wrapper around an AD COM object which facilitates getting,
@@ -66,7 +71,8 @@ class ADBase (object):
       schema_path = exc.wrapped (getattr, com_object, "Schema")
       schema_obj = core.open_object (schema_path, cred=cred)
       self._schemas[cls] = Schema (schema_obj)
-    self.properties = self._schemas[cls].mandatoryProperties
+    self.schema = self._schemas[cls]
+    self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
@@ -93,7 +99,7 @@ class ADBase (object):
     exc.wrapped (self.com_object.SetInfo)
 
   def __repr__ (self):
-    return u"<%s: %s>" % (self.cls or u"AD", self.dn)
+    return u"<%s: %s>" % (self.__class__.__name__, self.path)
 
   def __str__ (self):
     return self.as_string ()
@@ -114,10 +120,6 @@ class ADBase (object):
   def __hash__ (self):
     return hash (self.com_object.Guid)
 
-  def _get_parent (self):
-    return self.__class__ (self.com_object.Parent)
-  parent = property (_get_parent)
-
   @classmethod
   def from_path (cls, path, cred=None):
     return cls (core.open_object (path, cred))
@@ -133,34 +135,21 @@ class ADBase (object):
     for result in self.search (*args, **kwargs):
       return result
 
-  #~ def walk (self):
-    #~ u"""Analogous to os.walk, traverse this AD subtree,
-    #~ depth-first, and yield for each container:
-
-    #~ container, containers, items
-    #~ """
-    #~ children = list (self)
-    #~ this_containers = [c for c in children if c.is_container]
-    #~ this_items = [c for c in children if not c.is_container]
-    #~ yield self, this_containers, this_items
-    #~ for c in this_containers:
-      #~ for container, containers, items in c.walk ():
-        #~ yield container, containers, items
-
   def walk (self, level=0):
-    subordinates = list (self)
+    subordinates = [(s, s.schema.Container) for s in self]
     yield (
       level,
       self,
-      (s for s in subordinates if self.__class__._class_containers[s.cls]),
-      (s for s in subordinates if not self.__class__._class_containers[s.cls])
+      (s for s, is_container in subordinates if is_container),
+      (s for s, is_container in subordinates if not is_container)
     )
-    for subordinate in (s for s in subordinates if self.__class__._class_containers[s.cls]):
-      for walked in subordinate.walk (level+1):
-        yield walked
+    for s, is_container in subordinates:
+      if is_container:
+        for walked in s.walk (level+1):
+          yield walked
 
   def flat (self):
-    for container, containers, items in self.walk ():
+    for level, container, containers, items in self.walk ():
       for item in items:
         yield item
 
@@ -169,8 +158,14 @@ class ADBase (object):
 
   def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + u"\n")
+    ofile.write ("[\n")
+    for property in self._properties:
+      value = exc.wrapped (getattr, self, property, None)
+      if value:
+        ofile.write ("  %s => %r\n" % (property, value))
+    ofile.write ("]\n")
     ofile.write ("{\n")
-    for property in self.__class__._class_properties[self.cls]:
+    for property in sorted (self.properties):
       value = exc.wrapped (getattr, self, property, None)
       if value:
         ofile.write ("  %s => %r\n" % (property, value))
