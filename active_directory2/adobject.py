@@ -24,8 +24,6 @@ class ADObject (adbase.ADBase):
      users = ad.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
-  _schema_cache = {}
-
   def __init__ (self, obj, cred=None):
     adbase.ADBase.__init__ (self, obj, cred)
     utils._set (self, "_delegate_map", dict ())
@@ -97,38 +95,6 @@ class ADObject (adbase.ADBase):
     if name in self._delegate_map:
       del self._delegate_map[name]
 
-  def as_string (self):
-    return self.path
-
-  def __str__ (self):
-    return self.as_string ()
-
-  def __repr__ (self):
-    return u"<%s: %s>" % (exc.wrapped (getattr, self.com_object, u"Class") or u"AD", self.dn)
-
-  def __eq__ (self, other):
-    return self.com_object.Guid == other.com_object.Guid
-
-  def __hash__ (self):
-    return hash (self.com_object.Guid)
-
-  def _get_parent (self):
-    return self.__class__ (self.com_object.Parent)
-  parent = property (_get_parent)
-
-  def _schema (self, schema_path):
-    if schema_path not in self.__class__._schema_cache:
-      schema_qs = core.query_string (
-        base=schema_path,
-        attributes=['mandatoryProperties', 'optionalProperties'],
-        scope="Base"
-      )
-      for schema in core.query (query_string=schema_qs, connection=self.connection):
-        cls._schema_cache[schema_path] = \
-          (schema['mandatoryProperties'] or []) + \
-          (schema['optionalProperties'] or [])
-    return self.__class__._schema_cache[schema_path]
-
   def munge_attribute_for_dump (self, name, value):
     if isinstance (value, (tuple, list)):
       value = "[(%d items)]" % len (value)
@@ -142,25 +108,6 @@ class ADObject (adbase.ADBase):
   def refresh (self):
     self._delegate_map.clear ()
     exc.wrapped (self.com_object.GetInfo)
-
-  def walk (self):
-    u"""Analogous to os.walk, traverse this AD subtree,
-    depth-first, and yield for each container:
-
-    container, containers, items
-    """
-    children = list (self)
-    this_containers = [c for c in children if c.is_container]
-    this_items = [c for c in children if not c.is_container]
-    yield self, this_containers, this_items
-    for c in this_containers:
-      for container, containers, items in c.walk ():
-        yield container, containers, items
-
-  def flat (self):
-    for container, containers, items in self.walk ():
-      for item in items:
-        yield item
 
   def set (self, **kwds):
     u"""Set a number of values at one time. Should be

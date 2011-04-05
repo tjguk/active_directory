@@ -35,6 +35,12 @@ class ADContainer (object):
       else:
         break
 
+class Schema (object):
+
+  def __init__ (self, obj):
+    directory_obj = exc.wrapped (obj.QueryInterface, adsi.IID_IDirectoryObject)
+    self.__dict__.update ((p.AttrName, p.Values[0]) for p in exc.wrapped (directory_obj.GetObjectAttributes, None))
+
 class ADBase (object):
   """A slender wrapper around an AD COM object which facilitates getting,
   setting and clearing an object's attributes plus pretty-printing to stdout.
@@ -48,24 +54,19 @@ class ADBase (object):
    # For speed, hardcode the known properties of the IADs class
    #
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
-  _class_properties = {}
-  _class_containers = {}
-  _property_schemas = {}
+  _schemas = {}
 
   def __init__ (self, obj, cred=None):
-    com_object = obj.QueryInterface (adsi.IID_IADs)
-    utils._set (self, "com_object", com_object)
-    utils._set (self, "cred", cred)
-    utils._set (self, "path", self.com_object.ADsPath)
-    cls = exc.wrapped (getattr, com_object, "Class")
-    utils._set (self, "cls", cls)
-    if cls not in self.__class__._class_properties:
+    utils._set (self, "properties", set ())
+    self.com_object = com_object = obj.QueryInterface (adsi.IID_IADs)
+    self.cred = cred
+    self.path = com_object.ADsPath
+    self.cls = cls = exc.wrapped (getattr, com_object, "Class")
+    if cls not in self._schemas:
       schema_path = exc.wrapped (getattr, com_object, "Schema")
       schema_obj = core.open_object (schema_path, cred=cred)
-      self.__class__._class_properties[cls] = \
-        exc.wrapped (getattr, schema_obj, "mandatoryProperties") + \
-        exc.wrapped (getattr, schema_obj, "optionalProperties")
-      self.__class__._class_containers[cls] = exc.wrapped (getattr, schema_obj, "container")
+      self._schemas[cls] = Schema (schema_obj)
+    self.properties = self._schemas[cls].mandatoryProperties
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
@@ -81,15 +82,18 @@ class ADBase (object):
         raise AttributeError
 
   def __setattr__ (self, name, value):
-    self._put (name, value)
-    exc.wrapped (self.com_object.SetInfo)
+    if name in self.properties:
+      self._put (name, value)
+      exc.wrapped (self.com_object.SetInfo)
+    else:
+      super (ADBase, self).__setattr__ (name, value)
 
   def __delattr__ (self, name):
     self._put (name, None)
     exc.wrapped (self.com_object.SetInfo)
 
   def __repr__ (self):
-    return "<%s: %s>" % (self.__class__.__name__, self.as_string ())
+    return u"<%s: %s>" % (self.cls or u"AD", self.dn)
 
   def __str__ (self):
     return self.as_string ()
@@ -101,15 +105,47 @@ class ADBase (object):
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
 
+  def as_string (self):
+    return self.path
+
+  def __eq__ (self, other):
+    return self.com_object.Guid == other.com_object.Guid
+
+  def __hash__ (self):
+    return hash (self.com_object.Guid)
+
+  def _get_parent (self):
+    return self.__class__ (self.com_object.Parent)
+  parent = property (_get_parent)
+
   @classmethod
   def from_path (cls, path, cred=None):
     return cls (core.open_object (path, cred))
 
   query = core.dquery
 
-  def search (self, filter):
+  def search (self, *args, **kwargs):
+    filter = core.and_ (*(args + tuple ("%s=%s" % item for item in kwargs.items ())))
     for result in self.query (filter, ['ADsPath']):
       yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
+
+  def find (self, *args, **kwargs):
+    for result in self.search (*args, **kwargs):
+      return result
+
+  #~ def walk (self):
+    #~ u"""Analogous to os.walk, traverse this AD subtree,
+    #~ depth-first, and yield for each container:
+
+    #~ container, containers, items
+    #~ """
+    #~ children = list (self)
+    #~ this_containers = [c for c in children if c.is_container]
+    #~ this_items = [c for c in children if not c.is_container]
+    #~ yield self, this_containers, this_items
+    #~ for c in this_containers:
+      #~ for container, containers, items in c.walk ():
+        #~ yield container, containers, items
 
   def walk (self, level=0):
     subordinates = list (self)
@@ -122,6 +158,11 @@ class ADBase (object):
     for subordinate in (s for s in subordinates if self.__class__._class_containers[s.cls]):
       for walked in subordinate.walk (level+1):
         yield walked
+
+  def flat (self):
+    for container, containers, items in self.walk ():
+      for item in items:
+        yield item
 
   def as_string (self):
     return self.path
