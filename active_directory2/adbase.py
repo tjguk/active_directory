@@ -12,6 +12,14 @@ class NotAContainerError (exc.ActiveDirectoryError):
   pass
 
 class ADContainer (object):
+  """A support object which takes an existing AD COM object
+  which implements the IADsContainer interface and provides
+  a corresponding iterator.
+
+  It is not expected to be called by user code (although it
+  can be). It is the basis of the :meth:`ADBase.__iter__` method
+  of :class:`ADBase` and its subclasses.
+  """
 
   def __init__ (self, ad_com_object):
     try:
@@ -45,10 +53,10 @@ class ADBase (object):
 
   The underlying object can itself be deleted via :meth:`delete`
 
-  No validation is done of the names passed and an no conversions of the
+  No validation is done of the attribute names and no conversions of the
   values. It can be used alone (most easily via the :func:`adbase` function
   which takes an AD path and returns an ADBase object). It also provides the
-  basis for the ADObject class.
+  basis for the :class:`ADObject` class.
   """
 
   #
@@ -160,12 +168,35 @@ class ADBase (object):
     return cls (core.open_object (path, cred))
 
   def delete (self):
+    """Delete this object and all its descendants. The :class:`ADBase`
+    object will persist but any attempt to read its properties will fail.
+    """
     exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsDeleteOps).DeleteObject (0)
 
   query = core.dquery
 
   def search (self, *args, **kwargs):
-    filter = core.and_ (*(args + tuple ("%s=%s" % item for item in kwargs.items ())))
+    """Return an iterator of :class:`ADBase` objects corresponding to
+    the LDAP filter formed from the positional and keyword params.
+    The :func:`active_directory2.core.and_` and :func:`active_directory2.core.or_`
+    functions can be convenient ways of building up the filter.
+
+    The filter is constructed as follows:
+
+    * All params are and-ed together, producing a &(...) filter
+    * Positional params are taken as-is (and so can be fully-fledged filters)
+    * Keyword params become equi-filters of the form k=v
+
+    So a call like this::
+
+      obj.search (core.or_ (cn="tim", sn="golden"), "logonCount >= 0", objectCategory="person")
+
+    would generate this filter::
+
+      &(|((cn=tim)(sn=golden))(logonCount >= 0)(objectCategory=person))
+    """
+    filter = core.and_ (*args, **kwargs)
+    print "filter:", filter
     for result in self.query (filter, ['ADsPath']):
       yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
 

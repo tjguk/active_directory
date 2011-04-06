@@ -26,7 +26,11 @@ def and_ (*args, **kwargs):
 
     # &(whenCreated>=2010-01-01)(displayName=tim*)(objectCategory=person)
   """
-  return u"&%s" % "".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
+  params = [u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()]
+  if len (params) < 2:
+    return "".join (params)
+  else:
+    return u"&%s" % "".join (params)
 
 def or_ (*args, **kwargs):
   """Combine its arguments together as a valid LDAP OR-search. Positional
@@ -43,8 +47,12 @@ def or_ (*args, **kwargs):
 
     # |(whenCreated>=2010-01-01)(objectCategory=person)
   """
-  return u"|%s" % u"".join ([u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
-
+  params = [u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()]
+  if len (params) < 2:
+    return "".join (params)
+  else:
+    return u"|%s" % u"".join (params)
+20
 def connect (
   cred=None,
   #~ is_password_encrypted=False,
@@ -192,7 +200,7 @@ def root_moniker (server=None, scheme="LDAP:"):
   """
   if (server, scheme) not in _root_monikers:
     dse = root_dse (server, scheme)
-    _root_monikers[server, scheme] = _base_moniker (server, scheme) + dse.Get ("defaultNamingContext")
+    _root_monikers[server, scheme] = _base_moniker (server, scheme) + exc.wrapped (dse.Get, "defaultNamingContext")
   return _root_monikers[server, scheme]
 
 _root_objs = {}
@@ -220,7 +228,7 @@ def schema_obj (server=None, cred=None):
   if server not in _schema_objs:
     dse = root_dse (server)
     _schema_objs[server] = open_object (
-      _base_moniker (server) + dse.Get ("schemaNamingContext"),
+      _base_moniker (server) + exc.wrapped (dse.Get, "schemaNamingContext"),
       cred=cred
     )
   return _schema_objs[server]
@@ -266,12 +274,12 @@ def dquery (obj, filter, attributes=None, flags=0):
     adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
   }
   directory_search = exc.wrapped (obj.QueryInterface, adsi.IID_IDirectorySearch)
-  directory_search.SetSearchPreference ([(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
+  exc.wrapped (directory_search.SetSearchPreference, [(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
   if filter and not re.match (r"\([^)]+\)", filter):
     filter = u"(%s)" % filter
-  hSearch = directory_search.ExecuteSearch (filter, attributes)
+  hSearch = exc.wrapped (directory_search.ExecuteSearch, filter, attributes)
   try:
-    hResult = directory_search.GetFirstRow (hSearch)
+    hResult = exc.wrapped (directory_search.GetFirstRow, hSearch)
     while hResult == 0:
       results = dict ()
       while True:
@@ -281,10 +289,10 @@ def dquery (obj, filter, attributes=None, flags=0):
         _, _, attr_values = exc.wrapped (directory_search.GetColumn, hSearch, attr)
         results[attr] = [value for (value, _) in attr_values]
       yield results
-      hResult = directory_search.GetNextRow (hSearch)
+      hResult = exc.wrapped (directory_search.GetNextRow, hSearch)
   finally:
-    directory_search.AbandonSearch (hSearch)
-    directory_search.CloseSearchHandle (hSearch)
+    exc.wrapped (directory_search.AbandonSearch, hSearch)
+    exc.wrapped (directory_search.CloseSearchHandle, hSearch)
 
 def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAULT):
   """Open an AD object represented by `moniker`, optionally authenticated. You

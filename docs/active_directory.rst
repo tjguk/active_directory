@@ -10,6 +10,9 @@
 ..  autoclass:: active_directory2.adbase.ADBase
     :members:
 
+..  autoclass:: active_directory2.adbase.ADContainer
+    :members:
+
 Exceptions
 ----------
 
