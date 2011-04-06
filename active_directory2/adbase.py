@@ -30,17 +30,6 @@ class ADContainer (object):
       else:
         break
 
-class Schema (object):
-
-  _properties = [
-    "Abstract", "Auxiliary", "AuxDerivedFrom", "Container",
-    "DerivedFrom", "MandatoryProperties", "OID",
-    "OptionalProperties", "PossibleSuperiors", "NamingProperties"
-  ]
-
-  def __init__ (self, obj):
-    self.__dict__.update ((p, getattr (obj, p)) for p in self._properties)
-
 class ADBase (object):
   """A slender wrapper around an AD COM object.
 
