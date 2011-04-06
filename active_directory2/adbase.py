@@ -78,6 +78,12 @@ class ADBase (object):
     exc.wrapped (self.com_object.PutEx, operation, name, value)
 
   def __getattr__ (self, name):
+    #
+    # AD names are either camelCase or hyphen-separated, never underscored
+    # Since Python identifiers can't include hypens but can
+    # include underscores, translate underscores to hyphens.
+    #
+    name = "_".join (name.split ("-"))
     try:
       return exc.wrapped (getattr, self.com_object, name)
     except (AttributeError, NotImplementedError):
