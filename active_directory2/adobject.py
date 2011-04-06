@@ -2,11 +2,12 @@ import re
 
 from win32com.adsi import adsi, adsicon
 
+from . import adbase
+from . import credentials
 from . import constants
 from . import core
-from . import credentials
 from . import exc
-from . import adbase
+from . import types
 from . import utils
 
 class ADObject (adbase.ADBase):
@@ -24,57 +25,21 @@ class ADObject (adbase.ADBase):
      users = ad.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
+  _converters = None
+
   def __init__ (self, obj, cred=None):
     adbase.ADBase.__init__ (self, obj, cred)
-    utils._set (self, "_delegate_map", dict ())
-
-    #
-    # At this point, __getattr__ & __setattr__ have enough
-    # to decide whether an attribute belongs to the delegated
-    # object or not.
-    #
-    utils._set (self, "dn", exc.wrapped (getattr, self.com_object, u"distinguishedName", None) or self.com_object.name)
-
-  def __getitem__ (self, key):
-    return getattr (self, key)
 
   def __getattr__ (self, name):
-    #
-    # Special-case find_... methods to search for
-    # corresponding object types.
-    #
-    if name.startswith (u"find_"):
-      names = name[len (u"find_"):].lower ().split ("_")
-      first, rest = names[0], names[1:]
-      object_class = "".join ([first] + [n.title () for n in rest])
-      return self._find (object_class)
-
-    if name.startswith (u"search_"):
-      names = name[len (u"search_"):].lower ().split ("_")
-      first, rest = names[0], names[1:]
-      object_class = u"".join ([first] + [n.title () for n in rest])
-      return self._search (object_class)
-
-    if name.startswith (u"get_"):
-      names = name[len (u"get_"):].lower ().split (u"_")
-      first, rest = names[0], names[1:]
-      object_class = u"".join ([first] + [n.title () for n in rest])
-      return self._get (object_class)
-
     #
     # Allow access to object's properties as though normal
     # Python instance properties. Some properties are accessed
     # directly through the object, others by calling its Get
     # method. Not clear why.
     #
-    if name not in self._delegate_map:
-      value = super (ADObject, self).__getattr__ (name)
-      convert_from, _ = types.get_converter (name)
-      self._delegate_map[name] = convert_from (value)
-    return self._delegate_map[name]
-
-  def __setitem__ (self, key, value):
-    setattr (self, key, value)
+    value = adbase.ADBase.__getattr__ (self, name)
+    convert_from, _ = types.get_converter (name)
+    return convert_from (value)
 
   def __setattr__ (self, name, value):
     #
@@ -82,32 +47,19 @@ class ADObject (adbase.ADBase):
     #  fields.
     #
     if name in self.properties:
+      info = core.attributes[name]
+      if info['systemOnly']:
+        raise ADReadOnlyError ("%s is read-only" % name)
+
       _, convert_to = types.get_converter (name)
       super (ADObject, self).__setattr__ (name, convert_to (value))
-      self._invalidate (name)
     else:
       super (ADObject, self).__setattr__ (name, value)
 
-  def _invalidate (self, name):
-    #
-    # Invalidate to ensure map is refreshed on next get
-    #
-    if name in self._delegate_map:
-      del self._delegate_map[name]
-
-  def munge_attribute_for_dump (self, name, value):
-    if isinstance (value, (tuple, list)):
-      value = "[(%d items)]" % len (value)
-    else:
-      value = super (ADObject, self).munge_attribute_for_dump (name, value)
-      if isinstance (value, unicode):
-        if len (value) > 60:
-          value = value[:25] + "..." + value[-25:]
-    return value
-
-  def refresh (self):
-    self._delegate_map.clear ()
-    exc.wrapped (self.com_object.GetInfo)
+  def converters (cls):
+    if cls._converters is None:
+      cls._converters = types.Converters (cls)
+    return cls._converters
 
   def set (self, **kwds):
     u"""Set a number of values at one time. Should be
@@ -124,85 +76,20 @@ class ADObject (adbase.ADBase):
       self._put (k, v)
     exc.wrapped (self.com_object.SetInfo)
 
-  def _find (self, object_class):
-    u"""Helper function to allow general-purpose searching for
-    objects of a class by calling a .find_xxx_yyy method.
-    """
-    def _find (name):
-      for item in self.search (objectClass=object_class, name=name):
-        return item
-    return _find
-
-  def _search (self, object_class):
-    u"""Helper function to allow general-purpose searching for
-    objects of a class by calling a .search_xxx_yyy method.
-    """
-    def _search (*args, **kwargs):
-      return self.search (objectClass=object_class, *args, **kwargs)
-    return _search
-
-  def _get (self, object_class):
-    u"""Helper function to allow general-purpose retrieval of a
-    child object by class.
-    """
-    def _get (rdn):
-      return self.get (object_class, rdn)
-    return _get
-
-  def find (self, name):
-    for item in self.search (name=name):
-      return item
-
   def find_user (self, name=None):
     u"""Make a special case of (the common need of) finding a user
     either by username or by display name
     """
     name = name or exc.wrapped (win32api.GetUserName)
-    for user in self.search (anr=name):
-      return user
+    return self.find (objectClass="user", objectCategory="person", anr=name)
 
   def find_ou (self, name):
     u"""Convenient alias for find_organizational_unit"""
-    return self.find_organizational_unit (name)
+    return self.find (objectCategory="Organizational-Unit", anr=name)
 
-  def search (self, *args, **kwargs):
-    filter = core.and_ (*args, **kwargs)
-    #~ query_string = core.qs (base=self.ADsPath, filter=filter, attributes=["objectGuid"])
-    query_string = u"<%s>;(%s);objectGuid;Subtree" % (self.ADsPath, filter)
-    for result in core.query (query_string, connection=self.connection):
-      guid = u"".join (u"%02X" % ord (i) for i in result['objectGuid'])
-      yield self.__class__ (u"LDAP://<GUID=%s>" % guid, cred=self.cred)
-
-  def get (self, object_class, relative_path):
-    return self.__class__ (exc.wrapped (self.com_object.GetObject, object_class, relative_path), self.cred)
-
-  def new_ou (self, name, description=None, **kwargs):
-    obj = exc.wrapped (self.com_object.Create, u"organizationalUnit", u"ou=%s" % name)
-    exc.wrapped (obj.Put, u"description", description or name)
-    exc.wrapped (obj.SetInfo)
-    for name, value in kwargs.items ():
-      exc.wrapped (obj.Put, name, value)
-    exc.wrapped (obj.SetInfo)
-    return self.__class__ (obj, self.cred)
-
-  def new_group (self, name, type=constants.GROUP_TYPES.DOMAIN_LOCAL | constants.GROUP_TYPES.SECURITY_ENABLED, **kwargs):
-    obj = exc.wrapped (self.com_object.Create, u"group", u"cn=%s" % name)
-    exc.wrapped (obj.Put, u"sAMAccountName", name)
-    exc.wrapped (obj.Put, u"groupType", type)
-    exc.wrapped (obj.SetInfo)
-    for name, value in kwargs.items ():
-      exc.wrapped (obj.Put, name, value)
-    exc.wrapped (obj.SetInfo)
-    return self.__class_ (obj, self.cred)
-
-  def new (self, object_class, sam_account_name, **kwargs):
-    obj = exc.wrapped (self.com_object.Create, object_class, u"cn=%s" % sam_account_name)
-    exc.wrapped (obj.Put, u"sAMAccountName", sam_account_name)
-    exc.wrapped (obj.SetInfo)
-    for name, value in kwargs.items ():
-      exc.wrapped (obj.Put, name, value)
-    exc.wrapped (obj.SetInfo)
-    return self.__class__ (obj, self.cred)
+  def find_group (self, name):
+    u"""Convenient alias for find_organizational_unit"""
+    return self.find (objectCategory="group", anr=name)
 
 class WinNT (ADObject):
 
@@ -315,24 +202,6 @@ class Group (ADObject):
       for result in group.walk ():
         yield result
 
-  def flat (self):
-    for group, groups, members in self.walk ():
-      for member in members:
-        yield member
-
-class WinNTGroup (WinNT, Group):
-  pass
-
-def namespaces ():
-  return ADBase (adsi.ADsGetObject (u"ADs:"))
-
-_CLASS_MAP = {
-  u"group" : Group,
-}
-_WINNT_CLASS_MAP = {
-  u"group" : WinNTGroup
-}
-_namespace_names = None
 def ad (obj_or_path, cred=None):
   u"""Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
@@ -361,3 +230,124 @@ def ad (obj_or_path, cred=None):
   else:
     class_map = _CLASS_MAP.get (obj.Class.lower (), ADObject)
   return class_map (obj, cred)
+
+
+#
+# Register known attributes
+#
+#~ _PROPERTY_MAP = dict (
+  #~ accountExpires = types.convert_to_datetime,
+  #~ auditingPolicy = types.convert_to_hex,
+  #~ badPasswordTime = types.convert_to_datetime,
+  #~ creationTime = types.convert_to_datetime,
+  #~ dSASignature = types.convert_to_hex,
+  #~ forceLogoff = types.convert_to_datetime,
+  #~ fSMORoleOwner = types.convert_to_object (adobject.ad),
+  #~ groupType = types.convert_to_flags (constants.GROUP_TYPES),
+  #~ isGlobalCatalogReady = types.convert_to_boolean,
+  #~ isSynchronized = types.convert_to_boolean,
+  #~ lastLogoff = types.convert_to_datetime,
+  #~ lastLogon = types.convert_to_datetime,
+  #~ lastLogonTimestamp = types.convert_to_datetime,
+  #~ lockoutDuration = types.convert_to_datetime,
+  #~ lockoutObservationWindow = types.convert_to_datetime,
+  #~ lockoutTime = types.convert_to_datetime,
+  #~ manager = types.convert_to_object (adobject.ad),
+  #~ masteredBy = types.convert_to_objects (adobject.ad),
+  #~ maxPwdAge = types.convert_to_datetime,
+  #~ member = types.convert_to_objects (adobject.ad),
+  #~ memberOf = types.convert_to_objects (adobject.ad),
+  #~ minPwdAge = types.convert_to_datetime,
+  #~ modifiedCount = types.convert_to_datetime,
+  #~ modifiedCountAtLastProm = types.convert_to_datetime,
+  #~ msExchMailboxGuid = types.convert_to_guid,
+  #~ schemaIDGUID = types.convert_to_guid,
+  #~ mSMQDigests = types.convert_to_hex,
+  #~ mSMQSignCertificates = types.convert_to_hex,
+  #~ objectClass = types.convert_to_breadcrumbs,
+  #~ objectGUID = types.convert_to_guid,
+  #~ objectSid = types.convert_to_sid,
+  #~ publicDelegates = types.convert_to_objects (adobject.ad),
+  #~ publicDelegatesBL = types.convert_to_objects (adobject.ad),
+  #~ pwdLastSet = types.convert_to_datetime,
+  #~ replicationSignature = types.convert_to_hex,
+  #~ replUpToDateVector = types.convert_to_hex,
+  #~ repsFrom = types.convert_to_hexes,
+  #~ repsTo = types.convert_to_hex,
+  #~ sAMAccountType = types.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
+  #~ subRefs = types.convert_to_objects (adobject.ad),
+  #~ systemFlags = types.convert_to_flags (constants.ADS_SYSTEMFLAG),
+  #~ userAccountControl = types.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
+  #~ wellKnownObjects = types.convert_to_objects (adobject.ad),
+  #~ whenCreated = types.convert_pytime_to_datetime,
+  #~ whenChanged = types.convert_pytime_to_datetime,
+  #~ showInAddressbook = types.convert_to_objects (adobject.ad),
+#~ )
+#~ _PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (adobject.ad)
+
+#~ for k, v in _PROPERTY_MAP.items ():
+  #~ types.register_converter (k, from_ad=v)
+
+#~ _PROPERTY_MAP_IN = dict (
+  #~ accountExpires = types.convert_from_datetime,
+  #~ badPasswordTime = types.convert_from_datetime,
+  #~ creationTime = types.convert_from_datetime,
+  #~ dSASignature = types.convert_from_hex,
+  #~ forceLogoff = types.convert_from_datetime,
+  #~ fSMORoleOwner = types.convert_from_object,
+  #~ groupType = types.convert_from_flags (constants.GROUP_TYPES),
+  #~ lastLogoff = types.convert_from_datetime,
+  #~ lastLogon = types.convert_from_datetime,
+  #~ lastLogonTimestamp = types.convert_from_datetime,
+  #~ lockoutDuration = types.convert_from_datetime,
+  #~ lockoutObservationWindow = types.convert_from_datetime,
+  #~ lockoutTime = types.convert_from_datetime,
+  #~ masteredBy = types.convert_from_objects,
+  #~ maxPwdAge = types.convert_from_datetime,
+  #~ member = types.convert_from_objects,
+  #~ memberOf = types.convert_from_objects,
+  #~ minPwdAge = types.convert_from_datetime,
+  #~ modifiedCount = types.convert_from_datetime,
+  #~ modifiedCountAtLastProm = types.convert_from_datetime,
+  #~ msExchMailboxGuid = types.convert_from_guid,
+  #~ objectGUID = types.convert_from_guid,
+  #~ objectSid = types.convert_from_sid,
+  #~ publicDelegates = types.convert_from_objects,
+  #~ publicDelegatesBL = types.convert_from_objects,
+  #~ pwdLastSet = types.convert_from_datetime,
+  #~ replicationSignature = types.convert_from_hex,
+  #~ replUpToDateVector = types.convert_from_hex,
+  #~ repsFrom = types.convert_from_hex,
+  #~ repsTo = types.convert_from_hex,
+  #~ sAMAccountType = types.convert_from_enum (constants.SAM_ACCOUNT_TYPES),
+  #~ subRefs = types.convert_from_objects,
+  #~ userAccountControl = types.convert_from_flags (constants.USER_ACCOUNT_CONTROL),
+  #~ wellKnownObjects = types.convert_from_objects
+#~ )
+#~ _PROPERTY_MAP_IN['msDs-masteredBy'] = types.convert_from_objects
+
+#~ for k, v in _PROPERTY_MAP_IN.items ():
+  #~ types.register_converter (k, to_ad=v)
+
+"""
+Attribute syntax ID	Active Directory syntax type	Equivalent ADSI syntax type
+2.5.5.1	DN String	DN String
+2.5.5.2	Object ID	CaseIgnore String
+2.5.5.3	Case Sensitive String	CaseExact String
+2.5.5.4	Case Ignored String	CaseIgnore String
+2.5.5.5	Print Case String	Printable String
+2.5.5.6	Numeric String	Numeric String
+2.5.5.7	OR Name DNWithOctetString	Not Supported
+2.5.5.8	Boolean	Boolean
+2.5.5.9	Integer	Integer
+2.5.5.10	Octet String	Octet String
+2.5.5.11	Time	UTC Time
+2.5.5.12	Unicode	Case Ignore String
+2.5.5.13	Address	Not Supported
+2.5.5.14	Distname-Address
+2.5.5.15	NT Security Descriptor	IADsSecurityDescriptor
+2.5.5.16	Large Integer	IADsLargeInteger
+2.5.5.17	SID	Octet String
+"""
+
+types.register_type_converters ("2.5.5.1", types.dn_to_object (ADObject), types.object_to_dn)

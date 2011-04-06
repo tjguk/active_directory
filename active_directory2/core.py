@@ -225,8 +225,14 @@ def schema_obj (server=None, cred=None):
     )
   return _schema_objs[server]
 
+_class_schemas = {}
+def class_schema (class_name, server=None, cred=None):
+  if class_name not in _class_schemas:
+    _class_schemas[class_name] = schema_obj (server, cred).GetObject ("classSchema", "cn=%s" % class_name)
+  return _class_schemas[class_name]
+
 _attributes = {}
-_attribute_info = ['lDAPDisplayName', 'instanceType', 'oMObjectClass', 'oMSyntax', 'attributeId', 'isSingleValued']
+_attribute_info = ['lDAPDisplayName', 'instanceType', 'oMObjectClass', 'oMSyntax', 'isSingleValued', 'attributeSyntax', 'systemOnly']
 def attribute_info (names=["*"], server=None, cred=None):
   u"""Return an iteration of name, dict pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued

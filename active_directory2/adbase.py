@@ -35,7 +35,7 @@ class Schema (object):
   _properties = [
     "Abstract", "Auxiliary", "AuxDerivedFrom", "Container",
     "DerivedFrom", "MandatoryProperties", "OID",
-    "OptionalProperties", "PossibleSuperiors"
+    "OptionalProperties", "PossibleSuperiors", "NamingProperties"
   ]
 
   def __init__ (self, obj):
@@ -76,10 +76,13 @@ class ADBase (object):
     self.cls = cls = exc.wrapped (getattr, com_object, "Class")
     if cls not in self._schemas:
       schema_path = exc.wrapped (getattr, com_object, "Schema")
-      schema_obj = core.open_object (schema_path, cred=cred)
-      self._schemas[cls] = Schema (schema_obj)
+      try:
+        self._schemas[cls] = core.open_object (schema_path, cred=cred)
+      except exc.BadPathnameError:
+        self._schemas[cls] = None
     self.schema = self._schemas[cls]
-    self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
+    if self.schema:
+      self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
