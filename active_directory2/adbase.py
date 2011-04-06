@@ -97,13 +97,24 @@ class ADBase (object):
     self._put (name, None)
     exc.wrapped (self.com_object.SetInfo)
 
+  @staticmethod
+  def _item_identifier (ad_class, item_identifier):
+    item_namer = core.class_schema (ad_class).NamingProperties
+    if item_identifier.startswith ("%s=" % item_namer):
+      return item_identifier
+    else:
+      return "%s=%s" % (item_namer, item_identifier)
+
   def __getitem__ (self, item):
     item_type, item_identifier = item
-    obj = exc.wrapped (self.com_object.GetObject, item_type, item_identifier)
+    item_identifier = self._item_identifier (item_type, item_identifier)
+    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
+    obj = exc.wrapped (container.GetObject, item_type, item_identifier)
     return self.__class__ (obj, self.cred)
 
   def __setitem__ (self, item, info):
     item_type, item_identifier = item
+    item_identifier = self._item_identifier (item_type, item_identifier)
     obj = exc.wrapped (self.com_object.Create, item_type, item_identifier)
     exc.wrapped (obj.SetInfo)
     for k, v in info.items ():
@@ -113,7 +124,8 @@ class ADBase (object):
 
   def __delitem__ (self, item):
     item_type, item_identifier = item
-    exc.wrapped (com_object.Delete, item_type, item_identifier)
+    item_identifier = self._item_identifier (item_type, item_identifier)
+    exc.wrapped (self.com_object.Delete, item_type, item_identifier)
 
   def as_string (self):
     return self.path
