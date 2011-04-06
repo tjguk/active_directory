@@ -228,31 +228,37 @@ def schema_obj (server=None, cred=None):
 _class_schemas = {}
 def class_schema (class_name, server=None, cred=None):
   if class_name not in _class_schemas:
-    _class_schemas[class_name] = schema_obj (server, cred).GetObject ("classSchema", "cn=%s" % class_name)
+    _class_schemas[class_name] = open_object (_base_moniker (server) + "schema/%s" % class_name)
   return _class_schemas[class_name]
 
 _attributes = {}
-_attribute_info = ['lDAPDisplayName', 'instanceType', 'oMObjectClass', 'oMSyntax', 'isSingleValued', 'attributeSyntax', 'systemOnly']
-def attribute_info (names=["*"], server=None, cred=None):
+def attributes_info (names=["*"], server=None, cred=None):
   u"""Return an iteration of name, dict pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
 
   :param names: A list of names for attributes to be returned [all attributes]
   :param server: A specific server whose rootDSE is to be found [none - any server]
   :param cred: anything accepted by :func:`credentials.credentials`
-  :returns: An iteration of tuples containing (name, info)
+  :returns: An iteration of (name, info)
   """
   schema = schema_obj (server, cred)
   unknown_names = set (names) - set (_attributes)
   if unknown_names:
-    filter = or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
-    for row in dquery (schema, filter, _attribute_info):
+    filter = and_ (
+      "objectCategory=attributeSchema",
+      or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
+    )
+    for row in dquery (schema, filter, None):
       _attributes[row['lDAPDisplayName'][0]] = dict ((k, v[0]) for (k, v) in row.items ())
 
   if names == ['*']:
     names = iter (_attributes)
   for name in names:
     yield name, _attributes[name]
+
+def attribute_info (name, server=None, cred=None):
+  for name, info in attributes_info ([name], server, cred):
+    return info
 
 def dquery (obj, filter, attributes=None, flags=0):
   SEARCH_PREFERENCES = {
