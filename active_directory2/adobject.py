@@ -10,6 +10,9 @@ from . import exc
 from . import types
 from . import utils
 
+class ADReadOnly (exc.ActiveDirectoryError):
+  pass
+
 class ADObject (adbase.ADBase):
   u"""Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
@@ -29,6 +32,7 @@ class ADObject (adbase.ADBase):
 
   def __init__ (self, obj, cred=None):
     adbase.ADBase.__init__ (self, obj, cred)
+    core.attributes (self.properties, self.server, self.cred)
 
   def __getattr__ (self, name):
     #
@@ -38,8 +42,17 @@ class ADObject (adbase.ADBase):
     # method. Not clear why.
     #
     value = adbase.ADBase.__getattr__ (self, name)
-    convert_from, _ = types.get_converter (name)
-    return convert_from (value)
+    attr = core.attribute (name, self.server, self.cred)
+    if attr:
+      convert_from, _ = types.get_converters (name)
+      if not convert_from:
+        convert_from, _ = types.get_type_converters (attr.attributeSyntax)
+      if convert_from:
+        return convert_from (value)
+      else:
+        return value
+    else:
+      return value
 
   def __setattr__ (self, name, value):
     #
@@ -48,7 +61,7 @@ class ADObject (adbase.ADBase):
     #
     if name in self.properties:
       info = core.attributes[name]
-      if info['systemOnly']:
+      if info.systemOnly:
         raise ADReadOnlyError ("%s is read-only" % name)
 
       _, convert_to = types.get_converter (name)

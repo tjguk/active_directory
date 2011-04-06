@@ -70,6 +70,8 @@ class ADBase (object):
     self.com_object = com_object = obj.QueryInterface (adsi.IID_IADs)
     self.cred = cred
     self.path = com_object.ADsPath
+    scheme, server, dn = utils.parse_moniker (com_object.ADsPath)
+    self.server = server.rstrip ("/")
     self.cls = cls = exc.wrapped (getattr, com_object, "Class")
     if cls not in self._schemas:
       schema_path = exc.wrapped (getattr, com_object, "Schema")
@@ -196,7 +198,6 @@ class ADBase (object):
       &(|((cn=tim)(sn=golden))(logonCount >= 0)(objectCategory=person))
     """
     filter = core.and_ (*args, **kwargs)
-    print "filter:", filter
     for result in self.query (filter, ['ADsPath']):
       yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
 

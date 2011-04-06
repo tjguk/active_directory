@@ -240,7 +240,7 @@ def class_schema (class_name, server=None, cred=None):
   return _class_schemas[class_name]
 
 _attributes = {}
-def attributes_info (names=["*"], server=None, cred=None):
+def attributes (names=["*"], server=None, cred=None):
   u"""Return an iteration of name, dict pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
 
@@ -256,17 +256,17 @@ def attributes_info (names=["*"], server=None, cred=None):
       "objectCategory=attributeSchema",
       or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
     )
-    for row in dquery (schema, filter, None):
-      _attributes[row['lDAPDisplayName'][0]] = dict ((k, v[0]) for (k, v) in row.items ())
+    for row in dquery (schema, filter, ['lDAPDisplayName', 'ADsPath']):
+      _attributes[row['lDAPDisplayName'][0]] = open_object (row['ADsPath'][0])
 
   if names == ['*']:
     names = iter (_attributes)
   for name in names:
-    yield name, _attributes[name]
+    yield name, _attributes.get (name)
 
-def attribute_info (name, server=None, cred=None):
-  for name, info in attributes_info ([name], server, cred):
-    return info
+def attribute (name, server=None, cred=None):
+  for name, attr in attributes ([name], server, cred):
+    return attr
 
 def dquery (obj, filter, attributes=None, flags=0):
   SEARCH_PREFERENCES = {

@@ -91,7 +91,7 @@ def convert_to_breadcrumbs (item):
   return u" > ".join (item)
 
 def ularge_to_long (ularge):
-  return (item.HighPart << 32) + item.LowPart
+  return (ularge.HighPart << 32) + ularge.LowPart
 
 def long_to_ularge (long):
   raise NotImplementedError
@@ -126,8 +126,8 @@ def convert_from_guid (item):
   return u"{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
 
 def octet_to_hex (octet):
-  if item is None: return None
-  return u"".join ([u"%x" % ord (i) for i in item])
+  if octet is None: return None
+  return u"".join ([u"%x" % ord (o) for o in octet])
 
 def hex_to_octet (hex):
   raise NotImplementedError
@@ -246,20 +246,11 @@ schema = Attributes ()
 def no_conversion (value):
   return value
 
-def get_converter (name):
-  """
-  * Look for a specific converter
-  * Drop back to a type-inferred converter
-  * Drop back to raw value
-  """
-  if name not in _converters:
-    obj = None ## attribute (name)
-    if obj and obj.attributeSyntax in TYPE_CONVERTERS:
-      register_converter (name, from_ad=TYPE_CONVERTERS[obj.attributeSyntax])
-    elif name.endswith ("GUID"):
-      register_converter (name, from_ad=convert_to_guid)
-  from_ad, to_ad = _converters.get (name, (None, None))
-  return from_ad or no_conversion, to_ad or no_conversion
+def get_converters (name):
+  return _converters.get (name, (None, None))
+
+def get_type_converters (attribute_syntax):
+  return _type_converters.get (attribute_syntax, (None, None))
 
 _converters = {}
 def register_converters (attribute_name, from_ad=None, to_ad=None):
@@ -283,3 +274,54 @@ register_type_converters ("2.5.5.11", ularge_to_datetime, datetime_to_ularge)
 register_type_converters ("2.5.5.16", ularge_to_long, long_to_ularge)
 register_type_converters ("2.5.5.17", octet_to_sid, sid_to_octet)
 register_type_converters ("2.5.5.10", octet_to_hex, hex_to_octet)
+
+register_converters ("sAMAccountType", convert_from_enum (constants.SAM_ACCOUNT_TYPES))
+#
+# This is to prevent it being caught by the dn converter
+#
+register_converters ("distinguishedName", no_conversion, no_conversion)
+register_converters ("accountExpires", convert_to_datetime)
+  #~ badPasswordTime = types.convert_to_datetime,
+  #~ creationTime = types.convert_to_datetime,
+  #~ dSASignature = types.convert_to_hex,
+  #~ forceLogoff = types.convert_to_datetime,
+  #~ fSMORoleOwner = types.convert_to_object (adobject.ad),
+  #~ groupType = types.convert_to_flags (constants.GROUP_TYPES),
+  #~ isGlobalCatalogReady = types.convert_to_boolean,
+  #~ isSynchronized = types.convert_to_boolean,
+  #~ lastLogoff = types.convert_to_datetime,
+  #~ lastLogon = types.convert_to_datetime,
+  #~ lastLogonTimestamp = types.convert_to_datetime,
+  #~ lockoutDuration = types.convert_to_datetime,
+  #~ lockoutObservationWindow = types.convert_to_datetime,
+  #~ lockoutTime = types.convert_to_datetime,
+  #~ manager = types.convert_to_object (adobject.ad),
+  #~ masteredBy = types.convert_to_objects (adobject.ad),
+  #~ maxPwdAge = types.convert_to_datetime,
+  #~ member = types.convert_to_objects (adobject.ad),
+  #~ memberOf = types.convert_to_objects (adobject.ad),
+  #~ minPwdAge = types.convert_to_datetime,
+  #~ modifiedCount = types.convert_to_datetime,
+  #~ modifiedCountAtLastProm = types.convert_to_datetime,
+  #~ msExchMailboxGuid = types.convert_to_guid,
+  #~ schemaIDGUID = types.convert_to_guid,
+  #~ mSMQDigests = types.convert_to_hex,
+  #~ mSMQSignCertificates = types.convert_to_hex,
+  #~ objectClass = types.convert_to_breadcrumbs,
+  #~ objectGUID = types.convert_to_guid,
+  #~ objectSid = types.convert_to_sid,
+  #~ publicDelegates = types.convert_to_objects (adobject.ad),
+  #~ publicDelegatesBL = types.convert_to_objects (adobject.ad),
+  #~ pwdLastSet = types.convert_to_datetime,
+  #~ replicationSignature = types.convert_to_hex,
+  #~ replUpToDateVector = types.convert_to_hex,
+  #~ repsFrom = types.convert_to_hexes,
+  #~ repsTo = types.convert_to_hex,
+  #~ sAMAccountType = types.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
+  #~ subRefs = types.convert_to_objects (adobject.ad),
+  #~ systemFlags = types.convert_to_flags (constants.ADS_SYSTEMFLAG),
+  #~ userAccountControl = types.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
+  #~ wellKnownObjects = types.convert_to_objects (adobject.ad),
+  #~ whenCreated = types.convert_pytime_to_datetime,
+  #~ whenChanged = types.convert_pytime_to_datetime,
+  #~ showInAddressbook = types.convert_to_objects (adobject.ad),
