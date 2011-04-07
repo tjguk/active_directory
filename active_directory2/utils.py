@@ -1,6 +1,13 @@
 # -*- coding: iso-8859-1 -*-
+from ctypes.wintypes import *
+from ctypes import windll, wintypes
+kernel32 = windll.kernel32
+import ctypes
+import datetime
 import re
 import struct
+
+import win32api
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
@@ -34,6 +41,40 @@ def i32(x):
   # i32(0x80000000L) -> -2147483648L
   # i32(0x80000001L) -> -2147483647L     etc.
   return (x&0x80000000L and -2*0x40000000 or 0) + int(x&0x7fffffff)
+
+class FILETIME (ctypes.Structure):
+  _fields_ = [
+    ("dwLowDateTime", DWORD),
+    ("dwHighDateTime", DWORD),
+  ]
+
+class SYSTEMTIME (ctypes.Structure):
+  _fields_ = [
+    ("wYear", WORD),
+    ("wMonth", WORD),
+    ("wDayOfWeek", WORD),
+    ("wDay", WORD),
+    ("wHour", WORD),
+    ("wMinute", WORD),
+    ("wSecond", WORD),
+    ("wMilliseconds", WORD),
+  ]
+
+def error (exception, context="", message=""):
+  errno = win32api.GetLastError ()
+  message = message or win32api.FormatMessageW (errno)
+  raise exception (errno, context, message)
+
+def file_time_to_system_time (ularge):
+  filetime = FILETIME (ularge.LowPart, ularge.HighPart)
+  systemtime = SYSTEMTIME ()
+  if kernel32.FileTimeToSystemTime (ctypes.pointer (filetime), ctypes.byref (systemtime)) == 0:
+    error (RuntimeError)
+  return datetime.datetime (
+    systemtime.wYear, systemtime.wMonth, systemtime.wDay,
+    systemtime.wHour, systemtime.wMinute, systemtime.wSecond,
+    systemtime.wMilliseconds * 1000
+  )
 
 def escaped_moniker (moniker):
   #

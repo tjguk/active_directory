@@ -7,18 +7,21 @@ from . import constants
 from . import core
 from . import utils
 
+def ularge_to_datetime (ularge):
+  return utils.file_time_to_system_time (ularge)
+
 #
 # Converters
 #
-BASE_TIME = datetime.datetime (1601, 1, 1)
-def ularge_to_datetime (ularge):
-  print "Converting %d:%d to datetime" % (ularge.HighPart, ularge.LowPart)
-  hi, lo = utils.i32 (ularge.HighPart), utils.i32 (ularge.LowPart)
-  ns100 = (hi << 32) + lo
-  print "ns100:", ns100, hex (ns100)
-  delta = datetime.timedelta (microseconds=ns100 / 10)
-  print "delta:", delta
-  return BASE_TIME + delta
+#~ BASE_TIME = datetime.datetime (1601, 1, 1)
+#~ def ularge_to_datetime (ularge):
+  #~ print "Converting %d:%d to datetime" % (ularge.HighPart, ularge.LowPart)
+  #~ hi, lo = utils.i32 (ularge.HighPart), utils.i32 (ularge.LowPart)
+  #~ ns100 = (hi << 32) + lo
+  #~ print "ns100:", ns100, hex (ns100)
+  #~ delta = datetime.timedelta (microseconds=ns100 / 10)
+  #~ print "delta:", delta
+  #~ return BASE_TIME + delta
 
 def datetime_to_ularge (datetime):
   raise NotImplementedError

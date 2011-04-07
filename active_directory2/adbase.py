@@ -226,18 +226,22 @@ class ADBase (object):
     return self.path
 
   def dump (self, ofile=sys.stdout):
+    def munged (value):
+      if isinstance (value, unicode):
+        value = value.encode ("ascii", "backslashreplace")
+      return value
     ofile.write (self.as_string () + u"\n")
     ofile.write ("[\n")
     for property in self._properties:
       value = exc.wrapped (getattr, self, property, None)
       if value:
-        ofile.write ("  %s => %s\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
+        ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("]\n")
     ofile.write ("{\n")
     for property in sorted (self.properties):
       value = exc.wrapped (getattr, self, property, None)
       if value:
-        ofile.write ("  %s => %s\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
+        ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("}\n")
 
 def adbase (obj_or_path=None, cred=None):
