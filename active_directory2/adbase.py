@@ -113,9 +113,8 @@ class ADBase (object):
     self._put (name, None)
     exc.wrapped (self.com_object.SetInfo)
 
-  @staticmethod
-  def _item_identifier (ad_class, item_identifier):
-    item_namer = core.class_schema (ad_class).NamingProperties
+  def _item_identifier (self, ad_class, item_identifier):
+    item_namer = core.class_schema (ad_class, self.server, self.cred).NamingProperties
     if item_identifier.startswith ("%s=" % item_namer):
       return item_identifier
     else:
@@ -232,13 +231,13 @@ class ADBase (object):
     for property in self._properties:
       value = exc.wrapped (getattr, self, property, None)
       if value:
-        ofile.write ("  %s => %r\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
+        ofile.write ("  %s => %s\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
     ofile.write ("]\n")
     ofile.write ("{\n")
     for property in sorted (self.properties):
       value = exc.wrapped (getattr, self, property, None)
       if value:
-        ofile.write ("  %s => %r\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
+        ofile.write ("  %s => %s\n" % (unicode (property).encode (ofile.encoding, "backslashreplace"), value))
     ofile.write ("}\n")
 
 def adbase (obj_or_path=None, cred=None):

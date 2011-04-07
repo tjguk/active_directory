@@ -12,9 +12,12 @@ from . import utils
 #
 BASE_TIME = datetime.datetime (1601, 1, 1)
 def ularge_to_datetime (ularge):
+  print "Converting %d:%d to datetime" % (ularge.HighPart, ularge.LowPart)
   hi, lo = utils.i32 (ularge.HighPart), utils.i32 (ularge.LowPart)
   ns100 = (hi << 32) + lo
+  print "ns100:", ns100, hex (ns100)
   delta = datetime.timedelta (microseconds=ns100 / 10)
+  print "delta:", delta
   return BASE_TIME + delta
 
 def datetime_to_ularge (datetime):
@@ -51,7 +54,7 @@ def convert_to_boolean (item):
 
 def convert_to_datetime (item):
   if item is None: return None
-  return ad_time_to_datetime (item)
+  return ularge_to_datetime (item)
 
 def convert_pytime_to_datetime (item):
   if item is None: return None
@@ -111,7 +114,7 @@ def convert_from_datetime (item):
   try:
     return pytime_to_datetime (item)
   except:
-    return ad_time_to_datetime (item)
+    return ularge_to_datetime (item)
 
 def octet_to_sid (octet):
   if octet is None: return None
@@ -281,47 +284,52 @@ register_converters ("sAMAccountType", convert_from_enum (constants.SAM_ACCOUNT_
 #
 register_converters ("distinguishedName", no_conversion, no_conversion)
 register_converters ("accountExpires", convert_to_datetime)
-  #~ badPasswordTime = types.convert_to_datetime,
-  #~ creationTime = types.convert_to_datetime,
-  #~ dSASignature = types.convert_to_hex,
-  #~ forceLogoff = types.convert_to_datetime,
-  #~ fSMORoleOwner = types.convert_to_object (adobject.ad),
-  #~ groupType = types.convert_to_flags (constants.GROUP_TYPES),
-  #~ isGlobalCatalogReady = types.convert_to_boolean,
-  #~ isSynchronized = types.convert_to_boolean,
-  #~ lastLogoff = types.convert_to_datetime,
-  #~ lastLogon = types.convert_to_datetime,
-  #~ lastLogonTimestamp = types.convert_to_datetime,
-  #~ lockoutDuration = types.convert_to_datetime,
-  #~ lockoutObservationWindow = types.convert_to_datetime,
-  #~ lockoutTime = types.convert_to_datetime,
-  #~ manager = types.convert_to_object (adobject.ad),
-  #~ masteredBy = types.convert_to_objects (adobject.ad),
-  #~ maxPwdAge = types.convert_to_datetime,
-  #~ member = types.convert_to_objects (adobject.ad),
-  #~ memberOf = types.convert_to_objects (adobject.ad),
-  #~ minPwdAge = types.convert_to_datetime,
-  #~ modifiedCount = types.convert_to_datetime,
-  #~ modifiedCountAtLastProm = types.convert_to_datetime,
-  #~ msExchMailboxGuid = types.convert_to_guid,
-  #~ schemaIDGUID = types.convert_to_guid,
-  #~ mSMQDigests = types.convert_to_hex,
-  #~ mSMQSignCertificates = types.convert_to_hex,
-  #~ objectClass = types.convert_to_breadcrumbs,
-  #~ objectGUID = types.convert_to_guid,
-  #~ objectSid = types.convert_to_sid,
-  #~ publicDelegates = types.convert_to_objects (adobject.ad),
-  #~ publicDelegatesBL = types.convert_to_objects (adobject.ad),
-  #~ pwdLastSet = types.convert_to_datetime,
-  #~ replicationSignature = types.convert_to_hex,
-  #~ replUpToDateVector = types.convert_to_hex,
-  #~ repsFrom = types.convert_to_hexes,
-  #~ repsTo = types.convert_to_hex,
-  #~ sAMAccountType = types.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
-  #~ subRefs = types.convert_to_objects (adobject.ad),
-  #~ systemFlags = types.convert_to_flags (constants.ADS_SYSTEMFLAG),
-  #~ userAccountControl = types.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
-  #~ wellKnownObjects = types.convert_to_objects (adobject.ad),
-  #~ whenCreated = types.convert_pytime_to_datetime,
-  #~ whenChanged = types.convert_pytime_to_datetime,
-  #~ showInAddressbook = types.convert_to_objects (adobject.ad),
+CONVERTERS = dict (
+  badPasswordTime = convert_to_datetime,
+  creationTime = convert_to_datetime,
+  dSASignature = convert_to_hex,
+  forceLogoff = convert_to_datetime,
+  #~ fSMORoleOwner = convert_to_object (adobject.ad),
+  groupType = convert_to_flags (constants.GROUP_TYPES),
+  isGlobalCatalogReady = convert_to_boolean,
+  isSynchronized = convert_to_boolean,
+  lastLogoff = convert_to_datetime,
+  lastLogon = convert_to_datetime,
+  lastLogonTimestamp = convert_to_datetime,
+  lockoutDuration = convert_to_datetime,
+  lockoutObservationWindow = convert_to_datetime,
+  lockoutTime = convert_to_datetime,
+  #~ manager = convert_to_object (adobject.ad),
+  #~ masteredBy = convert_to_objects (adobject.ad),
+  maxPwdAge = convert_to_datetime,
+  #~ member = convert_to_objects (adobject.ad),
+  #~ memberOf = convert_to_objects (adobject.ad),
+  minPwdAge = convert_to_datetime,
+  modifiedCount = convert_to_datetime,
+  modifiedCountAtLastProm = convert_to_datetime,
+  msExchMailboxGuid = convert_to_guid,
+  schemaIDGUID = convert_to_guid,
+  mSMQDigests = convert_to_hex,
+  mSMQSignCertificates = convert_to_hex,
+  objectClass = convert_to_breadcrumbs,
+  objectGUID = convert_to_guid,
+  objectSid = convert_to_sid,
+  #~ publicDelegates = convert_to_objects (adobject.ad),
+  #~ publicDelegatesBL = convert_to_objects (adobject.ad),
+  pwdLastSet = convert_to_datetime,
+  replicationSignature = convert_to_hex,
+  replUpToDateVector = convert_to_hex,
+  repsFrom = convert_to_hexes,
+  repsTo = convert_to_hex,
+  sAMAccountType = convert_to_enum (constants.SAM_ACCOUNT_TYPES),
+  #~ subRefs = convert_to_objects (adobject.ad),
+  systemFlags = convert_to_flags (constants.ADS_SYSTEMFLAG),
+  userAccountControl = convert_to_flags (constants.USER_ACCOUNT_CONTROL),
+  #~ wellKnownObjects = convert_to_objects (adobject.ad),
+  whenCreated = convert_pytime_to_datetime,
+  whenChanged = convert_pytime_to_datetime,
+  #~ showInAddressbook = convert_to_objects (adobject.ad),
+)
+
+for name, converter in CONVERTERS.items ():
+  register_converters (name, converter)
