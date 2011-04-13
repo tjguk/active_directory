@@ -142,3 +142,55 @@ ADS_PROPERTY = Enum (
   APPEND = 3,
   DELETE = 4
 )
+
+ADS_TYPE = Enum (
+  ADSTYPE_INVALID                  = 0,
+  ADSTYPE_DN_STRING                = 1,
+  ADSTYPE_CASE_EXACT_STRING        = 2,
+  ADSTYPE_CASE_IGNORE_STRING       = 3,
+  ADSTYPE_PRINTABLE_STRING         = 4,
+  ADSTYPE_NUMERIC_STRING           = 5,
+  ADSTYPE_BOOLEAN                  = 6,
+  ADSTYPE_INTEGER                  = 7,
+  ADSTYPE_OCTET_STRING             = 8,
+  ADSTYPE_UTC_TIME                 = 9,
+  ADSTYPE_LARGE_INTEGER            = 10,
+  ADSTYPE_PROV_SPECIFIC            = 11,
+  ADSTYPE_OBJECT_CLASS             = 12,
+  ADSTYPE_CASEIGNORE_LIST          = 13,
+  ADSTYPE_OCTET_LIST               = 14,
+  ADSTYPE_PATH                     = 15,
+  ADSTYPE_POSTALADDRESS            = 16,
+  ADSTYPE_TIMESTAMP                = 17,
+  ADSTYPE_BACKLINK                 = 18,
+  ADSTYPE_TYPEDNAME                = 19,
+  ADSTYPE_HOLD                     = 20,
+  ADSTYPE_NETADDRESS               = 21,
+  ADSTYPE_REPLICAPOINTER           = 22,
+  ADSTYPE_FAXNUMBER                = 23,
+  ADSTYPE_EMAIL                    = 24,
+  ADSTYPE_NT_SECURITY_DESCRIPTOR   = 25,
+  ADSTYPE_UNKNOWN                  = 26,
+  ADSTYPE_DN_WITH_BINARY           = 27,
+  ADSTYPE_DN_WITH_STRING           = 28
+)
+
+"""
+2.5.5.1 DN String DN String
+2.5.5.2 Object ID CaseIgnore String
+2.5.5.3 Case Sensitive String CaseExact String
+2.5.5.4 Case Ignored String CaseIgnore String
+2.5.5.5 Print Case String Printable String
+2.5.5.6 Numeric String Numeric String
+2.5.5.7 OR Name DNWithOctetString Not Supported
+2.5.5.8 Boolean Boolean
+2.5.5.9 Integer Integer
+2.5.5.10 Octet String Octet String
+2.5.5.11 Time UTC Time
+2.5.5.12 Unicode Case Ignore String
+2.5.5.13 Address Not Supported
+2.5.5.14 Distname-Address
+2.5.5.15 NT Security Descriptor IADsSecurityDescriptor
+2.5.5.16 Large Integer IADsLargeInteger
+2.5.5.17 SID Octet String
+"""
