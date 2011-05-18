@@ -108,23 +108,18 @@ from . import adobject
 from . import constants
 from . import core
 from . import credentials
-from .credentials import credentials as session
 from . import exc
 from . import adbase
 from . import types
 from . import utils
 
-from .core import connect, query, query_string, and_, or_
+from .core import ado_connect, ado_query, ado_query_string, and_, or_
 from .types import schema
 
 logger = logging.getLogger ("active_directory")
 def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
-
-def search_ex (query_string=u"", username=None, password=None):
-  u"""FIXME: Historical version of :func:`query`"""
-  return core.query (query_string, connection=connect (username, password))
 
 class RootDSE (adbase.ADBase):
 
@@ -154,14 +149,14 @@ supportedSASLMechanisms
 
 def AD (server=None, cred=None, use_gc=False):
   if use_gc:
-    scheme = u"GC://"
+    scheme = u"GC:"
   else:
-    scheme = u"LDAP://"
+    scheme = u"LDAP:"
   if server:
-    base_moniker = scheme + server + "/"
+    base_moniker = scheme + "//" + server + "/"
   else:
-    base_moniker = scheme
-  root_obj = core.root_dse (server, use_gc)
+    base_moniker = scheme + "//"
+  root_obj = core.root_dse (server, scheme)
   default_naming_context = exc.wrapped (root_obj.Get, u"defaultNamingContext")
   moniker = base_moniker + default_naming_context
   return adbase.ADBase (core.open_object (moniker, cred))
@@ -169,8 +164,8 @@ def AD (server=None, cred=None, use_gc=False):
 #
 # Convenience functions for common needs
 #
-def find (name):
-  return root ().find (name)
+def find (*args, **kwargs):
+  return root ().find (*args, **kwargs)
 
 def find_user (name=None):
   return root ().find_user (name)
@@ -183,9 +178,6 @@ def find_group (name):
 
 def find_ou (name):
   return root ().find_ou (name)
-
-def find_public_folder (name):
-  return root ().find_public_folder (name)
 
 def search (*args, **kwargs):
   return root ().search (*args, **kwargs)
@@ -200,101 +192,3 @@ def root (server=None, cred=None):
   if _ad is None:
     _ad = AD (cred=cred)
   return _ad
-
-#
-# Register known attributes
-#
-_PROPERTY_MAP = dict (
-  accountExpires = types.convert_to_datetime,
-  auditingPolicy = types.convert_to_hex,
-  badPasswordTime = types.convert_to_datetime,
-  creationTime = types.convert_to_datetime,
-  dSASignature = types.convert_to_hex,
-  forceLogoff = types.convert_to_datetime,
-  fSMORoleOwner = types.convert_to_object (adobject.ad),
-  groupType = types.convert_to_flags (constants.GROUP_TYPES),
-  isGlobalCatalogReady = types.convert_to_boolean,
-  isSynchronized = types.convert_to_boolean,
-  lastLogoff = types.convert_to_datetime,
-  lastLogon = types.convert_to_datetime,
-  lastLogonTimestamp = types.convert_to_datetime,
-  lockoutDuration = types.convert_to_datetime,
-  lockoutObservationWindow = types.convert_to_datetime,
-  lockoutTime = types.convert_to_datetime,
-  manager = types.convert_to_object (adobject.ad),
-  masteredBy = types.convert_to_objects (adobject.ad),
-  maxPwdAge = types.convert_to_datetime,
-  member = types.convert_to_objects (adobject.ad),
-  memberOf = types.convert_to_objects (adobject.ad),
-  minPwdAge = types.convert_to_datetime,
-  modifiedCount = types.convert_to_datetime,
-  modifiedCountAtLastProm = types.convert_to_datetime,
-  msExchMailboxGuid = types.convert_to_guid,
-  schemaIDGUID = types.convert_to_guid,
-  mSMQDigests = types.convert_to_hex,
-  mSMQSignCertificates = types.convert_to_hex,
-  objectClass = types.convert_to_breadcrumbs,
-  objectGUID = types.convert_to_guid,
-  objectSid = types.convert_to_sid,
-  publicDelegates = types.convert_to_objects (adobject.ad),
-  publicDelegatesBL = types.convert_to_objects (adobject.ad),
-  pwdLastSet = types.convert_to_datetime,
-  replicationSignature = types.convert_to_hex,
-  replUpToDateVector = types.convert_to_hex,
-  repsFrom = types.convert_to_hexes,
-  repsTo = types.convert_to_hex,
-  sAMAccountType = types.convert_to_enum (constants.SAM_ACCOUNT_TYPES),
-  subRefs = types.convert_to_objects (adobject.ad),
-  systemFlags = types.convert_to_flags (constants.ADS_SYSTEMFLAG),
-  userAccountControl = types.convert_to_flags (constants.USER_ACCOUNT_CONTROL),
-  wellKnownObjects = types.convert_to_objects (adobject.ad),
-  whenCreated = types.convert_pytime_to_datetime,
-  whenChanged = types.convert_pytime_to_datetime,
-  showInAddressbook = types.convert_to_objects (adobject.ad),
-)
-_PROPERTY_MAP[u'msDs-masteredBy'] = types.convert_to_objects (adobject.ad)
-
-for k, v in _PROPERTY_MAP.items ():
-  types.register_converter (k, from_ad=v)
-
-_PROPERTY_MAP_IN = dict (
-  accountExpires = types.convert_from_datetime,
-  badPasswordTime = types.convert_from_datetime,
-  creationTime = types.convert_from_datetime,
-  dSASignature = types.convert_from_hex,
-  forceLogoff = types.convert_from_datetime,
-  fSMORoleOwner = types.convert_from_object,
-  groupType = types.convert_from_flags (constants.GROUP_TYPES),
-  lastLogoff = types.convert_from_datetime,
-  lastLogon = types.convert_from_datetime,
-  lastLogonTimestamp = types.convert_from_datetime,
-  lockoutDuration = types.convert_from_datetime,
-  lockoutObservationWindow = types.convert_from_datetime,
-  lockoutTime = types.convert_from_datetime,
-  masteredBy = types.convert_from_objects,
-  maxPwdAge = types.convert_from_datetime,
-  member = types.convert_from_objects,
-  memberOf = types.convert_from_objects,
-  minPwdAge = types.convert_from_datetime,
-  modifiedCount = types.convert_from_datetime,
-  modifiedCountAtLastProm = types.convert_from_datetime,
-  msExchMailboxGuid = types.convert_from_guid,
-  objectGUID = types.convert_from_guid,
-  objectSid = types.convert_from_sid,
-  publicDelegates = types.convert_from_objects,
-  publicDelegatesBL = types.convert_from_objects,
-  pwdLastSet = types.convert_from_datetime,
-  replicationSignature = types.convert_from_hex,
-  replUpToDateVector = types.convert_from_hex,
-  repsFrom = types.convert_from_hex,
-  repsTo = types.convert_from_hex,
-  sAMAccountType = types.convert_from_enum (constants.SAM_ACCOUNT_TYPES),
-  subRefs = types.convert_from_objects,
-  userAccountControl = types.convert_from_flags (constants.USER_ACCOUNT_CONTROL),
-  wellKnownObjects = types.convert_from_objects
-)
-_PROPERTY_MAP_IN['msDs-masteredBy'] = types.convert_from_objects
-
-for k, v in _PROPERTY_MAP_IN.items ():
-  types.register_converter (k, to_ad=v)
-

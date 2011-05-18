@@ -52,8 +52,8 @@ def or_ (*args, **kwargs):
     return "".join (params)
   else:
     return u"|%s" % u"".join (params)
-20
-def connect (
+
+def ado_connect (
   cred=None,
   #~ is_password_encrypted=False,
   adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
@@ -88,7 +88,7 @@ _command_properties = {
   u"Page Size" : 500,
   u"Asynchronous" : True
 }
-def query (query_string, connection=None, **command_properties):
+def ado_query (query_string, connection=None, **command_properties):
   u"""Basic AD query, passing a raw query string straight through to an
   Active Directory, optionally using a (possibly pre-authenticated) connection
   or creating one on demand. command_properties may be specified which will be
@@ -132,7 +132,7 @@ def query (query_string, connection=None, **command_properties):
   if connection is None:
     exc.wrapped (_connection.Close)
 
-def query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree", range=None):
+def ado_query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree", range=None):
   u"""Easy way to produce a valid AD query string, with meaningful defaults. This
   is the first parameter to the :func:`query` function so the following will
   yield the display name of every user in the domain::
@@ -200,7 +200,8 @@ def root_moniker (server=None, scheme="LDAP:"):
   """
   if (server, scheme) not in _root_monikers:
     dse = root_dse (server, scheme)
-    _root_monikers[server, scheme] = _base_moniker (server, scheme) + exc.wrapped (dse.Get, "defaultNamingContext")
+    _root_monikers[server, scheme] = \
+      _base_moniker (server, scheme) + exc.wrapped (dse.Get, "defaultNamingContext")
   return _root_monikers[server, scheme]
 
 _root_objs = {}

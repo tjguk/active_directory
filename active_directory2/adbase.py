@@ -204,6 +204,18 @@ class ADBase (object):
     for result in self.search (*args, **kwargs):
       return result
 
+  def find_user (self, name=None):
+    return self.find (anr=name, objectClass="user", objectCategory="person")
+
+  def find_computer (self, name=None):
+    return self.find (anr=name, objectCategory="Computer")
+
+  def find_group (self, name):
+    return self.find (anr=name, objectCategory="group")
+
+  def find_ou (self, name):
+    return self.find (anr=name, objectCategory="organizationalUnit")
+
   def walk (self, level=0):
     subordinates = [(s, s.schema.Container) for s in self]
     yield (
