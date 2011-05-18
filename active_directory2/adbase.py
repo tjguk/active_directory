@@ -85,7 +85,10 @@ class ADBase (object):
 
   def _put (self, name, value):
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
+    if not isinstance (value, (tuple, list)):
+      value = [value]
     exc.wrapped (self.com_object.PutEx, operation, name, value)
+    exc.wrapped (self.com_object.SetInfo)
 
   def __getattr__ (self, name):
     #
@@ -142,9 +145,6 @@ class ADBase (object):
     item_identifier = self._item_identifier (item_type, item_identifier)
     exc.wrapped (self.com_object.Delete, item_type, item_identifier)
 
-  def as_string (self):
-    return self.path
-
   def __repr__ (self):
     return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
 
@@ -167,6 +167,28 @@ class ADBase (object):
   @classmethod
   def from_path (cls, path, cred=None):
     return cls (core.open_object (path, cred))
+
+  def as_string (self):
+    return self.path
+
+  def dump (self, ofile=sys.stdout):
+    def munged (value):
+      if isinstance (value, unicode):
+        value = value.encode ("ascii", "backslashreplace")
+      return value
+    ofile.write (self.as_string () + u"\n")
+    ofile.write ("[\n")
+    for property in self._properties:
+      value = exc.wrapped (getattr, self, property, None)
+      if value:
+        ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
+    ofile.write ("]\n")
+    ofile.write ("{\n")
+    for property in sorted (self.properties):
+      value = exc.wrapped (getattr, self, property, None)
+      if value:
+        ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
+    ofile.write ("}\n")
 
   def delete (self):
     """Delete this object and all its descendants. The :class:`ADBase`
@@ -233,28 +255,6 @@ class ADBase (object):
     for level, container, containers, items in self.walk ():
       for item in items:
         yield item
-
-  def as_string (self):
-    return self.path
-
-  def dump (self, ofile=sys.stdout):
-    def munged (value):
-      if isinstance (value, unicode):
-        value = value.encode ("ascii", "backslashreplace")
-      return value
-    ofile.write (self.as_string () + u"\n")
-    ofile.write ("[\n")
-    for property in self._properties:
-      value = exc.wrapped (getattr, self, property, None)
-      if value:
-        ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
-    ofile.write ("]\n")
-    ofile.write ("{\n")
-    for property in sorted (self.properties):
-      value = exc.wrapped (getattr, self, property, None)
-      if value:
-        ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
-    ofile.write ("}\n")
 
 def adbase (obj_or_path=None, cred=None):
   if obj_or_path is None:
