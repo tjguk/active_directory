@@ -48,8 +48,19 @@ def band (name, value):
 def bor (name, value):
   return u"%s:1.2.840.113556.1.4.804:=%s" % (name, value)
 
-def not_ (expression):
-  return u"!%s" % expression
+def not_ (*args, **kwargs):
+  if len (args) > 1:
+    raise TypeError ("Can only specify one expression for not")
+  if len (kwargs) > 1:
+    raise TypeError ("Can only specify one keyword arg for not")
+  if args and kwargs:
+    raise TypeError ("Can only specify arg or kwargs")
+  if args:
+    expression = args[0]
+  else:
+    for k, v in kwargs.items ():
+      expression = "%s=%s" % (k, v)
+  return u"!(%s)" % expression
 
 def within (name, dn):
   return u"%s:1.2.840.113556.1.4.1941:=%s" % (self._name, dn)
