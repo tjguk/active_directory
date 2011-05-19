@@ -111,8 +111,6 @@ from . import core
 from . import exc
 from . import utils
 
-from .core import and_, or_
-
 logger = logging.getLogger ("active_directory")
 def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))

@@ -17,49 +17,6 @@ from . import exc
 from .log import logger
 from . import utils
 
-def and_ (*args, **kwargs):
-  ur"""Combine its arguments together as a valid LDAP AND-search. Positional
-  arguments are taken to be strings already in the correct format (eg
-  'displayName=tim*') while keyword arguments will be converted into
-  an equals condition for the names and values::
-
-    from active_directory.core import and_
-
-    print and_ (
-      "whenCreated>=2010-01-01",
-      displayName="tim*", objectCategory="person"
-    )
-
-    # &(whenCreated>=2010-01-01)(displayName=tim*)(objectCategory=person)
-  """
-  params = [u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()]
-  if len (params) < 2:
-    return "".join (params)
-  else:
-    return u"&%s" % "".join (params)
-
-def or_ (*args, **kwargs):
-  ur"""Combine its arguments together as a valid LDAP OR-search. Positional
-  arguments are taken to be strings already in the correct format (eg
-  'displayName=tim*') while keyword arguments will be converted into
-  an equals condition for the names and values::
-
-    from active_directory.core import or_
-
-    print or_ (
-      "whenCreated>=2010-01-01",
-      objectCategory="person"
-    )
-
-    # |(whenCreated>=2010-01-01)(objectCategory=person)
-  """
-  params = [u"(%s)" % s for s in args] + [u"(%s=%s)" % (k, v) for (k, v) in kwargs.items ()]
-  if len (params) < 2:
-    return "".join (params)
-  else:
-    return u"|%s" % u"".join (params)
-
-
 _base_monikers = {}
 def _base_moniker (server=None, scheme="LDAP:"):
   ur"""Form a moniker from a server and scheme, returning a cached hit if available.

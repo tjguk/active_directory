@@ -8,6 +8,7 @@ from win32com.adsi import adsi
 from . import core
 from . import constants
 from . import exc
+from . import support
 from . import utils
 
 class NotAContainerError (exc.ActiveDirectoryError):
@@ -269,7 +270,7 @@ class ADBase (object):
 
       &(|((cn=tim)(sn=golden))(logonCount >= 0)(objectCategory=person))
     """
-    filter = core.and_ (*args, **kwargs)
+    filter = support.and_ (*args, **kwargs)
     for result in self.query (filter, ['ADsPath']):
       yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
 

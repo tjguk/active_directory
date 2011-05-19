@@ -6,6 +6,7 @@ import win32security
 from . import constants
 from . import core
 from . import utils
+from . import support
 
 def ularge_to_datetime (ularge):
   return utils.file_time_to_system_time (ularge)
@@ -218,10 +219,10 @@ class _Proxy (object):
     return u"%s<=%s" % (self._name, self._munge (other))
 
   def __and__ (self, other):
-    return u"%s:1.2.840.113556.1.4.803:=%s" % (self._name, self._munge (other))
+    return support.band (self._name, self._munge (other))
 
   def __or__ (self, other):
-    return u"%s:1.2.840.113556.1.4.804:=%s" % (self._name, self._munge (other))
+    return support.bor (self._name, self._munge (other))
 
   def is_within (self, dn):
     return u"%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
