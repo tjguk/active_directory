@@ -1,6 +1,8 @@
 # -*- coding: iso-8859-1 -*-
 import os, sys
+import socket
 
+import win32api
 from win32com.adsi import adsi
 
 from . import core
