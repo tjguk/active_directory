@@ -12,7 +12,7 @@ class NotAContainerError (exc.ActiveDirectoryError):
   pass
 
 class ADContainer (object):
-  """A support object which takes an existing AD COM object
+  ur"""A support object which takes an existing AD COM object
   which implements the IADsContainer interface and provides
   a corresponding iterator.
 
@@ -57,6 +57,32 @@ class ADBase (object):
   values. It can be used alone (most easily via the :func:`adbase` function
   which takes an AD path and returns an ADBase object). It also provides the
   basis for the :class:`ADObject` class.
+
+  Attributes can be set, updated or deleted by normal Python attribute access.
+  Since for identifier names AD uses hyphens which aren't valid in Python
+  identifiers, underscores will be converted to hyphens::
+
+    from active_directory2 import ad
+
+    me = ad.find_user ()
+    me.displayName
+    me.title = "Senior Programmer"
+    del me.department
+
+  Objects can be created, retrieved and removed under this object by item access.
+  A tuple of class, name must be given for the item. If the name does not have
+  a tag, the appropriate one will be determined from the class's schema, but this
+  will be slower. Additional attributes are passed in via any dict-like object::
+
+    from active_directory2 import ad
+
+    my_ou = ad.find_ou ("MyOU")
+    my_ou['user', 'cn=Tim'] = dict (sAMAccountName="tim", displayName="Tim Golden")
+    #
+    # Automatically determine that the rdn is cn=Tim
+    #
+    tim = my_ou['user', 'Tim']
+    del my_ou['user', 'Tim']
   """
 
   #
@@ -84,11 +110,15 @@ class ADBase (object):
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
 
   def _put (self, name, value):
+    ur"""Internal function to set an attribute value. It uses PutEx which requires
+    a list, whether or not the attribute is multivalued. Therefore if `value` is not
+    a tuple or a list or a subtype, it is enclosed in one. The special case of a
+    value of None is handled by clearing the attribute's value.
+    """
     operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
     if not isinstance (value, (tuple, list)):
-      value = [value]
+      value = (value,)
     exc.wrapped (self.com_object.PutEx, operation, name, value)
-    exc.wrapped (self.com_object.SetInfo)
 
   def __getattr__ (self, name):
     #
@@ -117,6 +147,11 @@ class ADBase (object):
     exc.wrapped (self.com_object.SetInfo)
 
   def _item_identifier (self, ad_class, item_identifier):
+    ur"""When creating a new object or returning an existing one, the
+    IADsContainer interface needs to know what its RDN qualifier is
+    (CN, OU, DN etc.). Introspect the schema for this class and determine
+    which property identifies it.
+    """
     item_namer = core.class_schema (ad_class, self.server, self.cred).NamingProperties
     if item_identifier.startswith ("%s=" % item_namer):
       return item_identifier
@@ -166,12 +201,18 @@ class ADBase (object):
 
   @classmethod
   def from_path (cls, path, cred=None):
+    ur"""Create an object of this class from an AD path and, optionally, credentials
+    """
     return cls (core.open_object (path, cred))
 
   def as_string (self):
     return self.path
 
   def dump (self, ofile=sys.stdout):
+    ur"""Pretty-print the contents of this object, starting with the
+    AD class definition, and followed by the attributes of this particular
+    instance.
+    """
     def munged (value):
       if isinstance (value, unicode):
         value = value.encode ("ascii", "backslashreplace")
@@ -190,13 +231,21 @@ class ADBase (object):
         ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("}\n")
 
+  def set (self, **kwargs):
+    ur"""Set several properties at once. This should be slightly faster than setting
+    the properties individually as SetInfo is called only once, at the end.
+    """
+    for name, value in kwargs:
+      self._put (name, value)
+    exc.wrapped (self.com_object.SetInfo)
+
   def delete (self):
-    """Delete this object and all its descendants. The :class:`ADBase`
+    ur"""Delete this object and all its descendants. The :class:`ADBase`
     object will persist but any attempt to read its properties will fail.
     """
     exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsDeleteOps).DeleteObject (0)
 
-  query = core.dquery
+  query = core.query
 
   def search (self, *args, **kwargs):
     """Return an iterator of :class:`ADBase` objects corresponding to
@@ -223,22 +272,47 @@ class ADBase (object):
       yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
 
   def find (self, *args, **kwargs):
+    ur"""Hand off arguments to :method:`search` and return the first result
+    """
     for result in self.search (*args, **kwargs):
       return result
 
+  #
+  # Common convenience functions
+  #
   def find_user (self, name=None):
+    ur"""Return the first user object matching `name`. Ambiguous name resolution
+    is used, so `name` can match display name or account name. If no name is
+    passed, the logged-on user is found.
+    """
+    name = name or exc.wrapped (win32api.GetUserName)
     return self.find (anr=name, objectClass="user", objectCategory="person")
 
   def find_computer (self, name=None):
+    ur"""Return the first computer object matching `name`. Ambiguous name resolution
+    is used, so `name` can match display name or account name. If no name is
+    passed, this computer is found.
+    """
+    name = name or exc.wrapped (socket.gethostname)
     return self.find (anr=name, objectCategory="Computer")
 
   def find_group (self, name):
+    ur"""Return the first group object matching `name`. Ambiguous name resolution
+    is used, so `name` can match display name or account name.
+    """
     return self.find (anr=name, objectCategory="group")
 
   def find_ou (self, name):
+    ur"""Return the first organizational unit object matching `name`. Ambiguous name resolution
+    is used, so `name` can match display name or account name.
+    """
     return self.find (anr=name, objectCategory="organizationalUnit")
 
   def walk (self, level=0):
+    ur"""Mimic the behaviour of Python `os.walk` iterator.
+
+    :return: iterator of level, this container, containers, items
+    """
     subordinates = [(s, s.schema.Container) for s in self]
     yield (
       level,
@@ -252,11 +326,22 @@ class ADBase (object):
           yield walked
 
   def flat (self):
+    ur"""Return a flat iteration over all items under this container.
+    """
     for level, container, containers, items in self.walk ():
       for item in items:
         yield item
 
 def adbase (obj_or_path=None, cred=None):
+  ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
+
+  * If `obj_or_path` is None, return the root of the default AD installation
+  * If `obj_or_path` is an existing :class:`ADBase` object, return it
+  * Otherwise, assume that `obj_or_path` is an LDAP path and return the
+    corresponding :class:`ADBase` object
+
+  :param cred: anything accepted by :func:`credentials.credentials`
+  """
   if obj_or_path is None:
     return ADBase (core.root_obj (), cred=cred)
   elif isinstance (obj_or_path, ADBase):

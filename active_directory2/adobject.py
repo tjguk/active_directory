@@ -74,36 +74,6 @@ class ADObject (adbase.ADBase):
       cls._converters = types.Converters (cls)
     return cls._converters
 
-  def set (self, **kwds):
-    u"""Set a number of values at one time. Should be
-     a little more efficient than assigning properties
-     one after another.
-
-    eg,
-
-      import active_directory
-      user = active_directory.find_user ("goldent")
-      user.set (displayName = "Tim Golden", description="SQL Developer")
-    """
-    for k, v in kwds.items ():
-      self._put (k, v)
-    exc.wrapped (self.com_object.SetInfo)
-
-  def find_user (self, name=None):
-    u"""Make a special case of (the common need of) finding a user
-    either by username or by display name
-    """
-    name = name or exc.wrapped (win32api.GetUserName)
-    return self.find (objectClass="user", objectCategory="person", anr=name)
-
-  def find_ou (self, name):
-    u"""Convenient alias for find_organizational_unit"""
-    return self.find (objectCategory="Organizational-Unit", anr=name)
-
-  def find_group (self, name):
-    u"""Convenient alias for find_organizational_unit"""
-    return self.find (objectCategory="group", anr=name)
-
 class WinNT (ADObject):
 
   def __eq__ (self, other):

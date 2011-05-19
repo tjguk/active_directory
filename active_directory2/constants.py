@@ -1,10 +1,26 @@
 # -*- coding: iso-8859-1 -*-
+import fnmatch
+import re
+
 from win32com import adsi
 from win32com.adsi import adsicon
 
 from . import utils
 
-Unset = object ()
+class _Unset (object):
+  def __repr__ (self):
+    return "<Unset>"
+Unset = _Unset ()
+
+def from_pattern (pattern, name):
+  ur"""Helper function to find the common pattern among a group
+  of like-named constants. eg if the pattern is FILE_ACCESS_*
+  then the part of the name after FILE_ACCESS_ will be returned.
+  """
+  if pattern is None:
+    return name
+  else:
+    return re.search (pattern.replace ("*", r"(\w+)"), name).group (1)
 
 #
 # For ease of presentation, ms-style constant lists are
@@ -54,11 +70,27 @@ class Enum (object):
   def __str__ (self):
     return str (self._name_map)
 
+  @classmethod
+  def from_pattern (cls, pattern=u"*", excluded=[], namespace=adsicon):
+    u"""Factory method to return a class instance from a wildcard name pattern. This is
+    the most common method of constructing a list of constants by passing in, eg,
+    FILE_ATTRIBUTE_* and the win32file module as the namespace.
+    """
+    d = dict (
+      (from_pattern (pattern, key), getattr (namespace, key)) for \
+        key in dir (namespace) if \
+        fnmatch.fnmatch (key, pattern) and \
+        key not in excluded
+    )
+    return cls (**d)
+
   def item_names (self):
     return self._name_map.items ()
 
   def item_numbers (self):
     return self._number_map.items ()
+
+ADS_SEARCHPREF = Enum.from_pattern ("ADS_SEARCHPREF_*")
 
 ADS_SYSTEMFLAG = Enum (
   DISALLOW_DELETE             = 0x80000000,

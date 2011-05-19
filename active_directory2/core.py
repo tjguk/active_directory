@@ -1,4 +1,10 @@
 # -*- coding: iso-8859-1 -*-
+ur"""Core functionality behind the active_directory2 functionality.
+The functions in this module either return strings or Python COM
+objects representing the underlying ADSI COM objects. These will
+be wrapped by :mod:`ADBase` and other modules to give extended
+functionality, but they can be useful on their own.
+"""
 import re
 
 import win32com.client
@@ -12,7 +18,7 @@ from .log import logger
 from . import utils
 
 def and_ (*args, **kwargs):
-  """Combine its arguments together as a valid LDAP AND-search. Positional
+  ur"""Combine its arguments together as a valid LDAP AND-search. Positional
   arguments are taken to be strings already in the correct format (eg
   'displayName=tim*') while keyword arguments will be converted into
   an equals condition for the names and values::
@@ -33,7 +39,7 @@ def and_ (*args, **kwargs):
     return u"&%s" % "".join (params)
 
 def or_ (*args, **kwargs):
-  """Combine its arguments together as a valid LDAP OR-search. Positional
+  ur"""Combine its arguments together as a valid LDAP OR-search. Positional
   arguments are taken to be strings already in the correct format (eg
   'displayName=tim*') while keyword arguments will be converted into
   an equals condition for the names and values::
@@ -53,118 +59,15 @@ def or_ (*args, **kwargs):
   else:
     return u"|%s" % u"".join (params)
 
-def ado_connect (
-  cred=None,
-  #~ is_password_encrypted=False,
-  adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
-):
-  u"""Return an ADODB connection, optionally authenticated by cred
-
-  :param cred: anything accepted by :func:`credentials.credentials`
-  :param adsi_flags: any combination of :data:`constants.AUTHENTICATION_TYPES`
-  :returns: an ADO connection, optionally authenticated by `cred`
-  """
-  cred = credentials.credentials (cred)
-  if cred is None:
-    cred = credentials.Passthrough
-  connection = exc.wrapped (win32com.client.Dispatch, u"ADODB.Connection")
-  connection.Provider = u"ADsDSOObject"
-  if cred.username:
-    connection.Properties ("User ID").Value = cred.username
-  if cred.password:
-    connection.Properties ("Password").Value = cred.password
-  #~ connection.Properties ("Encrypt Password").Value = is_password_encrypted
-  connection.Properties ("ADSI Flag").Value = adsi_flags | cred.authentication_type
-  exc.wrapped (connection.Open, u"Active Directory Provider")
-  return connection
-
-#
-# If Page Size is unset (system default is 0) then a maximum of 1000
-# records will be returned from any query before an error is raised
-# by the AD provider. Therefore we default to 500 to give a reasonable
-# default. This can still be overridden at query level.
-#
-_command_properties = {
-  u"Page Size" : 500,
-  u"Asynchronous" : True
-}
-def ado_query (query_string, connection=None, **command_properties):
-  u"""Basic AD query, passing a raw query string straight through to an
-  Active Directory, optionally using a (possibly pre-authenticated) connection
-  or creating one on demand. command_properties may be specified which will be
-  passed through to the ADO command with underscores replaced by spaces. Useful
-  values include:
-
-  =============== ==========================================================
-  page_size       How many records to return in one go
-  size_limit      Stop after returning this many records
-  cache_results   Boolean: cache results; turn off if a large result
-  time_limit      Stop returning records after this many seconds
-  timeout         Stop waiting for the records to start after this many seconds
-  asynchronous    Boolean: Start returning records immediately
-  sort_on         field name to sort on
-  =============== ==========================================================
-
-  :param query_string: An AD query string in any acceptable format. See :func:`query_string`
-                       for an easy way of producing this
-  :param connection: (optional) An ADODB.Connection, as provided by :func:`connect`. If
-                     this is supplied it will be used and not closed. If it is not supplied,
-                     a default connection will be created, used and then closed.
-  :param command_properties: A collection of keywords which will be passed through to the
-                             ADO query as Properties.
-  """
-  command = exc.wrapped (win32com.client.Dispatch, u"ADODB.Command")
-  _connection = connection or connect ()
-  command.ActiveConnection = _connection
-
-  for k, v in _command_properties.items ():
-    command.Properties (k.replace (u"_", u" ")).Value = v
-  for k, v in command_properties.items ():
-    command.Properties (k.replace (u"_", u" ")).Value = v
-  command.CommandText = query_string
-
-  results = []
-  recordset, result = exc.wrapped (command.Execute)
-  while not recordset.EOF:
-    yield dict ((field.Name, field.Value) for field in recordset.Fields)
-    exc.wrapped (recordset.MoveNext)
-
-  if connection is None:
-    exc.wrapped (_connection.Close)
-
-def ado_query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree", range=None):
-  u"""Easy way to produce a valid AD query string, with meaningful defaults. This
-  is the first parameter to the :func:`query` function so the following will
-  yield the display name of every user in the domain::
-
-    import active_directory as ad
-
-    qs = ad.query_string (filter="(objectClass=User)", attributes=["displayName"])
-    for u in ad.query (qs):
-      print u['displayName']
-
-  :param filter: An AD filter string to limit the search [no filter]. The :func:`or_` and :func:`and_`
-                 functions provide an easy way to produce a valid filter, optionally combined with the
-                 schema class.
-  :param base: An LDAP:// moniker representing the starting point of the search [domain root]
-  :param attributes: Iterable of attribute names [ADsPath]
-  :param scope: One of - Subtree, Base, OneLevel. Subtree (the default) is the most common and does
-                the search you expect. OneLevel enumerates the children of the base item. Base
-                checks for the existence of the object itself. [Subtree].
-  :param range: Limit the number of returns of multivalued attributes [no range]
-  """
-  if base is None:
-    base = core.root_moniker ()
-  if filter and not re.match (r"\([^)]+\)", filter):
-    filter = u"(%s)" % filter
-  segments = [u"<%s>" % base, filter, ",".join (attributes)]
-  if range:
-    segments += [u"Range=%s-%s" % range]
-  segments += [scope]
-  return u";".join (segments)
 
 _base_monikers = {}
 def _base_moniker (server=None, scheme="LDAP:"):
+  ur"""Form a moniker from a server and scheme, returning a cached hit if available.
+
+  :param server: A valid server name or `None` for a a serverless moniker
+  :param scheme: A valid AD scheme; typically LDAP: but could be GC: or WinNT:
+  :return: A string of the form LDAP://<server>/ where the server segment might be missing
+  """
   if (server, scheme) not in _base_monikers:
     if server:
       _base_monikers[server, scheme] = scheme + "//" + server + "/"
@@ -174,10 +77,10 @@ def _base_moniker (server=None, scheme="LDAP:"):
 
 _root_dses = {}
 def root_dse (server=None, scheme="LDAP:"):
-  u"""Return the object representing the RootDSE for a domain, optionally
+  ur"""Return the object representing the RootDSE for a domain, optionally
   specified by a server and a scheme (typically LDAP: or GC:).
 
-  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param server: A specific server whose rootDSE is to be found [None - serverless]
   :param scheme: Typically LDAP: or GC: [LDAP:]
   :returns: The COM Object corresponding to the RootDSE for the server or domain
   """
@@ -190,7 +93,7 @@ def root_dse (server=None, scheme="LDAP:"):
 
 _root_monikers = {}
 def root_moniker (server=None, scheme="LDAP:"):
-  u"""Return the moniker representing the domain specified by a server and
+  ur"""Return the moniker representing the domain specified by a server and
   a scheme (typically LDAP: or GC:). If you need the corresponding object,
   use :func:`root_obj`.
 
@@ -206,7 +109,7 @@ def root_moniker (server=None, scheme="LDAP:"):
 
 _root_objs = {}
 def root_obj (server=None, scheme="LDAP:", cred=None):
-  u"""Return the COM object representing the domain specified by a server and
+  ur"""Return the COM object representing the domain specified by a server and
   a scheme (typically LDAP: or GC:), optionally authenticated. If you only
   need the moniker, use :func:`root_moniker`.
 
@@ -219,7 +122,7 @@ def root_obj (server=None, scheme="LDAP:", cred=None):
 
 _schema_objs = {}
 def schema_obj (server=None, cred=None):
-  u"""Return the COM object representing the schema for the domain specified
+  ur"""Return the COM object representing the schema for the domain specified
   by a server, optionally authenticated.
 
   :param server: A specific server whose rootDSE is to be found [none - any server]
@@ -236,13 +139,15 @@ def schema_obj (server=None, cred=None):
 
 _class_schemas = {}
 def class_schema (class_name, server=None, cred=None):
+  ur""":returns: the name of the schema for a particular AD Class
+  """
   if class_name not in _class_schemas:
     _class_schemas[class_name] = open_object (_base_moniker (server) + "schema/%s" % class_name)
   return _class_schemas[class_name]
 
 _attributes = {}
 def attributes (names=["*"], server=None, cred=None):
-  u"""Return an iteration of name, dict pairs representing all the attributes named.
+  ur"""Return an iteration of name, dict pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
 
   :param names: A list of names for attributes to be returned [all attributes]
@@ -266,10 +171,32 @@ def attributes (names=["*"], server=None, cred=None):
     yield name, _attributes.get (name)
 
 def attribute (name, server=None, cred=None):
+  ur"""Return the first attribute corresponding to `name` from :func:`attributes`.
+
+  :param name: The name of an attribute whose data is to be returned
+  :param server: A specific server whose rootDSE is to be found [`None` - any server]
+  :param cred: anything accepted by :func:`credentials.credentials`
+
+  :returns: `name`, `info` per :func:`attributes` for the named attribute
+  """
   for name, attr in attributes ([name], server, cred):
     return attr
 
-def dquery (obj, filter, attributes=None, flags=0):
+def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
+  ur"""Run an LDAP query specified by `filter` against the AD object `obj`.
+  This query is at the heart of the search functionality in this package.
+  It can be called directly either from this module or from any of the
+  higher-level AD objects such as :class:`adbase.ADBase` which expose
+  it as a method.
+
+  Typical usage:
+
+  :param obj: An ADSI object which implements the IDirectorySearch interface
+  :param filter: A valid ADSI/LDAP filter string
+  :param attributes: A list of attributes (AD fields) to return. None => All
+  :param flags: A combination of :data:`constants.ADS_SEARCHPREF` values
+  :returns: iterator over a dictionary mapping attribute to values
+  """
   SEARCH_PREFERENCES = {
     adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
     adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
@@ -296,7 +223,7 @@ def dquery (obj, filter, attributes=None, flags=0):
     exc.wrapped (directory_search.CloseSearchHandle, hSearch)
 
 def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAULT):
-  """Open an AD object represented by `moniker`, optionally authenticated. You
+  ur"""Open an AD object represented by `moniker`, optionally authenticated. You
   will not normally call this yourself: it is used internally by the AD objects.
 
   :param moniker: A complete AD moniker representing an AD object

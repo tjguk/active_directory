@@ -69,7 +69,7 @@ def file_time_to_system_time (ularge):
   filetime = FILETIME (ularge.LowPart, ularge.HighPart)
   systemtime = SYSTEMTIME ()
   if kernel32.FileTimeToSystemTime (ctypes.pointer (filetime), ctypes.byref (systemtime)) == 0:
-    error (RuntimeError)
+    error (WindowsError)
   return datetime.datetime (
     systemtime.wYear, systemtime.wMonth, systemtime.wDay,
     systemtime.wHour, systemtime.wMinute, systemtime.wSecond,

@@ -17,21 +17,21 @@ to stop you using it for any AD operations.
 
 Key functions are:
 
-* :func:`connection`, :func:`query` and :func:`query_string` - these offer the
+* :func:`ado_connection`, :func:`ado_query` and :func:`ado_query_string` - these offer the
   most raw functionality: slightly assisting an ADO query and returning a
   Python dictionary of results::
 
     import datetime
-    import active_directory as ad
+    from active_directory2 import ado
     #
     # Find all objects created this month in creation order
     #
     this_month = datetime.date.today ().replace (day=1)
-    query_string = ad.query_string (
-      filter=ad.schema.whenCreated >= this_month,
+    query_string = ado.query_string (
+      filter=core.schema.whenCreated >= this_month,
       attributes=["distinguishedName", "whenCreated"]
     )
-    for new_object in ad.query (query_string, sort_on="whenCreated"):
+    for new_object in ado.query (query_string, sort_on="whenCreated"):
       print "%(distinguishedName)s => %(whenCreated)s" % new_object
 
 * :func:`ad` - this is the wrap-all function which transforms an LDAP: moniker
@@ -87,7 +87,7 @@ Key functions are:
     for computer in ad.search (objectClass='computer'):
       print computer.displayName
 
-(c) Tim Golden <mail@timgolden.me.uk> October 2004-2010
+(c) Tim Golden <mail@timgolden.me.uk> October 2004-2011
 Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
@@ -96,7 +96,7 @@ the pywin32 extensions without which this wouldn't
 have been possible. (Or would at least have been much
 more work...)
 """
-__VERSION__ = u"1.0rc1"
+__VERSION__ = u"2.0rc1"
 
 import os, sys
 import logging
@@ -104,17 +104,14 @@ import logging
 from win32com import adsi
 import win32com.client
 
+from . import adbase
 from . import adobject
 from . import constants
 from . import core
-from . import credentials
 from . import exc
-from . import adbase
-from . import types
 from . import utils
 
-from .core import ado_connect, ado_query, ado_query_string, and_, or_
-from .types import schema
+from .core import and_, or_
 
 logger = logging.getLogger ("active_directory")
 def enable_debugging ():
@@ -165,29 +162,29 @@ def AD (server=None, cred=None, use_gc=False):
 # Convenience functions for common needs
 #
 def find (*args, **kwargs):
-  return root ().find (*args, **kwargs)
+  return _root ().find (*args, **kwargs)
 
 def find_user (name=None):
-  return root ().find_user (name)
+  return _root ().find_user (name)
 
 def find_computer (name=None):
-  return root ().find_computer (name)
+  return _root ().find_computer (name)
 
 def find_group (name):
-  return root ().find_group (name)
+  return _root ().find_group (name)
 
 def find_ou (name):
-  return root ().find_ou (name)
+  return _root ().find_ou (name)
 
 def search (*args, **kwargs):
-  return root ().search (*args, **kwargs)
+  return _root ().search (*args, **kwargs)
 
 #
 # root returns a cached object referring to the
 #  root of the logged-on active directory tree.
 #
 _ad = None
-def root (server=None, cred=None):
+def _root (server=None, cred=None):
   global _ad
   if _ad is None:
     _ad = AD (cred=cred)
