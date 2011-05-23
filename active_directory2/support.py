@@ -43,12 +43,37 @@ def or_ (*args, **kwargs):
     return u"|%s" % u"".join (params)
 
 def band (name, value):
+  ur"""Perform bitwise-and matching between an AD field and a numeric
+  value. A typical use would be to check whether an account is disabled::
+
+    from active_directory2 import ad, constants, support
+
+    for disabled_account in ad.query (
+      support.band (
+        "userAccountControl",
+        constants.USER_ACCOUNT_CONTROL.ACCOUNTDISABLE
+      )
+    ):
+      print "%s (%s)" % (disabled_account.displayName, disabled_account.sAMAccountName)
+  """
   return u"%s:1.2.840.113556.1.4.803:=%s" % (name, value)
 
 def bor (name, value):
+  ur"""Perform bitwise-or matching between an AD field and a numeric value.
+  """
   return u"%s:1.2.840.113556.1.4.804:=%s" % (name, value)
 
 def not_ (*args, **kwargs):
+  ur"""Return the logically negated form of the one expression which can be either
+  a preformed expression in a positional argument or a keyword arg which will be
+  treated as an equality check::
+
+    from active_directory2 import support
+
+    account_disabled = support.band ("userAccountControl", constants.USER_ACCOUNT_CONTROL.ACCOUNTDISABLE)
+    print support.not_ (account_disabled)
+    print support.not_ (sAMAccountName="tim")
+  """
   if len (args) > 1:
     raise TypeError ("Can only specify one expression for not")
   if len (kwargs) > 1:
@@ -63,4 +88,13 @@ def not_ (*args, **kwargs):
   return u"!(%s)" % expression
 
 def within (name, dn):
-  return u"%s:1.2.840.113556.1.4.1941:=%s" % (self._name, dn)
+  ur"""Return the LDAP string expression for efficiently searching up in a
+  hierarchy to discover a parent. This is typically used to check for
+  membership in a group through no matter how many levels::
+
+    from active_directory2 import ad, support
+
+    domain_admins = ad.find_group ("Domain Admins")
+    print support.within ("memberOf", domain_admins.distinguishedName)
+  """
+  return u"%s:1.2.840.113556.1.4.1941:=%s" % (name, dn)

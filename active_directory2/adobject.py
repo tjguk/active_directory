@@ -185,7 +185,7 @@ class Group (ADObject):
       for result in group.walk ():
         yield result
 
-def ad (obj_or_path, cred=None):
+def adobject (obj_or_path, cred=None):
   u"""Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
   is now  intended to be:

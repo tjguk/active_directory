@@ -102,7 +102,7 @@ def query_string (filter="", base=None, attributes=[u"ADsPath"], scope=u"Subtree
     for u in ad.query (qs):
       print u['displayName']
 
-  :param filter: An AD filter string to limit the search [no filter]. The :func:`or_` and :func:`and_`
+  :param filter: An AD filter string to limit the search [no filter]. The :func:`support.or_` and :func:`support.and_`
                  functions provide an easy way to produce a valid filter, optionally combined with the
                  schema class.
   :param base: An LDAP:// moniker representing the starting point of the search [domain root]

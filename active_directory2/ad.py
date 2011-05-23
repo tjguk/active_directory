@@ -187,3 +187,4 @@ def _root (server=None, cred=None):
   if _ad is None:
     _ad = AD (cred=cred)
   return _ad
+
