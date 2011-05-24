@@ -2,19 +2,14 @@
 import re
 
 import win32com.client
-from win32com import adsi
-from win32com.adsi import adsicon
 
 from . import constants
 from . import core
 from . import credentials
 from . import exc
-from .log import logger
-from . import utils
 
 def connect (
   cred=None,
-  #~ is_password_encrypted=False,
   adsi_flags=constants.AUTHENTICATION_TYPES.DEFAULT
 ):
   u"""Return an ADODB connection, optionally authenticated by cred
@@ -32,7 +27,6 @@ def connect (
     connection.Properties ("User ID").Value = cred.username
   if cred.password:
     connection.Properties ("Password").Value = cred.password
-  #~ connection.Properties ("Encrypt Password").Value = is_password_encrypted
   connection.Properties ("ADSI Flag").Value = adsi_flags | cred.authentication_type
   exc.wrapped (connection.Open, u"Active Directory Provider")
   return connection
