@@ -107,4 +107,4 @@ def searchable_sid (sid):
               the binary version of the Sid
   :returns: A string consisting of the hexadecimal version of the `sid` buffer
   """
-  return u"".join (u"%02x" % ord (x) for x in buffer (sid))
+  return u"".join (u"\\%02x" % ord (x) for x in buffer (sid))
