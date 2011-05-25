@@ -98,3 +98,13 @@ def within (name, dn):
     print support.within ("memberOf", domain_admins.distinguishedName)
   """
   return u"%s:1.2.840.113556.1.4.1941:=%s" % (name, dn)
+
+def searchable_sid (sid):
+  ur"""Return a string version of the binary Sid which can be used
+  for searching, eg to find a user account by well-known Sid.
+
+  :param sid: a Sid object which exposes a buffer whose bytes consist of
+              the binary version of the Sid
+  :returns: A string consisting of the hexadecimal version of the `sid` buffer
+  """
+  return u"".join (u"%02x" % ord (x) for x in buffer (sid))
