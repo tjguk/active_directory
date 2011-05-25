@@ -6,7 +6,10 @@ try:
   unittest0.skipUnless
   unittest0.skip
 except AttributeError:
-  import unittest2 as unittest
+  try:
+    import unittest2 as unittest
+  except ImportError:
+    raise RuntimeError ("You need unittest2 or its equivalent in Python 2.7 / 3.2+")
 else:
   unittest = unittest0
 del unittest0
