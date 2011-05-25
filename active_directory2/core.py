@@ -15,6 +15,7 @@ from . import constants
 from . import credentials
 from . import exc
 from .log import logger
+from . import support
 from . import utils
 
 _base_monikers = {}
@@ -115,11 +116,11 @@ def attributes (names=["*"], server=None, cred=None):
   schema = schema_obj (server, cred)
   unknown_names = set (names) - set (_attributes)
   if unknown_names:
-    filter = and_ (
+    filter = support.and_ (
       "objectCategory=attributeSchema",
-      or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
+      support.or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
     )
-    for row in dquery (schema, filter, ['lDAPDisplayName', 'ADsPath']):
+    for row in query (schema, filter, ['lDAPDisplayName', 'ADsPath']):
       _attributes[row['lDAPDisplayName'][0]] = open_object (row['ADsPath'][0])
 
   if names == ['*']:
@@ -138,6 +139,8 @@ def attribute (name, server=None, cred=None):
   """
   for name, attr in attributes ([name], server, cred):
     return attr
+  else:
+    raise exc.ActiveDirectoryError ("Attribute %s is not in the schema%s" % (name, (" for server %s" % server) if server else ""))
 
 def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
   ur"""Run an LDAP query specified by `filter` against the AD object `obj`.
