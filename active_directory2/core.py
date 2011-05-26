@@ -100,7 +100,7 @@ def class_schema (class_name, server=None, cred=None):
   ur""":returns: the name of the schema for a particular AD Class
   """
   if class_name not in _class_schemas:
-    _class_schemas[class_name] = open_object (_base_moniker (server) + "schema/%s" % class_name)
+    _class_schemas[class_name] = open_object (_base_moniker (server) + "schema/%s" % class_name, cred=cred)
   return _class_schemas[class_name]
 
 _attributes = {}

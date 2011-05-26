@@ -11,11 +11,10 @@ del unittest0
 
 import win32com.client
 
-from active_directory2 import core
-from active_directory2.tests import utils
+from active_directory2 import core, credentials
+from active_directory2.tests import config
 
-dc = utils.get_config ("general", "dc")
-domain_dn = utils.get_config ("general", "domain_dn")
+com_object = win32com.client.CDispatch
 
 class TestBaseMoniker (unittest.TestCase):
 
@@ -42,30 +41,29 @@ class TestBaseMoniker (unittest.TestCase):
 
 class TestRootDSE (unittest.TestCase):
 
-  com_object = win32com.client.CDispatch
-
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
   def test_defaults (self):
     obj = core.root_dse ()
-    self.assertIsInstance (obj, self.com_object)
+    self.assertIsInstance (obj, com_object)
     self.assertEquals (obj.ADsPath, "LDAP://rootDSE")
 
-  @unittest.skipUnless (dc, "No DC in setup.ini [general]")
   def test_server (self):
-    obj = core.root_dse (server=dc)
-    self.assertIsInstance (obj, self.com_object)
-    self.assertEquals (obj.ADsPath, "LDAP://%s/rootDSE" % dc)
+    obj = core.root_dse (server=config.server)
+    self.assertIsInstance (obj, com_object)
+    self.assertEquals (obj.ADsPath, "LDAP://%s/rootDSE" % config.server)
 
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
   def test_scheme (self):
     obj = core.root_dse (scheme="GC:")
-    self.assertIsInstance (obj, self.com_object)
+    self.assertIsInstance (obj, com_object)
     self.assertEquals (obj.ADsPath, "GC://rootDSE")
 
-  @unittest.skipUnless (dc, "No DC in setup.ini [general]")
   def test_server_and_scheme (self):
-    obj = core.root_dse (server=dc, scheme="GC:")
-    self.assertIsInstance (obj, self.com_object)
-    self.assertEquals (obj.ADsPath, "GC://%s/rootDSE" % dc)
+    obj = core.root_dse (server=config.server, scheme="GC:")
+    self.assertIsInstance (obj, com_object)
+    self.assertEquals (obj.ADsPath, "GC://%s/rootDSE" % config.server)
 
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
   def test_cacheing (self):
     obj1 = core.root_dse ()
     obj2 = core.root_dse ()
@@ -74,26 +72,79 @@ class TestRootDSE (unittest.TestCase):
 class TestRootMoniker (unittest.TestCase):
 
   def _expected (self, server=None, scheme="LDAP:"):
-    return scheme + "//" + ((server + "/") if server else "") + domain_dn
+    return scheme + "//" + ((server + "/") if server else "") + config.domain_dn
 
-  @unittest.skipUnless (domain_dn, "No domain_dn in setup.ini [general]")
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
   def test_defaults (self):
     self.assertEquals (core.root_moniker (), self._expected ())
 
-  @unittest.skipUnless (domain_dn, "No domain_dn in setup.ini [general]")
-  @unittest.skipUnless (dc, "No dc in setup.ini [general]")
   def test_server (self):
-    self.assertEquals (core.root_moniker (server=dc), self._expected (server=dc))
+    self.assertEquals (core.root_moniker (server=config.server), self._expected (server=config.server))
 
-  @unittest.skipUnless (domain_dn, "No domain_dn in setup.ini [general]")
-  @unittest.skipUnless (dc, "No dc in setup.ini [general]")
   def test_server_and_scheme (self):
-    self.assertEquals (core.root_moniker (server=dc, scheme="GC:"), self._expected (server=dc, scheme="GC:"))
+    self.assertEquals (core.root_moniker (server=config.server, scheme="GC:"), self._expected (server=config.server, scheme="GC:"))
 
-  @unittest.skipUnless (domain_dn, "No domain_dn in setup.ini [general]")
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
   def test_scheme (self):
     self.assertEquals (core.root_moniker (scheme="GC:"), self._expected (scheme="GC:"))
 
-  @unittest.skipUnless (domain_dn, "No domain_dn in setup.ini [general]")
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
   def test_cacheing (self):
     self.assertIs (core.root_moniker (), core.root_moniker ())
+
+class TestRootObj (unittest.TestCase):
+
+  def _test (self, *args, **kwargs):
+    root_obj = core.root_obj (cred=config.cred, *args, **kwargs)
+    self.assertIsInstance (root_obj, com_object)
+    self.assertEquals (root_obj.ADsPath, core.root_moniker (*args, **kwargs))
+
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
+  def test_defaults (self):
+    self._test ()
+
+  def test_server (self):
+    self._test (server=config.server)
+
+  def test_server_and_scheme (self):
+    self._test (server=config.server, scheme="GC:")
+
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
+  def test_scheme (self):
+    self._test (scheme="GC:")
+
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
+  def test_cacheing (self):
+    self.assertIs (core.root_obj (cred=config.cred), core.root_obj (cred=config.cred))
+
+class TestSchemaObj (unittest.TestCase):
+
+  def _expected (self, server=None):
+    return "LDAP://" + ((server + "/") if server else "") + "CN=Schema,CN=Configuration," + config.domain_dn
+
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
+  def test_defaults (self):
+    schema_obj = core.schema_obj (cred=config.cred)
+    self.assertIsInstance (schema_obj, com_object)
+    self.assertEquals (schema_obj.ADsPath, self._expected ())
+
+  def test_server (self):
+    schema_obj = core.schema_obj (config.server, cred=config.cred)
+    self.assertIsInstance (schema_obj, com_object)
+    self.assertEquals (schema_obj.ADsPath, self._expected (config.server))
+
+class TestClassSchema (unittest.TestCase):
+
+  def _expected (self, class_name, server=None):
+    return "LDAP://" + ((server + "/") if server else "") + class_name + ",schema"
+
+  @unittest.skipUnless (config.test_serverless, "Serverless testing not enabled")
+  def test_class_with_defaults (self):
+    class_schema = core.class_schema ("user")
+    self.assertIsInstance (class_schema, com_object)
+    self.assertEquals (class_schema.ADsPath, self._expected ("user"))
+
+  def test_class_with_server (self):
+    class_schema = core.class_schema ("user", server=config.server, cred=config.cred)
+    self.assertIsInstance (class_schema, com_object)
+    self.assertEquals (class_schema.ADsPath, self._expected ("user", server=config.server))
