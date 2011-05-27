@@ -76,7 +76,9 @@ def root_obj (server=None, scheme="LDAP:", cred=None):
   :param cred: anything accepted by :func:`credentials.credentials`
   :returns: The COM object corresponding to the domain
   """
-  return open_object (root_moniker (server, scheme), cred=cred)
+  if server not in _root_objs:
+    _root_objs[server] = open_object (root_moniker (server, scheme), cred=cred)
+  return _root_objs[server]
 
 _schema_objs = {}
 def schema_obj (server=None, cred=None):
@@ -105,7 +107,7 @@ def class_schema (class_name, server=None, cred=None):
 
 _attributes = {}
 def attributes (names=["*"], server=None, cred=None):
-  ur"""Return an iteration of name, dict pairs representing all the attributes named.
+  ur"""Return an iteration of name, obj pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
 
   :param names: A list of names for attributes to be returned [all attributes]
