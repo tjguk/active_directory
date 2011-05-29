@@ -11,7 +11,7 @@ del unittest0
 
 import win32com.client
 
-from active_directory2 import core, credentials
+from active_directory2 import core, credentials, exc
 from active_directory2.tests import config
 
 com_object = win32com.client.CDispatch
@@ -41,7 +41,7 @@ class TestBaseMoniker (unittest.TestCase):
 
 class TestRootDSE (unittest.TestCase):
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_defaults (self):
     obj = core.root_dse ()
     self.assertIsInstance (obj, com_object)
@@ -52,7 +52,7 @@ class TestRootDSE (unittest.TestCase):
     self.assertIsInstance (obj, com_object)
     self.assertEquals (obj.ADsPath, "LDAP://%s/rootDSE" % config.server)
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
     obj = core.root_dse (scheme="GC:")
     self.assertIsInstance (obj, com_object)
@@ -63,7 +63,7 @@ class TestRootDSE (unittest.TestCase):
     self.assertIsInstance (obj, com_object)
     self.assertEquals (obj.ADsPath, "GC://%s/rootDSE" % config.server)
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_cacheing (self):
     obj1 = core.root_dse ()
     obj2 = core.root_dse ()
@@ -74,7 +74,7 @@ class TestRootMoniker (unittest.TestCase):
   def _expected (self, server=None, scheme="LDAP:"):
     return scheme + "//" + ((server + "/") if server else "") + config.domain_dn
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_defaults (self):
     self.assertEquals (core.root_moniker (), self._expected ())
 
@@ -84,37 +84,37 @@ class TestRootMoniker (unittest.TestCase):
   def test_server_and_scheme (self):
     self.assertEquals (core.root_moniker (server=config.server, scheme="GC:"), self._expected (server=config.server, scheme="GC:"))
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
     self.assertEquals (core.root_moniker (scheme="GC:"), self._expected (scheme="GC:"))
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_cacheing (self):
     self.assertIs (core.root_moniker (), core.root_moniker ())
 
 class TestRootObj (unittest.TestCase):
 
   def _test (self, *args, **kwargs):
-    print "About to _test with", args, kwargs
     root_obj = core.root_obj (cred=config.cred, *args, **kwargs)
     self.assertIsInstance (root_obj, com_object)
     self.assertEquals (root_obj.ADsPath, core.root_moniker (*args, **kwargs))
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_defaults (self):
     self._test ()
 
   def test_server (self):
     self._test (server=config.server)
 
+  @unittest.skip ("Doesn't seem possible to come with a reproducible test")
   def test_server_and_scheme (self):
     self._test (server=config.server, scheme="GC:")
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
     self._test (scheme="GC:")
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_cacheing (self):
     self.assertIs (core.root_obj (cred=config.cred), core.root_obj (cred=config.cred))
 
@@ -123,7 +123,7 @@ class TestSchemaObj (unittest.TestCase):
   def _expected (self, server=None):
     return "LDAP://" + ((server + "/") if server else "") + "CN=Schema,CN=Configuration," + config.domain_dn
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_defaults (self):
     schema_obj = core.schema_obj (cred=config.cred)
     self.assertIsInstance (schema_obj, com_object)
@@ -140,9 +140,12 @@ class TestClassSchema (unittest.TestCase):
     #
     # The abstract schema is a special, serverless object
     #
-    return "LDAP://" + class_name + ",schema"
+    if config.is_inside_domain or server is None:
+      return "LDAP://" + class_name + ",schema"
+    else:
+      return "LDAP://%s/%s,schema" % (server, class_name)
 
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_class_with_defaults (self):
     class_schema = core.class_schema ("user")
     self.assertIsInstance (class_schema, com_object)
@@ -155,16 +158,55 @@ class TestClassSchema (unittest.TestCase):
 
 class TestAttributes (unittest.TestCase):
 
-  def setUp (self):
-    self.all_attributes = set (i.ldapDisplayName for i in core.schema_obj () if i.Class == "attributeSchema")
-
-  @unittest.skipUnless (config.can_run_serverless, "Serverless testing not enabled")
+  @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_defaults (self):
-    attributes = core.attributes ()
-    self.assertSetEqual (self.all_attributes, set (name for name, _ in attributes))
+    all_attributes = set (i.ldapDisplayName for i in core.schema_obj () if i.Class == "attributeSchema")
+    attributes = core.attributes (cred=config.cred)
+    self.assertSetEqual (all_attributes, set (name for name, _ in attributes))
     self.assertTrue (all (i.Class == "attributeSchema" for i in attributes))
 
   def test_server (self):
-    attributes = core.attributes (server=config.server)
-    self.assertSetEqual (self.all_attributes, set (name for name, _ in attributes))
+    all_attributes = set (i.ldapDisplayName for i in core.schema_obj (server=config.server, cred=config.cred) if i.Class == "attributeSchema")
+    attributes = core.attributes (server=config.server, cred=config.cred)
+    self.assertSetEqual (all_attributes, set (name for name, _ in attributes))
     self.assertTrue (all (i.Class == "attributeSchema" for i in attributes))
+
+  def test_one_attribute (self):
+    attribute = core.attribute ("displayName", server=config.server, cred=config.cred)
+    self.assertEquals (attribute.ldapDisplayName, "displayName")
+    self.assertTrue (attribute.Class == "attributeSchema")
+
+  def test_attributes_not_found (self):
+    with self.assertRaises (exc.AttributeNotFound):
+      list (core.attributes (["does_not_exist"], server=config.server, cred=config.cred))
+
+  def test_attribute_not_found (self):
+    with self.assertRaises (exc.AttributeNotFound):
+      core.attribute ("does_not_exist", server=config.server, cred=config.cred)
+
+class TestQuery (unittest.TestCase):
+
+  def _test (self):
+    root = core.root_obj (server=config.server, cred=config.cred)
+    return core.query (root, "name=CN=Domain Admins", attributes=['sAMAccountname'])
+
+  def test_domain_admins (self):
+    for attributes in self._test ():
+      self.assertEquals (attributes['sAMAccountname'], ['Domain Admins'])
+
+  def test_results_are_mappings (self):
+    for attributes in self._test ():
+      self.assertIsInstance (attributes, dict)
+
+  def test_results_are_mappings (self):
+    for attributes in self._test ():
+      for name, values in attributes:
+        self.assertIsInstance (values, list)
+
+class TestOpenObject (unittest.TestCase):
+
+  def test_root (self):
+    root = core.root_obj (server=config.server, cred=config.cred)
+    obj = core.open_object (root.ADsPath, cred=config.cred)
+    self.assertEquals (obj.GUID, root.GUID)
+

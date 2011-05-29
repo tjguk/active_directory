@@ -16,9 +16,9 @@ def get_config (section, item, function=ConfigParser.ConfigParser.get):
 try:
   dc = win32net.NetGetAnyDCName ().strip ("\\")
 except win32net.error:
-  can_run_serverless = False
+  is_inside_domain = False
 else:
-  can_run_serverless = True
+  is_inside_domain = True
 
 server = get_config ("general", "server") or dc
 if not server:
@@ -27,6 +27,4 @@ if not server:
 username = get_config ("general", "username")
 password = get_config ("general", "password")
 cred = (username, password, server)
-#~ domain_dn = get_config ("general", "domain_dn")
-#~ if not domain_dn:
 domain_dn = win32com.client.GetObject ("LDAP://%s/rootDSE" % server).Get ("rootDomainNamingContext")

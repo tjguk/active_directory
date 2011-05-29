@@ -106,7 +106,7 @@ def class_schema (class_name, server=None, cred=None):
   return _class_schemas[class_name]
 
 _attributes = {}
-def attributes (names=["*"], server=None, cred=None):
+def attributes (names="*", server=None, cred=None):
   ur"""Return an iteration of name, obj pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
 
@@ -123,12 +123,16 @@ def attributes (names=["*"], server=None, cred=None):
       support.or_ (*["lDAPDisplayName=%s" % name for name in unknown_names])
     )
     for row in query (schema, filter, ['lDAPDisplayName', 'ADsPath']):
-      _attributes[row['lDAPDisplayName'][0]] = open_object (row['ADsPath'][0])
+      _attributes[row['lDAPDisplayName'][0]] = open_object (row['ADsPath'][0], cred=cred)
 
-  if names == ['*']:
+  if names == "*":
     names = iter (_attributes)
+
   for name in names:
-    yield name, _attributes.get (name)
+    try:
+      yield name, _attributes[name]
+    except KeyError:
+      raise exc.AttributeNotFound (name)
 
 def attribute (name, server=None, cred=None):
   ur"""Return the first attribute corresponding to `name` from :func:`attributes`.
@@ -139,10 +143,8 @@ def attribute (name, server=None, cred=None):
 
   :returns: `name`, `info` per :func:`attributes` for the named attribute
   """
-  for name, attr in attributes ([name], server, cred):
+  for name, attr in attributes ([name], server=server, cred=cred):
     return attr
-  else:
-    raise exc.ActiveDirectoryError ("Attribute %s is not in the schema%s" % (name, (" for server %s" % server) if server else ""))
 
 def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
   ur"""Run an LDAP query specified by `filter` against the AD object `obj`.
@@ -151,13 +153,17 @@ def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
   higher-level AD objects such as :class:`adbase.ADBase` which expose
   it as a method.
 
+  The result is an iteration of dictionaries mapping attribute names
+  to a list of values. No attempt is made here to determine which
+  values are single and which are multivalued.
+
   Typical usage:
 
   :param obj: An ADSI object which implements the IDirectorySearch interface
   :param filter: A valid ADSI/LDAP filter string
   :param attributes: A list of attributes (AD fields) to return. None => All
   :param flags: A combination of :data:`constants.ADS_SEARCHPREF` values
-  :returns: iterator over a dictionary mapping attribute to values
+  :returns: iterator over a dictionary mapping attribute names to lists of values
   """
   SEARCH_PREFERENCES = {
     adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
@@ -171,13 +177,13 @@ def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
   try:
     hResult = exc.wrapped (directory_search.GetFirstRow, hSearch)
     while hResult == 0:
-      results = dict ()
+      results = {}
       while True:
         attr = exc.wrapped (directory_search.GetNextColumnName, hSearch)
         if attr is None:
           break
         _, _, attr_values = exc.wrapped (directory_search.GetColumn, hSearch, attr)
-        results[attr] = [value for (value, _) in attr_values]
+        results[attr] = [value for (value, type) in attr_values]
       yield results
       hResult = exc.wrapped (directory_search.GetNextRow, hSearch)
   finally:
@@ -200,8 +206,8 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
 
   * `cred` is passed to :func:`credentials.credentials` for initial processing
   * If `cred` is now a :class:`credentials.Credentials` object, this is used for authentication
-  * `moniker` is parsed to determine the (optional) server name and the cache is checked
-    for corresponding credentials.
+  * Otherwise `moniker` is parsed to determine the (optional) server name and the cache is
+    checked for corresponding credentials.
   * If no cached credentials are found, passthrough authentication is assumed.
 
   This will normally do what you expect. The default (passthrough) is far and away

@@ -4,6 +4,7 @@ import socket
 
 import win32api
 from win32com.adsi import adsi
+import win32com.client
 
 from . import core
 from . import constants
@@ -248,7 +249,26 @@ class ADBase (object):
     """
     exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsDeleteOps).DeleteObject (0)
 
-  query = core.query
+  def query (self, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
+    ur"""Handoff to :func:`core.query` with two differences:
+
+    * This object is used as the base
+    * Results are determined as single or multivalued according to their
+      schema definition.
+    """
+    raise NotImplementedError
+    #
+    # FIXME
+    #
+    # This gets trickier and trickier because of the need to authenticated
+    # against a server to get hold of the attributes schemas. Leave it for
+    # now and come back later.
+    #
+
+    _attributes = dict (core.attributes (names=attributes or "*"), server=self.server, cred=self.cred)
+    for result in core.query (self.com_object, filter, attributes, flags):
+      print result
+      yield dict ((name, values[0] if _attributes[name].isSingleValue else values) for name, values in result.items ())
 
   def search (self, *args, **kwargs):
     """Return an iterator of :class:`ADBase` objects corresponding to
@@ -272,7 +292,7 @@ class ADBase (object):
     """
     filter = support.and_ (*args, **kwargs)
     for result in self.query (filter, ['ADsPath']):
-      yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred))
+      yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred, flags=constants.AUTHENTICATION_TYPES.FAST_BIND))
 
   def find (self, *args, **kwargs):
     ur"""Hand off arguments to :method:`search` and return the first result
@@ -345,9 +365,9 @@ def adbase (obj_or_path=None, cred=None):
 
   :param cred: anything accepted by :func:`credentials.credentials`
   """
-  if obj_or_path is None:
-    return ADBase (core.root_obj (), cred=cred)
-  elif isinstance (obj_or_path, ADBase):
+  if isinstance (obj_or_path, ADBase):
     return obj_or_path
+  elif isinstance (obj_or_path, win32com.client.CDispatch):
+    return ADBase (obj_or_path, cred=cred)
   else:
     return ADBase.from_path (obj_or_path, cred)
