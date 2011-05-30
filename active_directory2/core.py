@@ -4,8 +4,15 @@ The functions in this module either return strings or Python COM
 objects representing the underlying ADSI COM objects. These will
 be wrapped by :mod:`ADBase` and other modules to give extended
 functionality, but they can be useful on their own.
+
+The functions in this module are built upon by all the other modules,
+but can sensibly be used in their own right by users of the active_directory2
+package. For efficiency, most of them cache their results so that, eg, a
+lookup for an attribute's schema doesn't need to bind to the directory
+every time. (Although the bind itself should be cached by AD behind the scenes).
 """
 import re
+import threading
 
 import win32com.client
 from win32com import adsi
@@ -17,6 +24,8 @@ from . import exc
 from .log import logger
 from . import support
 from . import utils
+
+local = threading.local ()
 
 _base_monikers = {}
 def _base_moniker (server=None, scheme="LDAP:"):

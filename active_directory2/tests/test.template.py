@@ -11,6 +11,7 @@ del unittest0
 
 from active_directory2 import core
 from active_directory2.tests import utils
+from active_directory2.tests import config
 
 class TestTemplate (unittest.TestCase):
 

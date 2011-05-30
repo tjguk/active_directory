@@ -28,3 +28,4 @@ username = get_config ("general", "username")
 password = get_config ("general", "password")
 cred = (username, password, server)
 domain_dn = win32com.client.GetObject ("LDAP://%s/rootDSE" % server).Get ("rootDomainNamingContext")
+ou = get_config ("general", "ou") or "TestAD2"

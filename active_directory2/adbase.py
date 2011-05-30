@@ -249,7 +249,7 @@ class ADBase (object):
     """
     exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsDeleteOps).DeleteObject (0)
 
-  def query (self, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
+  def _query (self, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
     ur"""Handoff to :func:`core.query` with two differences:
 
     * This object is used as the base
@@ -269,6 +269,8 @@ class ADBase (object):
     for result in core.query (self.com_object, filter, attributes, flags):
       print result
       yield dict ((name, values[0] if _attributes[name].isSingleValue else values) for name, values in result.items ())
+
+  query = core.query
 
   def search (self, *args, **kwargs):
     """Return an iterator of :class:`ADBase` objects corresponding to
@@ -358,12 +360,14 @@ class ADBase (object):
 def adbase (obj_or_path=None, cred=None):
   ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
 
-  * If `obj_or_path` is None, return the root of the default AD installation
   * If `obj_or_path` is an existing :class:`ADBase` object, return it
+  * If `obj_or_path` is a Python COM object, return an :class:`ADBase` object which wraps it
   * Otherwise, assume that `obj_or_path` is an LDAP path and return the
     corresponding :class:`ADBase` object
 
+  :param obj_or_path: an existing :class:`ADBase` object, a Python COM object or an LDAP moniker
   :param cred: anything accepted by :func:`credentials.credentials`
+  :returns: a :class:`ADBase` object
   """
   if isinstance (obj_or_path, ADBase):
     return obj_or_path
