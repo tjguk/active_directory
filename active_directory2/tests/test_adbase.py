@@ -8,6 +8,7 @@ except AttributeError:
 else:
   unittest = unittest0
 del unittest0
+import tempfile
 import uuid
 
 import pythoncom
@@ -51,7 +52,7 @@ class TestADBase (base.Base):
     ou = adbase.ADBase (self.ou)
     guid = str (uuid.uuid1 ())
     ou.displayName = guid
-    self.assertEquals (self.ou.Get ("displayName"), guid)
+    self.assertEquals (self.ou.displayName, guid)
 
   def test_delattr (self):
     ou = adbase.ADBase (self.ou)
@@ -63,6 +64,16 @@ class TestADBase (base.Base):
   def test_underscore_to_hyphen (self):
     self.assertTrue (True)
 
+  def test_item_identifier (self):
+    cases = {
+      "user" : "cn",
+      "group" : "cn",
+      "organizationalUnit" : "ou"
+    }
+    ou = adbase.adbase (self.ou, config.cred)
+    for cls, ident in cases.items ():
+      self.assertEquals ("%s=XX" % (ident), ou._item_identifier (cls, "XX"))
+
   def test_getitem (self):
     ou = adbase.ADBase (self.ou, cred=config.cred)
     self.assertEquals (ou['user', 'cn=User01'].objectGuid, ou.GetObject ("user", "cn=User01").objectGuid)
@@ -70,3 +81,60 @@ class TestADBase (base.Base):
   def test_getitem_without_qualifier (self):
     ou = adbase.ADBase (self.ou, cred=config.cred)
     self.assertEquals (ou['user', 'User01'].objectGuid, ou.GetObject ("user", "cn=User01").objectGuid)
+
+  def test_setitem (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    ou['user', 'cn=User99'] = {}
+    self.assertEquals (ou['user', 'cn=User99'].objectGuid, ou.GetObject ("user", "cn=User99").objectGuid)
+
+  def test_setitem_without_qualifier (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    ou['user', 'User98'] = {}
+    self.assertEquals (ou['user', 'cn=User98'].objectGuid, ou.GetObject ("user", "cn=User98").objectGuid)
+
+  def test_delitem (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    del ou['user', 'cn=User01']
+    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou])
+
+  def test_delitem_without_qualifier (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    del ou['user', 'User01']
+    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou])
+
+  def test_equality (self):
+    ou1 = adbase.ADBase (self.ou, cred=config.cred)
+    ou2 = adbase.ADBase (self.ou, cred=config.cred)
+    self.assertEquals (ou1, ou2)
+
+  def test_identity (self):
+    ou1 = adbase.ADBase (self.ou, cred=config.cred)
+    ou2 = adbase.ADBase (self.ou, cred=config.cred)
+    self.assertEquals (len (set ([ou1, ou2])), 1)
+
+  def test_from_path (self):
+    ou1 = adbase.adbase (self.ou, cred=config.cred)
+    ou2 = adbase.ADBase.from_path (self.ou.ADsPath, cred=config.cred)
+    self.assertEquals (ou1, ou2)
+
+  def test_dump (self):
+    #
+    # sanity test only
+    #
+    with tempfile.TemporaryFile () as ofile:
+      adbase.adbase (self.ou, cred=config.cred).dump (ofile=ofile)
+      ofile.seek (0)
+      data = ofile.read ()
+      self.assertIn ("ADsPath => %s" % self.ou.ADsPath.encode ("ascii"), data)
+
+  def test_set (self):
+    user1 = adbase.adbase (self.ou, cred=config.cred)['user', 'User01']
+    x = str (uuid.uuid1 ())
+    self.assertNotEquals (user1.displayName, x)
+    self.assertNotEquals (user1.givenName, x)
+    user1.set (displayName=x, givenName=x)
+    self.assertEquals (user1.displayName, x)
+    self.assertEquals (user1.givenName, x)
+
+  def test_delete (self):
+    ou = adbase.adbase (self.ou, cred=config.cred)

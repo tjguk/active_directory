@@ -133,18 +133,15 @@ class ADBase (object):
     name = "_".join (name.split ("-"))
     try:
       return exc.wrapped (getattr, self.com_object, name)
-    except (AttributeError, NotImplementedError):
-      try:
-        return exc.wrapped (self.com_object.Get, name)
-      except NotImplementedError:
-        raise AttributeError
+    except AttributeError:
+      return exc.wrapped (self.com_object.Get, name)
 
-  def __setattr__ (self, name, value):
-    if name in self.properties:
-      self._put (name, value)
-      exc.wrapped (self.com_object.SetInfo)
-    else:
-      super (ADBase, self).__setattr__ (name, value)
+  #~ def __setattr__ (self, name, value):
+    #~ if name in self.properties:
+      #~ self._put (name, value)
+      #~ exc.wrapped (self.com_object.SetInfo)
+    #~ else:
+      #~ super (ADBase, self).__setattr__ (name, value)
 
   def __delattr__ (self, name):
     self._put (name, None)
@@ -156,10 +153,10 @@ class ADBase (object):
     (CN, OU, DN etc.). Introspect the schema for this class and determine
     which property identifies it.
     """
-    item_namer = core.class_schema (ad_class, self.server, self.cred).NamingProperties
-    if item_identifier.startswith ("%s=" % item_namer):
+    if "=" in item_identifier:
       return item_identifier
     else:
+      item_namer = core.class_schema (ad_class, self.server, self.cred).NamingProperties
       return "%s=%s" % (item_namer, item_identifier)
 
   def __getitem__ (self, item):
@@ -239,7 +236,7 @@ class ADBase (object):
     ur"""Set several properties at once. This should be slightly faster than setting
     the properties individually as SetInfo is called only once, at the end.
     """
-    for name, value in kwargs:
+    for name, value in kwargs.items ():
       self._put (name, value)
     exc.wrapped (self.com_object.SetInfo)
 

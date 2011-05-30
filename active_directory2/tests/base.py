@@ -24,7 +24,16 @@ class Base (unittest.TestCase):
 
     self.ou.Create ("group", "cn=Group01").SetInfo ()
     for i in range (1, 10):
-      self.ou.Create ("user", "cn=User%02d" % i).SetInfo ()
+      u = self.ou.Create ("user", "cn=User%02d" % i)
+      u.displayName = "User %d" % i
+      u.givenName = "U%d" % i
+      u.SetInfo ()
+
+    ou2 = self.ou.Create ("organizationalUnit", "ou=test2")
+    ou2.SetInfo ()
+    ou2.Create ("group", "cn=Group01").SetInfo ()
+    for i in range (11, 20):
+      ou2.Create ("user", "cn=User%02d" % i).SetInfo ()
 
   def tearDown (self):
     self.ou.QueryInterface (adsi.IID_IADsDeleteOps).DeleteObject (0)
