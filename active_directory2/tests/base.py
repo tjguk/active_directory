@@ -19,8 +19,8 @@ class Base (unittest.TestCase):
 
   def setUp (self):
     self.root = core.root_obj (server=config.server, cred=config.cred)
-    self.ou = self.root.Create ("organizationalUnit", "ou=%s" % config.ou)
-    self.ou.SetInfo ()
+    self.ou = self.root.GetObject ("organizationalUnit", "ou=%s" % config.ou)
+    #~ self.ou.SetInfo ()
 
     self.ou.Create ("group", "cn=Group01").SetInfo ()
     for i in range (1, 10):
