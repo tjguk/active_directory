@@ -28,4 +28,6 @@ username = get_config ("general", "username")
 password = get_config ("general", "password")
 cred = (username, password, server)
 domain_dn = win32com.client.GetObject ("LDAP://%s/rootDSE" % server).Get ("rootDomainNamingContext")
-ou = get_config ("general", "ou") or "TestAD2"
+test_base = get_config ("general", "test_base")
+if not test_base:
+  raise RuntimeError ("test_base must be supplied")
