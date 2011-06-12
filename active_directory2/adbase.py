@@ -3,7 +3,7 @@ import os, sys
 import socket
 
 import win32api
-from win32com.adsi import adsi
+from win32com import adsi
 import win32com.client
 
 from . import core
@@ -38,7 +38,7 @@ class ADContainer (object):
       items = exc.wrapped (adsi.ADsEnumerateNext, enumerator, 10)
       if items:
         for item in items:
-          yield exc.wrapped (item.QueryInterface, adsi.IID_IADs)
+          yield item
       else:
         break
 
@@ -97,14 +97,14 @@ class ADBase (object):
 
   def __init__ (self, obj, cred=None):
     utils._set (self, "properties", set ())
-    self.com_object = com_object = obj.QueryInterface (adsi.IID_IADs)
+    self.com_object = com_object = obj ##.QueryInterface (adsi.IID_IADs)
     self.cred = cred
-    self.path = com_object.ADsPath
-    scheme, server, dn = utils.parse_moniker (com_object.ADsPath)
+    self.path = path = com_object.ADsPath
+    scheme, server, dn = utils.parse_moniker (path)
     self.server = server.rstrip ("/")
-    self.cls = cls = exc.wrapped (getattr, com_object, "Class")
+    self.cls = cls = com_object.Class
     if cls not in self._schemas:
-      schema_path = exc.wrapped (getattr, com_object, "Schema")
+      schema_path = com_object.Schema
       try:
         self._schemas[cls] = core.open_object (schema_path, cred=cred)
       except exc.BadPathnameError:
@@ -114,38 +114,34 @@ class ADBase (object):
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
 
   def _put (self, name, value):
-    ur"""Internal function to set an attribute value. It uses PutEx which requires
-    a list, whether or not the attribute is multivalued. Therefore if `value` is not
-    a tuple or a list or a subtype, it is enclosed in one. The special case of a
-    value of None is handled by clearing the attribute's value.
-    """
-    operation = constants.ADS_PROPERTY.CLEAR if value is None else constants.ADS_PROPERTY.UPDATE
-    if not isinstance (value, (tuple, list)):
-      value = (value,)
-    exc.wrapped (self.com_object.PutEx, operation, name, value)
+    if value is None:
+      exc.wrapped (self.com_object.PutEx, constants.ADS_PROPERTY.CLEAR, name, None)
+    else:
+      exc.wrapped (self.com_object.Put, name, value)
 
-  def __getattr__ (self, name):
+  @staticmethod
+  def _munged_attribute (name):
     #
     # AD names are either camelCase or hyphen-separated, never underscored
     # Since Python identifiers can't include hypens but can
     # include underscores, translate underscores to hyphens.
     #
-    name = "_".join (name.split ("-"))
+    return u"_".join (name.split (u"-"))
+
+  def __getattr__ (self, name):
+    name = self._munged_attribute (name)
     try:
       return exc.wrapped (getattr, self.com_object, name)
     except AttributeError:
       return exc.wrapped (self.com_object.Get, name)
 
-  #~ def __setattr__ (self, name, value):
-    #~ if name in self.properties:
-      #~ self._put (name, value)
-      #~ exc.wrapped (self.com_object.SetInfo)
-    #~ else:
-      #~ super (ADBase, self).__setattr__ (name, value)
-
-  def __delattr__ (self, name):
-    self._put (name, None)
-    exc.wrapped (self.com_object.SetInfo)
+  def __setattr__ (self, name, value):
+    name = self._munged_attribute (name)
+    if name in self.properties:
+      self._put (name, value)
+      exc.wrapped (self.com_object.SetInfo)
+    else:
+      super (ADBase, self).__setattr__ (name, value)
 
   def _item_identifier (self, ad_class, item_identifier):
     ur"""When creating a new object or returning an existing one, the
@@ -163,7 +159,7 @@ class ADBase (object):
     item_type, item_identifier = item
     item_identifier = self._item_identifier (item_type, item_identifier)
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
-    obj = exc.wrapped (container.GetObject, item_type, item_identifier)
+    obj = adsi._get_good_ret (exc.wrapped (container.GetObject, item_type, item_identifier))
     return self.__class__ (obj, self.cred)
 
   def __setitem__ (self, item, info):
@@ -174,7 +170,7 @@ class ADBase (object):
     for k, v in info.items ():
       setattr (obj, k, v)
     exc.wrapped (obj.SetInfo)
-    return self.__class__ (obj, self.cred)
+    return self.__class__ (adsi._get_good_ret (obj), self.cred)
 
   def __delitem__ (self, item):
     item_type, item_identifier = item
@@ -234,7 +230,11 @@ class ADBase (object):
 
   def set (self, **kwargs):
     ur"""Set several properties at once. This should be slightly faster than setting
-    the properties individually as SetInfo is called only once, at the end.
+    the properties individually as SetInfo is called only once, at the end::
+
+      from active_directory2 import ad
+      user01 = ad.find_user ("user01")
+      user01.set (displayName="User One", sAMAccountName="user-01")
     """
     for name, value in kwargs.items ():
       self._put (name, value)

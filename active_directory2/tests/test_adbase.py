@@ -54,11 +54,10 @@ class TestADBase (base.Base):
     ou.displayName = guid
     self.assertEquals (self.ou.displayName, guid)
 
-  def test_delattr (self):
+  def test_setattr_to_none (self):
     ou = adbase.ADBase (self.ou)
-    del ou.displayName
-    with self.assertRaises (pythoncom.com_error):
-      self.ou.Get ("displayName")
+    ou.displayName = None
+    self.assertEquals (self.ou.displayName, None)
 
   @unittest.skip ("Skip until we can find a property with a dash")
   def test_underscore_to_hyphen (self):
@@ -76,7 +75,8 @@ class TestADBase (base.Base):
 
   def test_getitem (self):
     ou = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (ou['user', 'cn=User01'].objectGuid, ou.GetObject ("user", "cn=User01").objectGuid)
+    user01 = ou['user', 'cn=User01'].objectGuid
+    self.assertEquals (user01, ou.GetObject ("user", "cn=User01").objectGuid)
 
   def test_getitem_without_qualifier (self):
     ou = adbase.ADBase (self.ou, cred=config.cred)

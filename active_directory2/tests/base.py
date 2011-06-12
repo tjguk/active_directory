@@ -19,8 +19,10 @@ class Base (unittest.TestCase):
 
   def setUp (self):
     self.root = core.root_obj (server=config.server, cred=config.cred)
-    self.ou = self.root.GetObject ("organizationalUnit", "ou=%s" % config.ou)
-    #~ self.ou.SetInfo ()
+    self._ou = self.root.GetObject ("organizationalUnit", config.test_base)
+    self.ou = self._ou.Create ("organizationalUnit", "ou=adtest")
+    self.ou.SetInfo ()
+    self.addCleanup (self._remove_ou)
 
     self.ou.Create ("group", "cn=Group01").SetInfo ()
     for i in range (1, 10):
@@ -35,5 +37,5 @@ class Base (unittest.TestCase):
     for i in range (11, 20):
       ou2.Create ("user", "cn=User%02d" % i).SetInfo ()
 
-  def tearDown (self):
+  def _remove_ou (self):
     self.ou.QueryInterface (adsi.IID_IADsDeleteOps).DeleteObject (0)

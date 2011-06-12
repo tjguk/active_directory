@@ -17,6 +17,7 @@ try:
   dc = win32net.NetGetAnyDCName ().strip ("\\")
 except win32net.error:
   is_inside_domain = False
+  dc = None
 else:
   is_inside_domain = True
 
