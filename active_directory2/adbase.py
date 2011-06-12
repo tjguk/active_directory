@@ -15,6 +15,9 @@ from . import utils
 class NotAContainerError (exc.ActiveDirectoryError):
   pass
 
+class NoFilterError (exc.ActiveDirectoryError):
+  pass
+
 class ADContainer (object):
   ur"""A support object which takes an existing AD COM object
   which implements the IADsContainer interface and provides
@@ -262,10 +265,10 @@ class ADBase (object):
     # now and come back later.
     #
 
-    _attributes = dict (core.attributes (names=attributes or "*"), server=self.server, cred=self.cred)
-    for result in core.query (self.com_object, filter, attributes, flags):
-      print result
-      yield dict ((name, values[0] if _attributes[name].isSingleValue else values) for name, values in result.items ())
+    #~ _attributes = dict (core.attributes (names=attributes or "*"), server=self.server, cred=self.cred)
+    #~ for result in core.query (self.com_object, filter, attributes, flags):
+      #~ print result
+      #~ yield dict ((name, values[0] if _attributes[name].isSingleValue else values) for name, values in result.items ())
 
   query = core.query
 
@@ -289,6 +292,8 @@ class ADBase (object):
 
       &(|((cn=tim)(sn=golden))(logonCount >= 0)(objectCategory=person))
     """
+    if not (args or kwargs):
+      raise NoFilterError
     filter = support.and_ (*args, **kwargs)
     for result in self.query (filter, ['ADsPath']):
       yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred, flags=constants.AUTHENTICATION_TYPES.FAST_BIND))

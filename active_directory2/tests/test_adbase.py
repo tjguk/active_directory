@@ -137,4 +137,56 @@ class TestADBase (base.Base):
     self.assertEquals (user1.givenName, x)
 
   def test_delete (self):
+    ou_test2 = adbase.adbase (self.ou, cred=config.cred).find_ou ("test2")
+    self.assertIsNot (ou_test2, None)
+    ou_test2.delete ()
+    self.assertIs (adbase.adbase (self.ou, cred=config.cred).find_ou ("test2"), None)
+
+  def test_query_is_not_implemented (self):
     ou = adbase.adbase (self.ou, cred=config.cred)
+    with self.assertRaises (NotImplementedError):
+      ou._query ("(displayName=*)")
+
+class TestSearch (base.Base):
+
+  def setUp (self):
+    base.Base.setUp (self)
+    for self.type, self.name, data in base.DATA:
+      break
+
+  def test_no_filter (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    with self.assertRaises (adbase.NoFilterError):
+      ou.search ().next ()
+
+  def test_args_only (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    searcher = ou.search (self.name)
+    self.assertIn (self.name, [i.Name for i in searcher])
+
+  def test_kwargs_only (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    searcher = ou.search (objectCategory=self.type)
+    self.assertIn (self.name, [i.Name for i in searcher])
+
+  def test_args_and_kwargs (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    searcher = ou.search (self.name, objectCategory=self.type)
+    self.assertEquals ([self.name], [i.name for i in searcher])
+
+  def test_find_no_filter (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    with self.assertRaises (adbase.NoFilterError):
+      ou.find ().next ()
+
+  def test_find_args_only (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    self.assertEquals (self.name, ou.find (self.name).Name)
+
+  def test_find_kwargs_only (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    self.assertEquals (self.name, ou.find (objectCategory=self.type).Name)
+
+  def test_find_args_and_kwargs (self):
+    ou = adbase.ADBase (self.ou, cred=config.cred)
+    self.assertEquals (self.name, ou.find (self.name, objectCategory=self.type).Name)
