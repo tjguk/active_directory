@@ -128,11 +128,11 @@ class TestADBase (Base):
     self.assertEquals (user1.givenName, x)
 
   def test_delete (self):
-    _, ouname = base.find_pattern (type_pattern="organizationalUnit")
-    ou_test2 = self.ou.find_ou (ouname)
-    self.assertIsNot (ou_test2, None)
-    ou_test2.delete ()
-    self.assertIs (self.ou.find_ou (ouname), None)
+    ou = self.ou.find (objectCategory="organizationalUnit")
+    self.assertIsNot (ou, None)
+    dn = ou.distinguishedName
+    ou.delete ()
+    self.assertIs (self.ou.find (distinguishedName=dn), None)
 
   def test_query_is_not_implemented (self):
     with self.assertRaises (NotImplementedError):
