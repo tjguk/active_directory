@@ -18,46 +18,46 @@ from active_directory2 import core, adbase
 from active_directory2.tests import base, utils
 from active_directory2.tests import config
 
-class TestFactory (base.Base):
+class Base (base.Base):
+
+  def setUp (self):
+    base.Base.setUp (self)
+    self.ou0 = self.ou
+    self.ou = adbase.ADBase (self.ou, cred=config.cred)
+
+class TestFactory (Base):
 
   def test_existing_adbase (self):
-    ou = adbase.ADBase (self.ou)
-    self.assertIsInstance (ou, adbase.ADBase)
-    self.assertIs (ou, adbase.adbase (ou))
+    self.assertIsInstance (self.ou, adbase.ADBase)
+    self.assertIs (self.ou, adbase.adbase (self.ou))
 
   def test_python_com (self):
-    ou = adbase.adbase (self.ou)
-    self.assertIsInstance (ou, adbase.ADBase)
-    self.assertEquals (self.ou.ADsPath, ou.com_object.ADsPath)
+    self.assertIsInstance (self.ou, adbase.ADBase)
+    self.assertEquals (self.ou0.ADsPath, self.ou.com_object.ADsPath)
 
   def test_moniker (self):
-    ou = adbase.adbase (self.ou.ADsPath, cred=config.cred)
-    self.assertIsInstance (ou, adbase.ADBase)
-    self.assertEquals (self.ou.ADsPath, ou.ADsPath)
+    self.assertIsInstance (self.ou, adbase.ADBase)
+    self.assertEquals (self.ou0.ADsPath, self.ou.ADsPath)
 
-class TestADBase (base.Base):
+class TestADBase (Base):
 
   def test_init (self):
-    ou = adbase.ADBase (self.ou)
-    self.assertEquals (self.ou.ADsPath, ou.com_object.ADsPath)
-    self.assertEquals (self.ou.ADsPath, ou.path)
-    self.assertEquals (self.ou.Class, ou.cls)
-    self.assertEquals (ou.schema.Class, "Class")
+    self.assertEquals (self.ou0.ADsPath, self.ou.com_object.ADsPath)
+    self.assertEquals (self.ou0.ADsPath, self.ou.path)
+    self.assertEquals (self.ou0.Class, self.ou.cls)
+    self.assertEquals (self.ou.schema.Class, "Class")
 
   def test_getattr (self):
-    ou = adbase.ADBase (self.ou)
-    self.assertEquals (ou.distinguishedName, self.ou.Get ("distinguishedName"))
+    self.assertEquals (self.ou.distinguishedName, self.ou0.Get ("distinguishedName"))
 
   def test_setattr (self):
-    ou = adbase.ADBase (self.ou)
     guid = str (uuid.uuid1 ())
-    ou.displayName = guid
-    self.assertEquals (self.ou.displayName, guid)
+    self.ou.displayName = guid
+    self.assertEquals (self.ou0.displayName, guid)
 
   def test_setattr_to_none (self):
-    ou = adbase.ADBase (self.ou)
-    ou.displayName = None
-    self.assertEquals (self.ou.displayName, None)
+    self.ou.displayName = None
+    self.assertEquals (self.ou0.displayName, None)
 
   @unittest.skip ("Skip until we can find a property with a dash")
   def test_underscore_to_hyphen (self):
@@ -69,66 +69,57 @@ class TestADBase (base.Base):
       "group" : "cn",
       "organizationalUnit" : "ou"
     }
-    ou = adbase.adbase (self.ou, config.cred)
     for cls, ident in cases.items ():
-      self.assertEquals ("%s=XX" % (ident), ou._item_identifier (cls, "XX"))
+      self.assertEquals ("%s=XX" % (ident), self.ou._item_identifier (cls, "XX"))
 
   def test_getitem (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    user01 = ou['user', 'cn=User01'].objectGuid
-    self.assertEquals (user01, ou.GetObject ("user", "cn=User01").objectGuid)
+    user01 = self.ou['user', 'cn=User01'].objectGuid
+    self.assertEquals (user01, self.ou.GetObject ("user", "cn=User01").objectGuid)
 
   def test_getitem_without_qualifier (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (ou['user', 'User01'].objectGuid, ou.GetObject ("user", "cn=User01").objectGuid)
+    self.assertEquals (self.ou['user', 'User01'].objectGuid, self.ou.GetObject ("user", "cn=User01").objectGuid)
 
   def test_setitem (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    ou['user', 'cn=User99'] = {}
-    self.assertEquals (ou['user', 'cn=User99'].objectGuid, ou.GetObject ("user", "cn=User99").objectGuid)
+    self.ou['user', 'cn=User99'] = {}
+    self.assertEquals (self.ou['user', 'cn=User99'].objectGuid, self.ou.GetObject ("user", "cn=User99").objectGuid)
 
   def test_setitem_without_qualifier (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    ou['user', 'User98'] = {}
-    self.assertEquals (ou['user', 'cn=User98'].objectGuid, ou.GetObject ("user", "cn=User98").objectGuid)
+    self.ou['user', 'User98'] = {}
+    self.assertEquals (self.ou['user', 'cn=User98'].objectGuid, self.ou.GetObject ("user", "cn=User98").objectGuid)
 
   def test_delitem (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    del ou['user', 'cn=User01']
-    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou])
+    del self.ou['user', 'cn=User01']
+    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou0])
 
   def test_delitem_without_qualifier (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    del ou['user', 'User01']
-    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou])
+    del self.ou['user', 'User01']
+    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou0])
 
   def test_equality (self):
-    ou1 = adbase.ADBase (self.ou, cred=config.cred)
-    ou2 = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (ou1, ou2)
+    ou2 = adbase.ADBase (self.ou0, cred=config.cred)
+    self.assertEquals (self.ou, ou2)
 
   def test_identity (self):
-    ou1 = adbase.ADBase (self.ou, cred=config.cred)
-    ou2 = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (len (set ([ou1, ou2])), 1)
+    ou2 = adbase.ADBase (self.ou0, cred=config.cred)
+    self.assertEquals (len (set ([self.ou, ou2])), 1)
 
   def test_from_path (self):
-    ou1 = adbase.adbase (self.ou, cred=config.cred)
-    ou2 = adbase.ADBase.from_path (self.ou.ADsPath, cred=config.cred)
-    self.assertEquals (ou1, ou2)
+    ou2 = adbase.ADBase.from_path (self.ou0.ADsPath, cred=config.cred)
+    self.assertEquals (self.ou, ou2)
 
   def test_dump (self):
     #
     # sanity test only
     #
     with tempfile.TemporaryFile () as ofile:
-      adbase.adbase (self.ou, cred=config.cred).dump (ofile=ofile)
+      self.ou.dump (ofile=ofile)
       ofile.seek (0)
       data = ofile.read ()
-      self.assertIn ("ADsPath => %s" % self.ou.ADsPath.encode ("ascii"), data)
+      self.assertIn ("ADsPath => %s" % self.ou0.ADsPath.encode ("ascii"), data)
 
   def test_set (self):
-    user1 = adbase.adbase (self.ou, cred=config.cred)['user', 'User01']
+    _, username = base.find_pattern (type_pattern="user")
+    user1 = self.ou["user", username]
     x = str (uuid.uuid1 ())
     self.assertNotEquals (user1.displayName, x)
     self.assertNotEquals (user1.givenName, x)
@@ -137,56 +128,53 @@ class TestADBase (base.Base):
     self.assertEquals (user1.givenName, x)
 
   def test_delete (self):
-    ou_test2 = adbase.adbase (self.ou, cred=config.cred).find_ou ("test2")
+    _, ouname = base.find_pattern (type_pattern="organizationalUnit")
+    ou_test2 = self.ou.find_ou (ouname)
     self.assertIsNot (ou_test2, None)
     ou_test2.delete ()
-    self.assertIs (adbase.adbase (self.ou, cred=config.cred).find_ou ("test2"), None)
+    self.assertIs (self.ou.find_ou (ouname), None)
 
   def test_query_is_not_implemented (self):
-    ou = adbase.adbase (self.ou, cred=config.cred)
     with self.assertRaises (NotImplementedError):
-      ou._query ("(displayName=*)")
+      self.ou._query ("(displayName=*)")
 
-class TestSearch (base.Base):
+class TestSearch (Base):
 
   def setUp (self):
-    base.Base.setUp (self)
-    for self.type, self.name, data in base.DATA:
-      break
+    Base.setUp (self)
+    self.type, self.name = base.find_pattern ()
 
   def test_no_filter (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
     with self.assertRaises (adbase.NoFilterError):
-      ou.search ().next ()
+      self.ou.search ().next ()
 
   def test_args_only (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    searcher = ou.search (self.name)
+    searcher = self.ou.search (self.name)
     self.assertIn (self.name, [i.Name for i in searcher])
 
   def test_kwargs_only (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    searcher = ou.search (objectCategory=self.type)
+    searcher = self.ou.search (objectCategory=self.type)
     self.assertIn (self.name, [i.Name for i in searcher])
 
   def test_args_and_kwargs (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    searcher = ou.search (self.name, objectCategory=self.type)
+    searcher = self.ou.search (self.name, objectCategory=self.type)
     self.assertEquals ([self.name], [i.name for i in searcher])
 
   def test_find_no_filter (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
     with self.assertRaises (adbase.NoFilterError):
-      ou.find ().next ()
+      self.ou.find ().next ()
 
   def test_find_args_only (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (self.name, ou.find (self.name).Name)
+    self.assertEquals (self.name, self.ou.find (self.name).Name)
 
   def test_find_kwargs_only (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (self.name, ou.find (objectCategory=self.type).Name)
+    self.assertEquals (self.name, self.ou.find (objectCategory=self.type).Name)
 
   def test_find_args_and_kwargs (self):
-    ou = adbase.ADBase (self.ou, cred=config.cred)
-    self.assertEquals (self.name, ou.find (self.name, objectCategory=self.type).Name)
+    self.assertEquals (self.name, self.ou.find (self.name, objectCategory=self.type).Name)
+
+  def test_find_user (self):
+    _, username = base.find_pattern (type_pattern="user")
+    user = self.ou.find_user (username)
+    self.assertTrue (user)
+    self.assertEquals (username, user.Name)

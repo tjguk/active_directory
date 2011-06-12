@@ -1,4 +1,5 @@
 import os, sys
+import fnmatch
 import unittest as unittest0
 try:
   unittest0.skipUnless
@@ -38,6 +39,15 @@ def build_from_data (root, data):
       build_from_data (newroot, subdata)
   return newroot
 
+def find_pattern (data=DATA, type_pattern="*", name_pattern="*"):
+  for type, name, subdata in data:
+    if fnmatch.fnmatch (type, type_pattern) and fnmatch.fnmatch (name, name_pattern):
+      return type, name
+    else:
+      return find_pattern (subdata, type_pattern, name_pattern)
+  else:
+    raise RuntimeError ("No entry found matching %s and %s" % (type_pattern, name_pattern))
+
 class Base (unittest.TestCase):
 
   def setUp (self):
@@ -45,23 +55,6 @@ class Base (unittest.TestCase):
     self._ou = self.root.GetObject ("organizationalUnit", config.test_base)
     self.ou = build_from_data (self._ou, DATA)
     self.addCleanup (self._remove_ou)
-
-    #~ self.ou = self._ou.Create ("organizationalUnit", "ou=adtest")
-    #~ self.ou.SetInfo ()
-    #~ self.addCleanup (self._remove_ou)
-
-    #~ self.ou.Create ("group", "cn=Group01").SetInfo ()
-    #~ for i in range (1, 4):
-      #~ u = self.ou.Create ("user", "cn=User%02d" % i)
-      #~ u.displayName = "User %d" % i
-      #~ u.givenName = "U%d" % i
-      #~ u.SetInfo ()
-
-    #~ ou2 = self.ou.Create ("organizationalUnit", "ou=test2")
-    #~ ou2.SetInfo ()
-    #~ ou2.Create ("group", "cn=Group01").SetInfo ()
-    #~ for i in range (1, 4):
-      #~ ou2.Create ("user", "cn=User%02d" % i).SetInfo ()
 
   def _remove_ou (self):
     self.ou.QueryInterface (adsi.IID_IADsDeleteOps).DeleteObject (0)
