@@ -126,57 +126,54 @@ class ADBase (object):
   def _munged_attribute (name):
     #
     # AD names are either camelCase or hyphen-separated, never underscored
-    # Since Python identifiers can't include hypens but can
-    # include underscores, translate underscores to hyphens.
+    # Since Python identifiers can't include hypens but can include underscores,
+    # translate underscores to hyphens.
     #
     return u"-".join (name.rstrip ("_").split (u"_"))
 
   def __getattr__ (self, name):
-    name = self._munged_attribute (name)
+    def _getattr (name):
+      try:
+        return exc.wrapped (getattr, self.com_object, name)
+      except AttributeError:
+        return exc.wrapped (self.com_object.Get, munged_name)
     try:
-      return exc.wrapped (getattr, self.com_object, name)
+      return _getattr (name)
     except AttributeError:
-      return exc.wrapped (self.com_object.Get, name)
+      return _getattr (_munged_attribute (name))
 
   def __setattr__ (self, name, value):
-    name = self._munged_attribute (name)
-    if name in self.properties:
-      self._put (name, value)
+    munged_name = self._munged_attribute (name)
+    if munged_name in self.properties:
+      self._put (munged_name, value)
       exc.wrapped (self.com_object.SetInfo)
     else:
       super (ADBase, self).__setattr__ (name, value)
 
-  def _item_identifier (self, ad_class, item_identifier):
-    ur"""When creating a new object or returning an existing one, the
-    IADsContainer interface needs to know what its RDN qualifier is
-    (CN, OU, DN etc.). Introspect the schema for this class and determine
-    which property identifies it.
-    """
-    if "=" in item_identifier:
-      return item_identifier
-    else:
-      item_namer = core.class_schema (ad_class, self.server, self.cred).NamingProperties
-      return "%s=%s" % (item_namer, item_identifier)
-
-  def __getitem__ (self, item):
-    try:
-      item_type, item_identifier = item
-      item_identifier = self._item_identifier (item_type, item_identifier)
-    except TypeError:
-      item_type, item_identifier = None, item
+  def __getitem__ (self, rdn):
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
-    obj = exc.wrapped (container.GetObject, item_type, item_identifier)
+    obj = exc.wrapped (container.GetObject, None, rdn)
     return self.__class__ (obj, self.cred)
 
-  def __setitem__ (self, item, info):
-    item_type, item_identifier = item
-    item_identifier = self._item_identifier (item_type, item_identifier)
-    obj = exc.wrapped (self.com_object.Create, item_type, item_identifier)
-    exc.wrapped (obj.SetInfo)
-    for k, v in info.items ():
-      setattr (obj, k, v)
-    exc.wrapped (obj.SetInfo)
-    return self.__class__ (obj, self.cred)
+  def __setitem__ (self, rdn, info):
+    ur"""The __setitem__ syntax can be used either to create a new object
+    of a given class or to copy an existing one. Therefore the RHS can
+    either be a dict of entries or an existing ADSI-alike object.
+    """
+    if isinstance (info, dict):
+      try:
+        cls = info.pop ('Class')
+      except KeyError:
+        raise ActiveDirectoryError ("Must specify at least Class for new AD object")
+      obj = exc.wrapped (self.com_object.Create, cls, rdn)
+      exc.wrapped (obj.SetInfo)
+      for k, v in info.items ():
+        setattr (obj, k, v)
+      exc.wrapped (obj.SetInfo)
+      return self.__class__ (obj, self.cred)
+    else:
+      obj = self.__class__.factory (info, self.cred)
+      self.com_object.MoveHere (obj.com_object, rdn)
 
   def __delitem__ (self, item):
     item_type, item_identifier = item
@@ -207,6 +204,26 @@ class ADBase (object):
     ur"""Create an object of this class from an AD path and, optionally, credentials
     """
     return cls (core.open_object (path, cred))
+
+  @classmethod
+  def factory (cls, obj_or_path=None, cred=None):
+    ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
+
+    * If `obj_or_path` is an existing :class:`ADBase` object, return it
+    * If `obj_or_path` is a Python COM object, return an :class:`ADBase` object which wraps it
+    * Otherwise, assume that `obj_or_path` is an LDAP path and return the
+      corresponding :class:`ADBase` object
+
+    :param obj_or_path: an existing :class:`ADBase` object, a Python COM object or an LDAP moniker
+    :param cred: anything accepted by :func:`credentials.credentials`
+    :returns: a :class:`ADBase` object
+    """
+    if isinstance (obj_or_path, cls):
+      return obj_or_path
+    elif isinstance (obj_or_path, win32com.client.CDispatch):
+      return cls (obj_or_path, cred=cred)
+    else:
+      return cls.from_path (obj_or_path, cred)
 
   def as_string (self):
     return self.path
@@ -263,7 +280,7 @@ class ADBase (object):
     #
     # FIXME
     #
-    # This gets trickier and trickier because of the need to authenticated
+    # This gets trickier and trickier because of the need to authenticate
     # against a server to get hold of the attributes schemas. Leave it for
     # now and come back later.
     #
@@ -298,11 +315,9 @@ class ADBase (object):
     if not (args or kwargs):
       raise NoFilterError
     filter = support.and_ (*args, **kwargs)
-    for result in self.query (filter, ['Class', 'distinguishedName']):
-      yield "Hello"
-      #~ rdn = support.rdn (self.distinguishedName, result['distinguishedName'][0])
-      #~ yield self['Class', rdn]
-      #~ yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred, flags=constants.AUTHENTICATION_TYPES.FAST_BIND))
+    for result in core.query (self.com_object, filter, ['distinguishedName']):
+      rdn = support.rdn (self.distinguishedName, result['distinguishedName'][0])
+      yield self[rdn]
 
   def find (self, *args, **kwargs):
     ur"""Hand off arguments to :method:`search` and return the first result
@@ -366,20 +381,4 @@ class ADBase (object):
         yield item
 
 def adbase (obj_or_path=None, cred=None):
-  ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
-
-  * If `obj_or_path` is an existing :class:`ADBase` object, return it
-  * If `obj_or_path` is a Python COM object, return an :class:`ADBase` object which wraps it
-  * Otherwise, assume that `obj_or_path` is an LDAP path and return the
-    corresponding :class:`ADBase` object
-
-  :param obj_or_path: an existing :class:`ADBase` object, a Python COM object or an LDAP moniker
-  :param cred: anything accepted by :func:`credentials.credentials`
-  :returns: a :class:`ADBase` object
-  """
-  if isinstance (obj_or_path, ADBase):
-    return obj_or_path
-  elif isinstance (obj_or_path, win32com.client.CDispatch):
-    return ADBase (obj_or_path, cred=cred)
-  else:
-    return ADBase.from_path (obj_or_path, cred)
+  return ADBase.factory (obj_or_path, cred)

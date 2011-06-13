@@ -180,6 +180,9 @@ def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
   }
   directory_search = exc.wrapped (obj.QueryInterface, adsi.IID_IDirectorySearch)
   exc.wrapped (directory_search.SetSearchPreference, [(k, (v,)) for k, v in SEARCH_PREFERENCES.items ()])
+  #
+  # Simple queries may not be bracketed; add surrounding brackets if necessary
+  #
   if filter and not re.match (r"\([^)]+\)", filter):
     filter = u"(%s)" % filter
   hSearch = exc.wrapped (directory_search.ExecuteSearch, filter, attributes)
