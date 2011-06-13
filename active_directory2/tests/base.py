@@ -21,10 +21,8 @@ DATA = [
     ("group", "CN=Group01", []),
     ("user", "CN=user01", []),
     ("user", "CN=user02", []),
-    ("user", "CN=user03", []),
     ("organizationalUnit", "OU=test2", [
       ("group", "CN=Group01", []),
-      ("user", "CN=user01", []),
       ("user", "CN=user02", []),
       ("user", "CN=user03", []),
     ])
@@ -39,16 +37,23 @@ def build_from_data (root, data):
       build_from_data (newroot, subdata)
   return newroot
 
-def find_pattern (type_pattern="*", name_pattern="*", data=DATA, path=None):
-  if path is None:
-    path = []
-  for type, rdn, subdata in data:
-    if fnmatch.fnmatch (type, type_pattern) and fnmatch.fnmatch (rdn, name_pattern):
-      return type, rdn, ",".join (path)
-    else:
-      return find_pattern (type_pattern, name_pattern, subdata, path + [rdn])
+def find_pattern (type_pattern="*", name_pattern="*"):
+  def _find_pattern (type_pattern="*", name_pattern="*", data=DATA, path=None):
+    if path is None:
+      path = []
+    for type, rdn, subdata in data:
+      if fnmatch.fnmatch (type, type_pattern) and fnmatch.fnmatch (rdn, name_pattern):
+        return type, rdn, ",".join (reversed (path + [rdn]))
+      else:
+        result = _find_pattern (type_pattern, name_pattern, subdata, path + [rdn])
+        if result:
+          return result
+
+  result = _find_pattern (type_pattern, name_pattern)
+  if result is None:
+    raise RuntimeError ("Couldn't match %s and %s" % (type_pattern, name_pattern))
   else:
-    raise RuntimeError ("No entry found matching %s and %s" % (type_pattern, name_pattern))
+    return result
 
 class Base (unittest.TestCase):
 
