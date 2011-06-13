@@ -136,11 +136,11 @@ class ADBase (object):
       try:
         return exc.wrapped (getattr, self.com_object, name)
       except AttributeError:
-        return exc.wrapped (self.com_object.Get, munged_name)
+        return exc.wrapped (self.com_object.Get, name)
     try:
       return _getattr (name)
     except AttributeError:
-      return _getattr (_munged_attribute (name))
+      return _getattr (self._munged_attribute (name))
 
   def __setattr__ (self, name, value):
     munged_name = self._munged_attribute (name)
@@ -164,7 +164,7 @@ class ADBase (object):
       try:
         cls = info.pop ('Class')
       except KeyError:
-        raise ActiveDirectoryError ("Must specify at least Class for new AD object")
+        raise exc.ActiveDirectoryError ("Must specify at least Class for new AD object")
       obj = exc.wrapped (self.com_object.Create, cls, rdn)
       exc.wrapped (obj.SetInfo)
       for k, v in info.items ():
@@ -175,10 +175,17 @@ class ADBase (object):
       obj = self.__class__.factory (info, self.cred)
       self.com_object.MoveHere (obj.com_object, rdn)
 
-  def __delitem__ (self, item):
-    item_type, item_identifier = item
-    item_identifier = self._item_identifier (item_type, item_identifier)
-    exc.wrapped (self.com_object.Delete, item_type, item_identifier)
+  def __delitem__ (self, rdn):
+    #
+    # Although the docs say you can pass NULL as the first param
+    # to Delete, it doesn't appear to be supported. To keep the
+    # interface in line, we'll do a GetObject (which does support
+    # a NULL class) and then use the Class attribute to fill in
+    # the Delete method.
+    #
+    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
+    obj = adsi._get_good_ret (exc.wrapped (container.GetObject, None, rdn))
+    exc.wrapped (container.Delete, obj.Class, rdn)
 
   def __repr__ (self):
     return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
@@ -317,7 +324,10 @@ class ADBase (object):
     filter = support.and_ (*args, **kwargs)
     for result in core.query (self.com_object, filter, ['distinguishedName']):
       rdn = support.rdn (self.distinguishedName, result['distinguishedName'][0])
-      yield self[rdn]
+      if not rdn:
+        yield self
+      else:
+        yield self[rdn]
 
   def find (self, *args, **kwargs):
     ur"""Hand off arguments to :method:`search` and return the first result

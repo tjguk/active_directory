@@ -61,38 +61,20 @@ class TestADBase (Base):
 
   @unittest.skip ("Skip until we can find a property with a dash")
   def test_underscore_to_hyphen (self):
-    self.assertTrue (True)
-
-  def test_item_identifier (self):
-    cases = {
-      "user" : "cn",
-      "group" : "cn",
-      "organizationalUnit" : "ou"
-    }
-    for cls, ident in cases.items ():
-      self.assertEquals ("%s=XX" % (ident), self.ou._item_identifier (cls, "XX"))
+    self.assertEquals ("abc", adbase.ADBase._munged_attribute ("abc"))
+    self.assertEquals ("abc", adbase.ADBase._munged_attribute ("abc_"))
+    self.assertEquals ("abc-def", adbase.ADBase._munged_attribute ("abc_def"))
 
   def test_getitem (self):
-    user01 = self.ou['user', 'cn=User01'].objectGuid
+    user01 = self.ou['cn=User01'].objectGuid
     self.assertEquals (user01, self.ou.GetObject ("user", "cn=User01").objectGuid)
 
-  def test_getitem_without_qualifier (self):
-    self.assertEquals (self.ou['user', 'User01'].objectGuid, self.ou.GetObject ("user", "cn=User01").objectGuid)
-
   def test_setitem (self):
-    self.ou['user', 'cn=User99'] = {}
-    self.assertEquals (self.ou['user', 'cn=User99'].objectGuid, self.ou.GetObject ("user", "cn=User99").objectGuid)
-
-  def test_setitem_without_qualifier (self):
-    self.ou['user', 'User98'] = {}
-    self.assertEquals (self.ou['user', 'cn=User98'].objectGuid, self.ou.GetObject ("user", "cn=User98").objectGuid)
+    self.ou['cn=User99'] = {"Class" : "user"}
+    self.assertEquals (self.ou['cn=User99'].objectGuid, self.ou.GetObject ("user", "cn=User99").objectGuid)
 
   def test_delitem (self):
-    del self.ou['user', 'cn=User01']
-    self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou0])
-
-  def test_delitem_without_qualifier (self):
-    del self.ou['user', 'User01']
+    del self.ou['cn=User01']
     self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou0])
 
   def test_equality (self):
@@ -119,7 +101,7 @@ class TestADBase (Base):
 
   def test_set (self):
     _, username, _ = base.find_pattern (type_pattern="user")
-    user1 = self.ou["user", username]
+    user1 = self.ou[username]
     x = str (uuid.uuid1 ())
     self.assertNotEquals (user1.displayName, x)
     self.assertNotEquals (user1.givenName, x)
@@ -128,7 +110,7 @@ class TestADBase (Base):
     self.assertEquals (user1.givenName, x)
 
   def test_delete (self):
-    ou = self.ou.find (objectCategory="organizationalUnit")
+    ou = self.ou.find ("!distinguishedName=%s" % self.ou.distinguishedName, objectCategory="organizationalUnit")
     self.assertIsNot (ou, None)
     dn = ou.distinguishedName
     ou.delete ()
@@ -175,6 +157,7 @@ class TestSearch (Base):
 
   def test_find_user (self):
     _, username, _ = base.find_pattern (type_pattern="user")
-    user = self.ou.find_user (username)
+    qualifier, _, name = username.partition ("=")
+    user = self.ou.find_user (name)
     self.assertTrue (user)
     self.assertEquals (username, user.Name)

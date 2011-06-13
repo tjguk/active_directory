@@ -41,27 +41,33 @@ class TestBaseMoniker (unittest.TestCase):
 
 class TestRootDSE (unittest.TestCase):
 
+  def _expected_moniker (self, scheme):
+    if config.is_inside_domain:
+      return "%s//rootDSE" % scheme
+    else:
+      return "%s//%s/rootDSE" % (scheme, config.server or config.dc)
+
   @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_defaults (self):
     obj = core.root_dse ()
     self.assertIsInstance (obj, com_object)
-    self.assertEquals (obj.ADsPath, "LDAP://rootDSE")
+    self.assertEquals (obj.ADsPath, self._expected_moniker ("LDAP:"))
 
   def test_server (self):
     obj = core.root_dse (server=config.server)
     self.assertIsInstance (obj, com_object)
-    self.assertEquals (obj.ADsPath, "LDAP://%s/rootDSE" % config.server)
+    self.assertEquals (obj.ADsPath, self._expected_moniker ("LDAP:"))
 
   @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
     obj = core.root_dse (scheme="GC:")
     self.assertIsInstance (obj, com_object)
-    self.assertEquals (obj.ADsPath, "GC://rootDSE")
+    self.assertEquals (obj.ADsPath, self._expected_moniker ("GC:"))
 
   def test_server_and_scheme (self):
     obj = core.root_dse (server=config.server, scheme="GC:")
     self.assertIsInstance (obj, com_object)
-    self.assertEquals (obj.ADsPath, "GC://%s/rootDSE" % config.server)
+    self.assertEquals (obj.ADsPath, self._expected_moniker ("GC:"))
 
   @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_cacheing (self):
@@ -71,6 +77,9 @@ class TestRootDSE (unittest.TestCase):
 
 class TestRootMoniker (unittest.TestCase):
 
+  def setUp (self):
+    self.server = config.server or config.dc
+
   def _expected (self, server=None, scheme="LDAP:"):
     return scheme + "//" + ((server + "/") if server else "") + config.domain_dn
 
@@ -79,10 +88,10 @@ class TestRootMoniker (unittest.TestCase):
     self.assertEquals (core.root_moniker (), self._expected ())
 
   def test_server (self):
-    self.assertEquals (core.root_moniker (server=config.server), self._expected (server=config.server))
+    self.assertEquals (core.root_moniker (server=self.server), self._expected (server=self.server))
 
   def test_server_and_scheme (self):
-    self.assertEquals (core.root_moniker (server=config.server, scheme="GC:"), self._expected (server=config.server, scheme="GC:"))
+    self.assertEquals (core.root_moniker (server=self.server, scheme="GC:"), self._expected (server=self.server, scheme="GC:"))
 
   @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
@@ -110,6 +119,7 @@ class TestRootObj (unittest.TestCase):
   def test_server_and_scheme (self):
     self._test (server=config.server, scheme="GC:")
 
+  @unittest.skip ("Doesn't seem possible to come with a reproducible test")
   @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
     self._test (scheme="GC:")
