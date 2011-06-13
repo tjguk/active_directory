@@ -48,15 +48,15 @@ class ADContainer (object):
 class ADBase (object):
   """A slender wrapper around an AD COM object.
 
-  Attributes can be read, set and cleared. If the underlying object is a
+  Attributes can be read & set. If the underlying object is a
   container it can be iterated over and subobjects can be retrieved, added
   and removed. It can also be walked (in the style of Python's os.walk) and
   flattened: :meth:`walk`, :meth:`flat`.
 
   Pretty-printing to stdout is via the :meth:`dump` method.
 
-  There is simple searching with filters, returning the
-  results as objects if its own type: :meth:`search`, :meth:`find`.
+  There is simple searching with filters, returning the results as objects:
+  :meth:`search`, :meth:`find`.
 
   The underlying object can itself be deleted via :meth:`delete`
 
@@ -65,31 +65,37 @@ class ADBase (object):
   which takes an AD path and returns an ADBase object). It also provides the
   basis for the :class:`ADObject` class.
 
-  Attributes can be set, updated or deleted by normal Python attribute access.
-  Since for identifier names AD uses hyphens which aren't valid in Python
-  identifiers, underscores will be converted to hyphens::
+  Attributes can be set by normal Python attribute access. Since for identifier
+  names AD uses hyphens which aren't valid in Python identifiers, underscores
+  will be converted to hyphens. To avoid Python keyword issues, trailing underscores
+  are also stripped::
 
     from active_directory2 import ad
 
     me = ad.find_user ()
     me.displayName
     me.title = "Senior Programmer"
-    del me.department
+    me.department = None
 
   Objects can be created, retrieved and removed under this object by item access.
-  A tuple of class, name must be given for the item. If the name does not have
-  a tag, the appropriate one will be determined from the class's schema, but this
-  will be slower. Additional attributes are passed in via any dict-like object::
+  A relative distinguished name (rdn) must be given for the item. For object retrieval,
+  this rdn can be several levels deep. For creation and deletion, only one level is
+  allowed.
+
+  Assigning to an item of an AD container creates a new object with the rdn given.
+  Additional data is supplied as a dictionary-like object which must contain an
+  entry for the object's Class and may contain other information. Exactly what must
+  be passed will vary from one object type to another.
+
+  ::
 
     from active_directory2 import ad
 
     my_ou = ad.find_ou ("MyOU")
-    my_ou['user', 'cn=Tim'] = dict (sAMAccountName="tim", displayName="Tim Golden")
-    #
-    # Automatically determine that the rdn is cn=Tim
-    #
-    tim = my_ou['user', 'Tim']
-    del my_ou['user', 'Tim']
+    my_ou['cn=Tim'] = dict (Class="user", sAMAccountName="tim", displayName="Tim Golden", sn="TEST")
+    my_ou['cn=Minimal'] = dict (Class="user", sn="TEST")
+    for obj in my_ou.search (sn="TEST"):
+      del my_ou[obj.Name]
   """
 
   #
@@ -98,10 +104,9 @@ class ADBase (object):
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
   _schemas = {}
 
-  def __init__ (self, obj, cred=None):
+  def __init__ (self, obj):
     utils._set (self, "properties", set ())
     self.com_object = com_object = adsi._get_good_ret (obj)
-    self.cred = cred
     self.path = path = com_object.ADsPath
     scheme, server, dn = utils.parse_moniker (path)
     self.server = server.rstrip ("/")
@@ -153,27 +158,28 @@ class ADBase (object):
   def __getitem__ (self, rdn):
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
     obj = exc.wrapped (container.GetObject, None, rdn)
-    return self.__class__ (obj, self.cred)
+    return self.__class__ (obj)
 
   def __setitem__ (self, rdn, info):
     ur"""The __setitem__ syntax can be used either to create a new object
-    of a given class or to copy an existing one. Therefore the RHS can
-    either be a dict of entries or an existing ADSI-alike object.
+    of a given class. The RHS is a dictalike which must contain the new object's
+    class but which may contain other initialisation data.
+
+    If CopyHere were actually implemented in ADSI, this method could
+    be overloaded to call it, but only MoveHere is implemented and
+    it seemed counterintuitive to implement a move via the __setitem__
+    protocol.
     """
-    if isinstance (info, dict):
-      try:
-        cls = info.pop ('Class')
-      except KeyError:
-        raise exc.ActiveDirectoryError ("Must specify at least Class for new AD object")
-      obj = exc.wrapped (self.com_object.Create, cls, rdn)
-      exc.wrapped (obj.SetInfo)
-      for k, v in info.items ():
-        setattr (obj, k, v)
-      exc.wrapped (obj.SetInfo)
-      return self.__class__ (obj, self.cred)
-    else:
-      obj = self.__class__.factory (info, self.cred)
-      self.com_object.MoveHere (obj.com_object, rdn)
+    try:
+      cls = info.pop ('Class')
+    except KeyError:
+      raise exc.ActiveDirectoryError ("Must specify at least Class for new AD object")
+    obj = exc.wrapped (self.com_object.Create, cls, rdn)
+    exc.wrapped (obj.SetInfo)
+    for k, v in info.items ():
+      setattr (obj, k, v)
+    exc.wrapped (obj.SetInfo)
+    return self.__class__ (obj)
 
   def __delitem__ (self, rdn):
     #
@@ -196,7 +202,7 @@ class ADBase (object):
   def __iter__(self):
     try:
       for item in ADContainer (self.com_object):
-        yield self.__class__ (item, self.cred)
+        yield self.__class__ (item)
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
 
@@ -246,7 +252,7 @@ class ADBase (object):
       return value
     ofile.write (self.as_string () + u"\n")
     ofile.write ("[\n")
-    for property in self._properties:
+    for property in self.__class__._properties:
       value = exc.wrapped (getattr, self, property, None)
       if value:
         ofile.write ("  %s => %s\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
