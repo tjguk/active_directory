@@ -115,7 +115,7 @@ class ADBase (object):
     if cls not in self._schemas:
       schema_path = com_object.Schema
       try:
-        self._schemas[cls] = core.open_object (schema_path, cred=cred)
+        self._schemas[cls] = win32com.client.GetObject (schema_path) ## core.open_object (schema_path, cred=cred)
       except exc.BadPathnameError:
         self._schemas[cls] = None
     self.schema = self._schemas[cls]
