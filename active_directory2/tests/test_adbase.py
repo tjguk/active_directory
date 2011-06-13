@@ -23,7 +23,7 @@ class Base (base.Base):
   def setUp (self):
     base.Base.setUp (self)
     self.ou0 = self.ou
-    self.ou = adbase.ADBase (self.ou, cred=config.cred)
+    self.ou = adbase.ADBase (self.ou)
 
 class TestFactory (Base):
 
@@ -59,7 +59,7 @@ class TestADBase (Base):
     self.ou.displayName = None
     self.assertEquals (self.ou0.displayName, None)
 
-  @unittest.skip ("Skip until we can find a property with a dash")
+  #~ @unittest.skip ("Skip until we can find a property with a dash")
   def test_underscore_to_hyphen (self):
     self.assertEquals ("abc", adbase.ADBase._munged_attribute ("abc"))
     self.assertEquals ("abc", adbase.ADBase._munged_attribute ("abc_"))
@@ -78,11 +78,11 @@ class TestADBase (Base):
     self.assertNotIn (("user", "CN=User01"), [(i.Class, i.Name) for i in self.ou0])
 
   def test_equality (self):
-    ou2 = adbase.ADBase (self.ou0, cred=config.cred)
+    ou2 = adbase.ADBase (self.ou0)
     self.assertEquals (self.ou, ou2)
 
   def test_identity (self):
-    ou2 = adbase.ADBase (self.ou0, cred=config.cred)
+    ou2 = adbase.ADBase (self.ou0)
     self.assertEquals (len (set ([self.ou, ou2])), 1)
 
   def test_from_path (self):

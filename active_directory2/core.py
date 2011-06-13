@@ -245,6 +245,5 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
     moniker,
     cred.username,
     cred.password,
-    flags | (constants.AUTHENTICATION_TYPES.SERVER_BIND if server else 0) | cred.authentication_type,
-    adsi.IID_IADs
+    flags | (constants.AUTHENTICATION_TYPES.SERVER_BIND if server else 0) | cred.authentication_type
   )
