@@ -104,9 +104,10 @@ class ADBase (object):
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
   _schemas = {}
 
-  def __init__ (self, obj):
+  def __init__ (self, obj, cred=None):
     utils._set (self, "properties", set ())
     self.com_object = com_object = adsi._get_good_ret (obj)
+    self.cred = cred
     self.path = path = com_object.ADsPath
     scheme, server, dn = utils.parse_moniker (path)
     self.server = server.rstrip ("/")
@@ -158,7 +159,7 @@ class ADBase (object):
   def __getitem__ (self, rdn):
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
     obj = exc.wrapped (container.GetObject, None, rdn)
-    return self.__class__ (obj)
+    return self.__class__ (obj, self.cred)
 
   def __setitem__ (self, rdn, info):
     ur"""The __setitem__ syntax can be used either to create a new object
@@ -179,7 +180,7 @@ class ADBase (object):
     for k, v in info.items ():
       setattr (obj, k, v)
     exc.wrapped (obj.SetInfo)
-    return self.__class__ (obj)
+    return self.__class__ (obj, self.cred)
 
   def __delitem__ (self, rdn):
     #
@@ -202,7 +203,7 @@ class ADBase (object):
   def __iter__(self):
     try:
       for item in ADContainer (self.com_object):
-        yield self.__class__ (item)
+        yield self.__class__ (item, self.cred)
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
 
