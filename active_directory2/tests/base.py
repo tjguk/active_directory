@@ -39,12 +39,14 @@ def build_from_data (root, data):
       build_from_data (newroot, subdata)
   return newroot
 
-def find_pattern (data=DATA, type_pattern="*", name_pattern="*"):
-  for type, name, subdata in data:
-    if fnmatch.fnmatch (type, type_pattern) and fnmatch.fnmatch (name, name_pattern):
-      return type, name
+def find_pattern (type_pattern="*", name_pattern="*", data=DATA, path=None):
+  if path is None:
+    path = []
+  for type, rdn, subdata in data:
+    if fnmatch.fnmatch (type, type_pattern) and fnmatch.fnmatch (rdn, name_pattern):
+      return type, rdn, ",".join (path)
     else:
-      return find_pattern (subdata, type_pattern, name_pattern)
+      return find_pattern (type_pattern, name_pattern, subdata, path + [rdn])
   else:
     raise RuntimeError ("No entry found matching %s and %s" % (type_pattern, name_pattern))
 

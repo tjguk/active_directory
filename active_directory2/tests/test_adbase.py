@@ -118,7 +118,7 @@ class TestADBase (Base):
       self.assertIn ("ADsPath => %s" % self.ou0.ADsPath.encode ("ascii"), data)
 
   def test_set (self):
-    _, username = base.find_pattern (type_pattern="user")
+    _, username, _ = base.find_pattern (type_pattern="user")
     user1 = self.ou["user", username]
     x = str (uuid.uuid1 ())
     self.assertNotEquals (user1.displayName, x)
@@ -142,7 +142,7 @@ class TestSearch (Base):
 
   def setUp (self):
     Base.setUp (self)
-    self.type, self.name = base.find_pattern ()
+    self.type, self.name, self.path = base.find_pattern ()
 
   def test_no_filter (self):
     with self.assertRaises (adbase.NoFilterError):
@@ -174,7 +174,7 @@ class TestSearch (Base):
     self.assertEquals (self.name, self.ou.find (self.name, objectCategory=self.type).Name)
 
   def test_find_user (self):
-    _, username = base.find_pattern (type_pattern="user")
+    _, username, _ = base.find_pattern (type_pattern="user")
     user = self.ou.find_user (username)
     self.assertTrue (user)
     self.assertEquals (username, user.Name)

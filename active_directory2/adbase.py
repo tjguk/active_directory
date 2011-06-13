@@ -100,7 +100,7 @@ class ADBase (object):
 
   def __init__ (self, obj, cred=None):
     utils._set (self, "properties", set ())
-    self.com_object = com_object = obj ##.QueryInterface (adsi.IID_IADs)
+    self.com_object = com_object = adsi._get_good_ret (obj)
     self.cred = cred
     self.path = path = com_object.ADsPath
     scheme, server, dn = utils.parse_moniker (path)
@@ -129,7 +129,7 @@ class ADBase (object):
     # Since Python identifiers can't include hypens but can
     # include underscores, translate underscores to hyphens.
     #
-    return u"_".join (name.split (u"-"))
+    return u"-".join (name.rstrip ("_").split (u"_"))
 
   def __getattr__ (self, name):
     name = self._munged_attribute (name)
@@ -159,10 +159,13 @@ class ADBase (object):
       return "%s=%s" % (item_namer, item_identifier)
 
   def __getitem__ (self, item):
-    item_type, item_identifier = item
-    item_identifier = self._item_identifier (item_type, item_identifier)
+    try:
+      item_type, item_identifier = item
+      item_identifier = self._item_identifier (item_type, item_identifier)
+    except TypeError:
+      item_type, item_identifier = None, item
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
-    obj = adsi._get_good_ret (exc.wrapped (container.GetObject, item_type, item_identifier))
+    obj = exc.wrapped (container.GetObject, item_type, item_identifier)
     return self.__class__ (obj, self.cred)
 
   def __setitem__ (self, item, info):
@@ -173,7 +176,7 @@ class ADBase (object):
     for k, v in info.items ():
       setattr (obj, k, v)
     exc.wrapped (obj.SetInfo)
-    return self.__class__ (adsi._get_good_ret (obj), self.cred)
+    return self.__class__ (obj, self.cred)
 
   def __delitem__ (self, item):
     item_type, item_identifier = item
@@ -295,8 +298,11 @@ class ADBase (object):
     if not (args or kwargs):
       raise NoFilterError
     filter = support.and_ (*args, **kwargs)
-    for result in self.query (filter, ['ADsPath']):
-      yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred, flags=constants.AUTHENTICATION_TYPES.FAST_BIND))
+    for result in self.query (filter, ['Class', 'distinguishedName']):
+      yield "Hello"
+      #~ rdn = support.rdn (self.distinguishedName, result['distinguishedName'][0])
+      #~ yield self['Class', rdn]
+      #~ yield self.__class__ (core.open_object (result['ADsPath'][0], cred=self.cred, flags=constants.AUTHENTICATION_TYPES.FAST_BIND))
 
   def find (self, *args, **kwargs):
     ur"""Hand off arguments to :method:`search` and return the first result

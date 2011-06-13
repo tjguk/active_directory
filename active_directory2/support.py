@@ -108,3 +108,20 @@ def searchable_sid (sid):
   :returns: A string consisting of the hexadecimal version of the `sid` buffer
   """
   return u"".join (u"\\%02x" % ord (x) for x in buffer (sid))
+
+def rdn (dn0, dn1):
+  ur"""Return a relative distinguished name which related dn1 to dn0::
+
+    from active_directory2 import support
+    print support.rdn ("OU=tim,DC=westpark,DC=local", "CN=Group01,OU=tim,DC=westpark,DC=local")
+  """
+  #
+  # We will assume that dn0 is the parent (shorter) dn
+  #
+  if len (dn0) > len (dn1):
+    dn0, dn1 = dn1, dn0
+
+  if not dn1.endswith (dn0):
+    raise RuntimeError ("The distinguished names are not related")
+
+  return dn1[:-len (dn0)-1]
