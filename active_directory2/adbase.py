@@ -77,6 +77,14 @@ class ADBase (object):
     me.title = "Senior Programmer"
     me.department = None
 
+  Since AD caches attribute lookup, a second retrieval of the same attribute
+  for the same object won't hit the AD server and won't see any remote changes.
+  To force the cache to be refreshed, use the :meth:`get` method which will
+  refresh the cache and return the new attribute value.
+
+  To set several attribute values at once, use the :meth:`set` method, which
+  takes keyword args and commits the changes once all the attributes are set.
+
   Objects can be created, retrieved and removed under this object by item access.
   A relative distinguished name (rdn) must be given for the item. For object retrieval,
   this rdn can be several levels deep. For creation and deletion, only one level is
@@ -127,6 +135,10 @@ class ADBase (object):
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
 
   def _put (self, name, value):
+    #
+    # The only way to clear an AD value is by using the
+    # extended PutEx mechanism.
+    #
     if value is None:
       exc.wrapped (self.com_object.PutEx, constants.ADS_PROPERTY.CLEAR, name, None)
     else:
@@ -142,13 +154,17 @@ class ADBase (object):
     return u"-".join (name.rstrip ("_").split (u"_"))
 
   def __getattr__ (self, name):
+    #
+    # Attempt to get the attribute by attribute access and the Get
+    # method, with and without attribute name munging.
+    #
     def _getattr (name):
       try:
         return exc.wrapped (getattr, self.com_object, name)
       except AttributeError:
         return exc.wrapped (self.com_object.Get, name)
     try:
-      return _getattr (name)
+      return _getattr (self._munged_attribute (name))
     except AttributeError:
       return _getattr (self._munged_attribute (name))
 
@@ -160,10 +176,13 @@ class ADBase (object):
     else:
       super (ADBase, self).__setattr__ (name, value)
 
-  def __getitem__ (self, rdn):
+  def _get_object (self, rdn):
     container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
     obj = exc.wrapped (container.GetObject, None, rdn)
-    return self.__class__ (obj)
+    return adsi._get_good_ret (obj)
+
+  def __getitem__ (self, rdn):
+    return self.__class__ (self._get_object (rdn))
 
   def __setitem__ (self, rdn, info):
     ur"""The __setitem__ syntax can be used either to create a new object
@@ -194,9 +213,7 @@ class ADBase (object):
     # a NULL class) and then use the Class attribute to fill in
     # the Delete method.
     #
-    container = exc.wrapped (self.com_object.QueryInterface, adsi.IID_IADsContainer)
-    obj = adsi._get_good_ret (exc.wrapped (container.GetObject, None, rdn))
-    exc.wrapped (container.Delete, obj.Class, rdn)
+    exc.wrapped (container.Delete, self._get_object (rdn).Class, rdn)
 
   def __repr__ (self):
     return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
@@ -269,6 +286,14 @@ class ADBase (object):
         ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("}\n")
 
+  def get (self, attr):
+    ur"""Force an attribute value to be read from AD, not from
+    the local AD cache. (NB This is a system cache, not a Python
+    one. No cacheing of attributes is done at Python level).
+    """
+    exc.wrapped (self.com_object.GetInfo)
+    return getattr (self, attr)
+
   def set (self, **kwargs):
     ur"""Set several properties at once. This should be slightly faster than setting
     the properties individually as SetInfo is called only once, at the end::
@@ -280,6 +305,23 @@ class ADBase (object):
     for name, value in kwargs.items ():
       self._put (name, value)
     exc.wrapped (self.com_object.SetInfo)
+
+  def move (self, rdn, elsewhere, new_rdn=None):
+    ur"""Move a child object to another container, optionally
+    renaming it on the way.
+    """
+    elsewhere_obj = self.__class__.factory (elsewhere)
+    exc.wrapped (
+      elsewhere_obj.com_object.MoveHere,
+      self._get_object (rdn).ADsPath,
+      new_rdn or rdn
+    )
+
+  def rename (self, rdn, new_rdn):
+    ur"""Rename a child within this container (the underlying action is
+    a move to the same container).
+    """
+    self.move (rdn, self, new_rdn)
 
   def delete (self):
     ur"""Delete this object and all its descendants. The :class:`ADBase`

@@ -25,7 +25,8 @@ DATA = [
       ("group", "CN=Group01", []),
       ("user", "CN=user02", []),
       ("user", "CN=user03", []),
-    ])
+    ]),
+    ("organizationalUnit", "OU=test3", []),
   ])
 ]
 

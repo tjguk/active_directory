@@ -116,9 +116,14 @@ class TestADBase (Base):
     ou.delete ()
     self.assertIs (self.ou.find (distinguishedName=dn), None)
 
-  def test_query_is_not_implemented (self):
-    with self.assertRaises (NotImplementedError):
-      self.ou._query ("(displayName=*)")
+  def test_move (self):
+    ous = list (self.ou.search ("!distinguishedName=%s" self.ou.distinguishedName, objectCategory="organizationalUnit"))
+    ou1, ou2 = ous[:2]
+    u1 = ou1.find (objectCategory="person")
+    u1_guid = u1.objectGuid
+    ou1.move (u1, ou2)
+    u2 = ou2.find (cn=u1.cn)
+    self.assertEquals (u1_guid, u2.objectGuid)
 
 class TestSearch (Base):
 
