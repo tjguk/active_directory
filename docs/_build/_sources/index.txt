@@ -1,44 +1,54 @@
-active_directory - Active Directory Management
-==============================================
+active_directory2 - Active Directory Management
+===============================================
 
 What is it?
 -----------
 
-Blha blah
+Active Directory (AD) is Microsoft's answer to LDAP, the industry-standard
+directory service holding information about users, computers and
+other resources in a tree structure, arranged by departments or
+geographical location, and optimized for searching.
+
+The Python Active Directory module is a lightweight wrapper on top of the
+pywin32 extensions, and hides some of the plumbing needed to get Python to
+talk to the AD API. It's pure Python and should work with any recent combination
+of python and pywin32.
 
 
 Where do I get it?
 ------------------
 
-* **Subversion**: http://svn.timgolden.me.uk/wmi/trunk/
-* **Windows installer**: http://timgolden.me.uk/python/downloads/WMI-1.4.6.win32.exe
-* **Zipped-up source**: http://timgolden.me.uk/python/downloads/WMI-1.4.6.zip
+* http://svn.timgolden.me.uk/active_directory/branches/rework
+* http://pypi.python.org/...
 
-* **Older Versions**: http://timgolden.me.uk/python/downloads
 
 How do I install it?
 --------------------
 
-When all's said and done, it's just a module. But for those who like setup programs::
-
-  python setup.py install
-
-Or download the Windows installer and double-click.
+* Using pip or easy_install: pip install active_directory2
+* Using the Windows installers on PyPI
+* From the source zipfile: unzip and then python setup.py install
 
 
 How do I use it?
 ----------------
 
-Have a look at the :doc:`tutorial` or the :doc:`cookbook`. As a quick
-taster, try this, to find all Automatic services which are not running
-and offer the option to restart each one::
+Have a look at the :doc:`tutorial` or the :doc:`cookbook`. For a quick
+taster, this is how you would find all users in Domain Admins who haven't
+logged on for 6 months::
 
-  import active_directory
+  import datetime
+  from active_directory2 import ad, schema
 
-  c = wmi.WMI ()
-  for s in c.Win32_Service (StartMode="Auto", State="Stopped"):
-    if raw_input ("Restart %s? " % s.Caption).upper () == "Y":
-      s.StartService ()
+  root = ad.AD ()
+  for user in root.search (
+    schema.objectCategory="person",
+    schema.objectClass="user",
+    schema.memberOf="Domain Admins",
+    schema.lastLogon < (datetime.datetime.now () - datetime.timedelta (days=30*6))
+  ):
+    print user
+
 
 What's Changed?
 ---------------
@@ -48,22 +58,7 @@ See the :doc:`changes` document
 Copyright & License?
 --------------------
 
-* Copyright Tim Golden <mail@timgolden.me.uk> 2003 - 2010
+* Copyright Tim Golden <mail@timgolden.me.uk> 20011
 
 * Licensed under the (GPL-compatible) MIT License:
   http://www.opensource.org/licenses/mit-license.php
-
-Prerequisites
--------------
-
-If you're running a recent Python (2.5+) on a recent Windows (2k, 2k3, XP)
-and you have Mark Hammond's win32 extensions installed, you're probably
-up-and-running already. Otherwise...
-
-Python
-~~~~~~
-http://www.python.org/ (just in case you didn't know)
-
-pywin32 (was win32all)
-~~~~~~~~~~~~~~~~~~~~~~
-http://sourceforge.net/projects/pywin32/files/

@@ -7,7 +7,10 @@ Contents
     :maxdepth: 2
 
     index
+    intro
     tutorial
+    authentication
+    modules/core
+    modules/adbase
     cookbook
-    active_directory
     changes

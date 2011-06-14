@@ -109,6 +109,17 @@ class TestADBase (Base):
     self.assertEquals (user1.displayName, x)
     self.assertEquals (user1.givenName, x)
 
+  def test_get (self):
+    #
+    # There doesn't seem to be a reliable way to test this.
+    # At the very least, do a sanity check to make sure
+    # it's not failing.
+    #
+    user1 = self.ou.find (objectCategory="person")
+    new_name = str (uuid.uuid1 ())
+    user1.displayName = new_name
+    self.assertEquals (new_name, user1.get ("displayName"))
+
   def test_delete (self):
     ou = self.ou.find ("!distinguishedName=%s" % self.ou.distinguishedName, objectCategory="organizationalUnit")
     self.assertIsNot (ou, None)

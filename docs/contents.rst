@@ -11,5 +11,6 @@ Contents
     tutorial
     authentication
     modules/core
+    modules/adbase
     cookbook
     changes

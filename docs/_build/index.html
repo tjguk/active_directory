@@ -7,7 +7,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>active_directory - Active Directory Management &mdash; active_directory v1.0rc1 documentation</title>
+    <title>active_directory2 - Active Directory Management &mdash; active_directory2 v1.0rc1 documentation</title>
     <link rel="stylesheet" href="_static/active_directory.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
@@ -22,8 +22,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="active_directory v1.0rc1 documentation" href="#" />
-    <link rel="next" title="active_directory Tutorial" href="tutorial.html" />
+    <link rel="top" title="active_directory2 v1.0rc1 documentation" href="#" />
+    <link rel="next" title="active_directory2 – Windows Active Directory Management" href="intro.html" />
     <link rel="prev" title="Contents" href="contents.html" /> 
   </head>
   <body>
@@ -37,30 +37,25 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="tutorial.html" title="active_directory Tutorial"
+          <a href="intro.html" title="active_directory2 – Windows Active Directory Management"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="contents.html" title="Contents"
              accesskey="P">previous</a> |</li>
-        <li><a href="contents.html">active_directory v1.0rc1 documentation</a> &raquo;</li> 
+        <li><a href="contents.html">active_directory2 v1.0rc1 documentation</a> &raquo;</li> 
       </ul>
     </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
   <h3><a href="contents.html">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">active_directory - Active Directory Management</a><ul>
+<li><a class="reference internal" href="#">active_directory2 - Active Directory Management</a><ul>
 <li><a class="reference internal" href="#what-is-it">What is it?</a></li>
 <li><a class="reference internal" href="#where-do-i-get-it">Where do I get it?</a></li>
 <li><a class="reference internal" href="#how-do-i-install-it">How do I install it?</a></li>
 <li><a class="reference internal" href="#how-do-i-use-it">How do I use it?</a></li>
 <li><a class="reference internal" href="#what-s-changed">What&#8217;s Changed?</a></li>
 <li><a class="reference internal" href="#copyright-license">Copyright &amp; License?</a></li>
-<li><a class="reference internal" href="#prerequisites">Prerequisites</a><ul>
-<li><a class="reference internal" href="#python">Python</a></li>
-<li><a class="reference internal" href="#pywin32-was-win32all">pywin32 (was win32all)</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
@@ -69,8 +64,8 @@
   <p class="topless"><a href="contents.html"
                         title="previous chapter">Contents</a></p>
   <h4>Next topic</h4>
-  <p class="topless"><a href="tutorial.html"
-                        title="next chapter">active_directory Tutorial</a></p>
+  <p class="topless"><a href="intro.html"
+                        title="next chapter"><tt class="docutils literal"><span class="pre">active_directory2</span></tt> &#8211; Windows Active Directory Management</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/index.txt"
@@ -97,39 +92,50 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="active-directory-active-directory-management">
-<h1>active_directory - Active Directory Management<a class="headerlink" href="#active-directory-active-directory-management" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="active-directory2-active-directory-management">
+<h1>active_directory2 - Active Directory Management<a class="headerlink" href="#active-directory2-active-directory-management" title="Permalink to this headline">¶</a></h1>
 <div class="section" id="what-is-it">
 <h2>What is it?<a class="headerlink" href="#what-is-it" title="Permalink to this headline">¶</a></h2>
-<p>Blha blah</p>
+<p>Active Directory (AD) is Microsoft&#8217;s answer to LDAP, the industry-standard
+directory service holding information about users, computers and
+other resources in a tree structure, arranged by departments or
+geographical location, and optimized for searching.</p>
+<p>The Python Active Directory module is a lightweight wrapper on top of the
+pywin32 extensions, and hides some of the plumbing needed to get Python to
+talk to the AD API. It&#8217;s pure Python and should work with any recent combination
+of python and pywin32.</p>
 </div>
 <div class="section" id="where-do-i-get-it">
 <h2>Where do I get it?<a class="headerlink" href="#where-do-i-get-it" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
-<li><strong>Subversion</strong>: <a class="reference external" href="http://svn.timgolden.me.uk/wmi/trunk/">http://svn.timgolden.me.uk/wmi/trunk/</a></li>
-<li><strong>Windows installer</strong>: <a class="reference external" href="http://timgolden.me.uk/python/downloads/WMI-1.4.6.win32.exe">http://timgolden.me.uk/python/downloads/WMI-1.4.6.win32.exe</a></li>
-<li><strong>Zipped-up source</strong>: <a class="reference external" href="http://timgolden.me.uk/python/downloads/WMI-1.4.6.zip">http://timgolden.me.uk/python/downloads/WMI-1.4.6.zip</a></li>
-<li><strong>Older Versions</strong>: <a class="reference external" href="http://timgolden.me.uk/python/downloads">http://timgolden.me.uk/python/downloads</a></li>
+<li><a class="reference external" href="http://svn.timgolden.me.uk/active_directory/branches/rework">http://svn.timgolden.me.uk/active_directory/branches/rework</a></li>
+<li><a class="reference external" href="http://pypi.python.org/">http://pypi.python.org/</a>...</li>
 </ul>
 </div>
 <div class="section" id="how-do-i-install-it">
 <h2>How do I install it?<a class="headerlink" href="#how-do-i-install-it" title="Permalink to this headline">¶</a></h2>
-<p>When all&#8217;s said and done, it&#8217;s just a module. But for those who like setup programs:</p>
-<div class="highlight-python"><pre>python setup.py install</pre>
-</div>
-<p>Or download the Windows installer and double-click.</p>
+<ul class="simple">
+<li>Using pip or easy_install: pip install active_directory2</li>
+<li>Using the Windows installers on PyPI</li>
+<li>From the source zipfile: unzip and then python setup.py install</li>
+</ul>
 </div>
 <div class="section" id="how-do-i-use-it">
 <h2>How do I use it?<a class="headerlink" href="#how-do-i-use-it" title="Permalink to this headline">¶</a></h2>
-<p>Have a look at the <a class="reference internal" href="tutorial.html"><em>active_directory Tutorial</em></a> or the <a class="reference internal" href="cookbook.html"><em>active_directory Cookbook</em></a>. As a quick
-taster, try this, to find all Automatic services which are not running
-and offer the option to restart each one:</p>
-<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">active_directory</span>
+<p>Have a look at the <a class="reference internal" href="tutorial.html"><em>active_directory Tutorial</em></a> or the <a class="reference internal" href="cookbook.html"><em>active_directory Cookbook</em></a>. For a quick
+taster, this is how you would find all users in Domain Admins who haven&#8217;t
+logged on for 6 months:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">ad</span><span class="p">,</span> <span class="n">schema</span>
 
-<span class="n">c</span> <span class="o">=</span> <span class="n">wmi</span><span class="o">.</span><span class="n">WMI</span> <span class="p">()</span>
-<span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">c</span><span class="o">.</span><span class="n">Win32_Service</span> <span class="p">(</span><span class="n">StartMode</span><span class="o">=</span><span class="s">&quot;Auto&quot;</span><span class="p">,</span> <span class="n">State</span><span class="o">=</span><span class="s">&quot;Stopped&quot;</span><span class="p">):</span>
-  <span class="k">if</span> <span class="nb">raw_input</span> <span class="p">(</span><span class="s">&quot;Restart </span><span class="si">%s</span><span class="s">? &quot;</span> <span class="o">%</span> <span class="n">s</span><span class="o">.</span><span class="n">Caption</span><span class="p">)</span><span class="o">.</span><span class="n">upper</span> <span class="p">()</span> <span class="o">==</span> <span class="s">&quot;Y&quot;</span><span class="p">:</span>
-    <span class="n">s</span><span class="o">.</span><span class="n">StartService</span> <span class="p">()</span>
+<span class="n">root</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">AD</span> <span class="p">()</span>
+<span class="k">for</span> <span class="n">user</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span>
+  <span class="n">schema</span><span class="o">.</span><span class="n">objectCategory</span><span class="o">=</span><span class="s">&quot;person&quot;</span><span class="p">,</span>
+  <span class="n">schema</span><span class="o">.</span><span class="n">objectClass</span><span class="o">=</span><span class="s">&quot;user&quot;</span><span class="p">,</span>
+  <span class="n">schema</span><span class="o">.</span><span class="n">memberOf</span><span class="o">=</span><span class="s">&quot;Domain Admins&quot;</span><span class="p">,</span>
+  <span class="n">schema</span><span class="o">.</span><span class="n">lastLogon</span> <span class="o">&lt;</span> <span class="p">(</span><span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span> <span class="p">()</span> <span class="o">-</span> <span class="n">datetime</span><span class="o">.</span><span class="n">timedelta</span> <span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="o">*</span><span class="mi">6</span><span class="p">))</span>
+<span class="p">):</span>
+  <span class="k">print</span> <span class="n">user</span>
 </pre></div>
 </div>
 </div>
@@ -140,24 +146,10 @@ and offer the option to restart each one:</p>
 <div class="section" id="copyright-license">
 <h2>Copyright &amp; License?<a class="headerlink" href="#copyright-license" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
-<li>Copyright Tim Golden &lt;<a class="reference external" href="mailto:mail&#37;&#52;&#48;timgolden&#46;me&#46;uk">mail<span>&#64;</span>timgolden<span>&#46;</span>me<span>&#46;</span>uk</a>&gt; 2003 - 2010</li>
+<li>Copyright Tim Golden &lt;<a class="reference external" href="mailto:mail&#37;&#52;&#48;timgolden&#46;me&#46;uk">mail<span>&#64;</span>timgolden<span>&#46;</span>me<span>&#46;</span>uk</a>&gt; 20011</li>
 <li>Licensed under the (GPL-compatible) MIT License:
 <a class="reference external" href="http://www.opensource.org/licenses/mit-license.php">http://www.opensource.org/licenses/mit-license.php</a></li>
 </ul>
-</div>
-<div class="section" id="prerequisites">
-<h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Permalink to this headline">¶</a></h2>
-<p>If you&#8217;re running a recent Python (2.5+) on a recent Windows (2k, 2k3, XP)
-and you have Mark Hammond&#8217;s win32 extensions installed, you&#8217;re probably
-up-and-running already. Otherwise...</p>
-<div class="section" id="python">
-<h3>Python<a class="headerlink" href="#python" title="Permalink to this headline">¶</a></h3>
-<p><a class="reference external" href="http://www.python.org/">http://www.python.org/</a> (just in case you didn&#8217;t know)</p>
-</div>
-<div class="section" id="pywin32-was-win32all">
-<h3>pywin32 (was win32all)<a class="headerlink" href="#pywin32-was-win32all" title="Permalink to this headline">¶</a></h3>
-<p><a class="reference external" href="http://sourceforge.net/projects/pywin32/files/">http://sourceforge.net/projects/pywin32/files/</a></p>
-</div>
 </div>
 </div>
 
@@ -177,16 +169,16 @@ up-and-running already. Otherwise...</p>
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="tutorial.html" title="active_directory Tutorial"
+          <a href="intro.html" title="active_directory2 – Windows Active Directory Management"
              >next</a> |</li>
         <li class="right" >
           <a href="contents.html" title="Contents"
              >previous</a> |</li>
-        <li><a href="contents.html">active_directory v1.0rc1 documentation</a> &raquo;</li> 
+        <li><a href="contents.html">active_directory2 v1.0rc1 documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2010, Tim Golden.
+        &copy; Copyright 2011, Tim Golden.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
     </div>
   </body>

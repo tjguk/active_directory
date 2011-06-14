@@ -18,7 +18,7 @@ class NotAContainerError (exc.ActiveDirectoryError):
 class NoFilterError (exc.ActiveDirectoryError):
   pass
 
-class ADContainer (object):
+class _ADContainer (object):
   ur"""A support object which takes an existing AD COM object
   which implements the IADsContainer interface and provides
   a corresponding iterator.
@@ -104,6 +104,18 @@ class ADBase (object):
     my_ou['cn=Minimal'] = dict (Class="user", sn="TEST")
     for obj in my_ou.search (sn="TEST"):
       del my_ou[obj.Name]
+
+  You can move an object from one container to another or (a slightly
+  specialised version of the same thing) rename it within the same container.
+  Note that an object to be moved must be a leaf node or an empty container::
+
+    from active_directory2 import ad
+
+    root = ad.AD ()
+    my_ou = root['ou=MyOU']
+    archive = root['ou=archive']
+    my_ou.move ("cn=User1", archive)
+    my_ou.rename ("cn=User2", "cn=User3")
   """
 
   #
@@ -185,15 +197,12 @@ class ADBase (object):
     return self.__class__ (self._get_object (rdn))
 
   def __setitem__ (self, rdn, info):
-    ur"""The __setitem__ syntax can be used either to create a new object
-    of a given class. The RHS is a dictalike which must contain the new object's
-    class but which may contain other initialisation data.
-
-    If CopyHere were actually implemented in ADSI, this method could
-    be overloaded to call it, but only MoveHere is implemented and
-    it seemed counterintuitive to implement a move via the __setitem__
-    protocol.
-    """
+    #
+    # If CopyHere were actually implemented in ADSI, this method could
+    # be overloaded to call it, but only MoveHere is implemented and
+    # it seemed counterintuitive to implement a move via the __setitem__
+    # protocol.
+    #
     try:
       cls = info.pop ('Class')
     except KeyError:
@@ -223,7 +232,7 @@ class ADBase (object):
 
   def __iter__(self):
     try:
-      for item in ADContainer (self.com_object):
+      for item in _ADContainer (self.com_object):
         yield self.__class__ (item)
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
@@ -237,6 +246,10 @@ class ADBase (object):
   @classmethod
   def from_path (cls, path, cred=None):
     ur"""Create an object of this class from an AD path and, optionally, credentials
+
+    :param obj_or_path: a valid LDAP moniker
+    :param cred: anything accepted by :func:`credentials.credentials`
+    :returns: a :class:`ADBase` object
     """
     return cls (core.open_object (path, cred))
 
@@ -267,6 +280,8 @@ class ADBase (object):
     ur"""Pretty-print the contents of this object, starting with the
     AD class definition, and followed by the attributes of this particular
     instance.
+
+    :param ofile: the open file to write output to [`sys.stdout`]
     """
     def munged (value):
       if isinstance (value, unicode):
@@ -290,6 +305,8 @@ class ADBase (object):
     ur"""Force an attribute value to be read from AD, not from
     the local AD cache. (NB This is a system cache, not a Python
     one. No cacheing of attributes is done at Python level).
+
+    :param attr: a valid attribute name for this object
     """
     exc.wrapped (self.com_object.GetInfo)
     return getattr (self, attr)
@@ -309,6 +326,12 @@ class ADBase (object):
   def move (self, rdn, elsewhere, new_rdn=None):
     ur"""Move a child object to another container, optionally
     renaming it on the way.
+
+    :param rdn: the rdn of an object within this container
+    :param elsewhere: another container
+    :type elsewhere: anything accepted by :meth:`factory`
+    :param new_rdn: the new rdn of the object if it is to be renamed as well
+                    as moved.
     """
     elsewhere_obj = self.__class__.factory (elsewhere)
     exc.wrapped (
@@ -320,6 +343,9 @@ class ADBase (object):
   def rename (self, rdn, new_rdn):
     ur"""Rename a child within this container (the underlying action is
     a move to the same container).
+
+    :param rdn: the rdn of an object within this container
+    :param new_rdn: the new rdn of the object
     """
     self.move (rdn, self, new_rdn)
 
@@ -362,7 +388,7 @@ class ADBase (object):
         yield self[rdn]
 
   def find (self, *args, **kwargs):
-    ur"""Hand off arguments to :method:`search` and return the first result
+    ur"""Hand off arguments to :meth:`search` and return the first result
     """
     for result in self.search (*args, **kwargs):
       return result

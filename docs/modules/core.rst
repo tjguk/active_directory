@@ -6,3 +6,4 @@
 ..  moduleauthor:: Tim Golden <mail@timgolden.me.uk>
 
 ..  automodule:: active_directory2.core
+    :members:
