@@ -1,0 +1,351 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>core – Core AD Functionality &mdash; active_directory2 v1.0rc1 documentation</title>
+    <link rel="stylesheet" href="../_static/active_directory.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0rc1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="active_directory2 v1.0rc1 documentation" href="../index.html" />
+    <link rel="next" title="adbase – ADBase Objects" href="adbase.html" />
+    <link rel="prev" title="Authentication" href="../authentication.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="adbase.html" title="adbase – ADBase Objects"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="../authentication.html" title="Authentication"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../contents.html">active_directory2 v1.0rc1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="../authentication.html"
+                        title="previous chapter">Authentication</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="adbase.html"
+                        title="next chapter"><tt class="docutils literal docutils literal"><span class="pre">adbase</span></tt> &#8211; ADBase Objects</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/modules/core.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-core">
+<span id="core-core-ad-functionality"></span><h1><a class="reference internal" href="#module-core" title="core: Pythonic access to Core AD functionality"><tt class="xref py py-mod docutils literal"><span class="pre">core</span></tt></a> &#8211; Core AD Functionality<a class="headerlink" href="#module-core" title="Permalink to this headline">¶</a></h1>
+<span class="target" id="module-active_directory2.core"></span><p>Core functionality behind the active_directory2 functionality.
+The functions in this module either return strings or Python COM
+objects representing the underlying ADSI COM objects. These will
+be wrapped by <tt class="xref py py-mod docutils literal"><span class="pre">ADBase</span></tt> and other modules to give extended
+functionality, but they can be useful on their own.</p>
+<p>The functions in this module are built upon by all the other modules,
+but can sensibly be used in their own right by users of the active_directory2
+package. For efficiency, most of them cache their results so that, eg, a
+lookup for an attribute&#8217;s schema doesn&#8217;t need to bind to the directory
+every time. (Although the bind itself should be cached by AD behind the scenes).</p>
+<dl class="function">
+<dt id="active_directory2.core.attribute">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">attribute</tt><big>(</big><em>name</em>, <em>server=None</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.attribute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first attribute corresponding to <cite>name</cite> from <a class="reference internal" href="#active_directory2.core.attributes" title="active_directory2.core.attributes"><tt class="xref py py-func docutils literal"><span class="pre">attributes()</span></tt></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>name</strong> &#8211; The name of an attribute whose data is to be returned</li>
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [<cite>None</cite> - any server]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last"><cite>name</cite>, <cite>info</cite> per <a class="reference internal" href="#active_directory2.core.attributes" title="active_directory2.core.attributes"><tt class="xref py py-func docutils literal"><span class="pre">attributes()</span></tt></a> for the named attribute</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.attributes">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">attributes</tt><big>(</big><em>names='*'</em>, <em>server=None</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.attributes" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iteration of name, obj pairs representing all the attributes named.
+The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>names</strong> &#8211; A list of names for attributes to be returned [all attributes]</li>
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">An iteration of (name, info)</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.class_schema">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">class_schema</tt><big>(</big><em>class_name</em>, <em>server=None</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.class_schema" title="Permalink to this definition">¶</a></dt>
+<dd><table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body">the name of the schema for a particular AD Class</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.open_object">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">open_object</tt><big>(</big><em>moniker</em>, <em>cred=None</em>, <em>flags=0</em><big>)</big><a class="headerlink" href="#active_directory2.core.open_object" title="Permalink to this definition">¶</a></dt>
+<dd><p>Open an AD object represented by <cite>moniker</cite>, optionally authenticated. You
+will not normally call this yourself: it is used internally by the AD objects.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>moniker</strong> &#8211; A complete AD moniker representing an AD object</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+<li><strong>flags</strong> &#8211; optional <tt class="xref py py-data docutils literal"><span class="pre">constants.AUTHENTICATION_TYPES</span></tt> flags. The credentials
+will set the appropriate flags for authentication, and server binding will be used
+if the moniker is server-based.</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a COM object corresponding to <cite>moniker</cite> and authenticated according to <cite>cred</cite></p>
+</td>
+</tr>
+</tbody>
+</table>
+<p>This function is at the heart of authenticated access to AD offered by this package.
+The credentials work as follows:</p>
+<ul class="simple">
+<li><cite>cred</cite> is passed to <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt> for initial processing</li>
+<li>If <cite>cred</cite> is now a <tt class="xref py py-class docutils literal"><span class="pre">credentials.Credentials</span></tt> object, this is used for authentication</li>
+<li>Otherwise <cite>moniker</cite> is parsed to determine the (optional) server name and the cache is
+checked for corresponding credentials.</li>
+<li>If no cached credentials are found, passthrough authentication is assumed.</li>
+</ul>
+<p>This will normally do what you expect. The default (passthrough) is far and away
+the most common. Specific credentials can either be passed in, eg, as a tuple,
+or can be held in the credentials cache and inferred from the server:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">core</span><span class="p">,</span> <span class="n">credentials</span>
+
+<span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="s">&quot;LDAP://cn=Tim Golden,dc=goldent,dc=local&quot;</span><span class="p">)</span>
+<span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="s">&quot;LDAP://cn=Tim Golden,dc=goldent,dc=local&quot;</span><span class="p">,</span> <span class="n">cred</span><span class="o">=</span><span class="p">(</span><span class="s">&quot;goldent</span><span class="se">\\</span><span class="s">tim&quot;</span><span class="p">,</span> <span class="s">&quot;pa55w0rd&quot;</span><span class="p">))</span>
+<span class="k">with</span> <span class="n">credentials</span><span class="o">.</span><span class="n">credentials</span> <span class="p">((</span><span class="s">&quot;goldent</span><span class="se">\\</span><span class="s">tim&quot;</span><span class="p">,</span> <span class="s">&quot;5ecret&quot;</span><span class="p">,</span> <span class="s">&quot;testing&quot;</span><span class="p">)):</span>
+  <span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">root_moniker</span> <span class="p">())</span>
+<span class="n">me</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">open_object</span> <span class="p">(</span><span class="s">&quot;LDAP://testing/dc=test,dc=local&quot;</span><span class="p">,</span> <span class="n">cred</span><span class="o">=</span><span class="n">credentials</span><span class="o">.</span><span class="n">Anonymous</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.query">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">query</tt><big>(</big><em>obj</em>, <em>filter</em>, <em>attributes=None</em>, <em>flags=&lt;Unset&gt;</em><big>)</big><a class="headerlink" href="#active_directory2.core.query" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run an LDAP query specified by <cite>filter</cite> against the AD object <cite>obj</cite>.
+This query is at the heart of the search functionality in this package.
+It can be called directly either from this module or from any of the
+higher-level AD objects such as <tt class="xref py py-class docutils literal"><span class="pre">adbase.ADBase</span></tt> which expose
+it as a method.</p>
+<p>The result is an iteration of dictionaries mapping attribute names
+to a list of values. No attempt is made here to determine which
+values are single and which are multivalued.</p>
+<p>Typical usage:</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>obj</strong> &#8211; An ADSI object which implements the IDirectorySearch interface</li>
+<li><strong>filter</strong> &#8211; A valid ADSI/LDAP filter string</li>
+<li><strong>attributes</strong> &#8211; A list of attributes (AD fields) to return. None =&gt; All</li>
+<li><strong>flags</strong> &#8211; A combination of <tt class="xref py py-data docutils literal"><span class="pre">constants.ADS_SEARCHPREF</span></tt> values</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">iterator over a dictionary mapping attribute names to lists of values</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.root_dse">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">root_dse</tt><big>(</big><em>server=None</em>, <em>scheme='LDAP:'</em><big>)</big><a class="headerlink" href="#active_directory2.core.root_dse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the object representing the RootDSE for a domain, optionally
+specified by a server and a scheme (typically LDAP: or GC:).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [None - serverless]</li>
+<li><strong>scheme</strong> &#8211; Typically LDAP: or GC: [LDAP:]</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The COM Object corresponding to the RootDSE for the server or domain</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.root_moniker">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">root_moniker</tt><big>(</big><em>server=None</em>, <em>scheme='LDAP:'</em><big>)</big><a class="headerlink" href="#active_directory2.core.root_moniker" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the moniker representing the domain specified by a server and
+a scheme (typically LDAP: or GC:). If you need the corresponding object,
+use <a class="reference internal" href="#active_directory2.core.root_obj" title="active_directory2.core.root_obj"><tt class="xref py py-func docutils literal"><span class="pre">root_obj()</span></tt></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>scheme</strong> &#8211; Typically LDAP: or GC: [LDAP:]</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The moniker corresponding to the domain</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.root_obj">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">root_obj</tt><big>(</big><em>server=None</em>, <em>scheme='LDAP:'</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.root_obj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the COM object representing the domain specified by a server and
+a scheme (typically LDAP: or GC:), optionally authenticated. If you only
+need the moniker, use <a class="reference internal" href="#active_directory2.core.root_moniker" title="active_directory2.core.root_moniker"><tt class="xref py py-func docutils literal"><span class="pre">root_moniker()</span></tt></a>.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>scheme</strong> &#8211; Typically LDAP: or GC: [LDAP:]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The COM object corresponding to the domain</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="active_directory2.core.schema_obj">
+<tt class="descclassname">active_directory2.core.</tt><tt class="descname">schema_obj</tt><big>(</big><em>server=None</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.core.schema_obj" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the COM object representing the schema for the domain specified
+by a server, optionally authenticated.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>server</strong> &#8211; A specific server whose rootDSE is to be found [none - any server]</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">The COM object corresponding to the domain schema</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="adbase.html" title="adbase – ADBase Objects"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="../authentication.html" title="Authentication"
+             >previous</a> |</li>
+        <li><a href="../contents.html">active_directory2 v1.0rc1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011, Tim Golden.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,428 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>adbase – ADBase Objects &mdash; active_directory2 v1.0rc1 documentation</title>
+    <link rel="stylesheet" href="../_static/active_directory.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0rc1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <link rel="top" title="active_directory2 v1.0rc1 documentation" href="../index.html" />
+    <link rel="next" title="active_directory Cookbook" href="../cookbook.html" />
+    <link rel="prev" title="core – Core AD Functionality" href="core.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../cookbook.html" title="active_directory Cookbook"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="core.html" title="core – Core AD Functionality"
+             accesskey="P">previous</a> |</li>
+        <li><a href="../contents.html">active_directory2 v1.0rc1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="core.html"
+                        title="previous chapter"><tt class="docutils literal"><span class="pre">core</span></tt> &#8211; Core AD Functionality</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="../cookbook.html"
+                        title="next chapter">active_directory Cookbook</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="../_sources/modules/adbase.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" size="18" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-adbase">
+<span id="adbase-adbase-objects"></span><h1><a class="reference internal" href="#module-adbase" title="adbase: Pythonic objects wrapped Active Directory objects"><tt class="xref py py-mod docutils literal"><span class="pre">adbase</span></tt></a> &#8211; ADBase Objects<a class="headerlink" href="#module-adbase" title="Permalink to this headline">¶</a></h1>
+<span class="target" id="module-active_directory2.adbase"></span><dl class="class">
+<dt id="active_directory2.adbase.ADBase">
+<em class="property">class </em><tt class="descclassname">active_directory2.adbase.</tt><tt class="descname">ADBase</tt><big>(</big><em>obj</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase" title="Permalink to this definition">¶</a></dt>
+<dd><p>A slender wrapper around an AD COM object.</p>
+<p>Attributes can be read &amp; set. If the underlying object is a
+container it can be iterated over and subobjects can be retrieved, added
+and removed. It can also be walked (in the style of Python&#8217;s os.walk) and
+flattened: <a class="reference internal" href="#active_directory2.adbase.ADBase.walk" title="active_directory2.adbase.ADBase.walk"><tt class="xref py py-meth docutils literal"><span class="pre">walk()</span></tt></a>, <a class="reference internal" href="#active_directory2.adbase.ADBase.flat" title="active_directory2.adbase.ADBase.flat"><tt class="xref py py-meth docutils literal"><span class="pre">flat()</span></tt></a>.</p>
+<p>Pretty-printing to stdout is via the <a class="reference internal" href="#active_directory2.adbase.ADBase.dump" title="active_directory2.adbase.ADBase.dump"><tt class="xref py py-meth docutils literal"><span class="pre">dump()</span></tt></a> method.</p>
+<p>There is simple searching with filters, returning the results as objects:
+<a class="reference internal" href="#active_directory2.adbase.ADBase.search" title="active_directory2.adbase.ADBase.search"><tt class="xref py py-meth docutils literal"><span class="pre">search()</span></tt></a>, <a class="reference internal" href="#active_directory2.adbase.ADBase.find" title="active_directory2.adbase.ADBase.find"><tt class="xref py py-meth docutils literal"><span class="pre">find()</span></tt></a>.</p>
+<p>The underlying object can itself be deleted via <a class="reference internal" href="#active_directory2.adbase.ADBase.delete" title="active_directory2.adbase.ADBase.delete"><tt class="xref py py-meth docutils literal"><span class="pre">delete()</span></tt></a></p>
+<p>No validation is done of the attribute names and no conversions of the
+values. It can be used alone (most easily via the <a class="reference internal" href="#module-adbase" title="adbase: Pythonic objects wrapped Active Directory objects"><tt class="xref py py-func docutils literal"><span class="pre">adbase()</span></tt></a> function
+which takes an AD path and returns an ADBase object). It also provides the
+basis for the <tt class="xref py py-class docutils literal"><span class="pre">ADObject</span></tt> class.</p>
+<p>Attributes can be set by normal Python attribute access. Since for identifier
+names AD uses hyphens which aren&#8217;t valid in Python identifiers, underscores
+will be converted to hyphens. To avoid Python keyword issues, trailing underscores
+are also stripped:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">ad</span>
+
+<span class="n">me</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">find_user</span> <span class="p">()</span>
+<span class="n">me</span><span class="o">.</span><span class="n">displayName</span>
+<span class="n">me</span><span class="o">.</span><span class="n">title</span> <span class="o">=</span> <span class="s">&quot;Senior Programmer&quot;</span>
+<span class="n">me</span><span class="o">.</span><span class="n">department</span> <span class="o">=</span> <span class="bp">None</span>
+</pre></div>
+</div>
+<p>Since AD caches attribute lookup, a second retrieval of the same attribute
+for the same object won&#8217;t hit the AD server and won&#8217;t see any remote changes.
+To force the cache to be refreshed, use the <a class="reference internal" href="#active_directory2.adbase.ADBase.get" title="active_directory2.adbase.ADBase.get"><tt class="xref py py-meth docutils literal"><span class="pre">get()</span></tt></a> method which will
+refresh the cache and return the new attribute value.</p>
+<p>To set several attribute values at once, use the <a class="reference internal" href="#active_directory2.adbase.ADBase.set" title="active_directory2.adbase.ADBase.set"><tt class="xref py py-meth docutils literal"><span class="pre">set()</span></tt></a> method, which
+takes keyword args and commits the changes once all the attributes are set.</p>
+<p>Objects can be created, retrieved and removed under this object by item access.
+A relative distinguished name (rdn) must be given for the item. For object retrieval,
+this rdn can be several levels deep. For creation and deletion, only one level is
+allowed.</p>
+<p>Assigning to an item of an AD container creates a new object with the rdn given.
+Additional data is supplied as a dictionary-like object which must contain an
+entry for the object&#8217;s Class and may contain other information. Exactly what must
+be passed will vary from one object type to another.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">ad</span>
+
+<span class="n">my_ou</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">find_ou</span> <span class="p">(</span><span class="s">&quot;MyOU&quot;</span><span class="p">)</span>
+<span class="n">my_ou</span><span class="p">[</span><span class="s">&#39;cn=Tim&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span> <span class="p">(</span><span class="n">Class</span><span class="o">=</span><span class="s">&quot;user&quot;</span><span class="p">,</span> <span class="n">sAMAccountName</span><span class="o">=</span><span class="s">&quot;tim&quot;</span><span class="p">,</span> <span class="n">displayName</span><span class="o">=</span><span class="s">&quot;Tim Golden&quot;</span><span class="p">,</span> <span class="n">sn</span><span class="o">=</span><span class="s">&quot;TEST&quot;</span><span class="p">)</span>
+<span class="n">my_ou</span><span class="p">[</span><span class="s">&#39;cn=Minimal&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span> <span class="p">(</span><span class="n">Class</span><span class="o">=</span><span class="s">&quot;user&quot;</span><span class="p">,</span> <span class="n">sn</span><span class="o">=</span><span class="s">&quot;TEST&quot;</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">my_ou</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span><span class="n">sn</span><span class="o">=</span><span class="s">&quot;TEST&quot;</span><span class="p">):</span>
+  <span class="k">del</span> <span class="n">my_ou</span><span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">Name</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>You can move an object from one container to another or (a slightly
+specialised version of the same thing) rename it within the same container.
+Note that an object to be moved must be a leaf node or an empty container:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">ad</span>
+
+<span class="n">root</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">AD</span> <span class="p">()</span>
+<span class="n">my_ou</span> <span class="o">=</span> <span class="n">root</span><span class="p">[</span><span class="s">&#39;ou=MyOU&#39;</span><span class="p">]</span>
+<span class="n">archive</span> <span class="o">=</span> <span class="n">root</span><span class="p">[</span><span class="s">&#39;ou=archive&#39;</span><span class="p">]</span>
+<span class="n">my_ou</span><span class="o">.</span><span class="n">move</span> <span class="p">(</span><span class="s">&quot;cn=User1&quot;</span><span class="p">,</span> <span class="n">archive</span><span class="p">)</span>
+<span class="n">my_ou</span><span class="o">.</span><span class="n">rename</span> <span class="p">(</span><span class="s">&quot;cn=User2&quot;</span><span class="p">,</span> <span class="s">&quot;cn=User3&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.delete">
+<tt class="descname">delete</tt><big>(</big><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.delete" title="Permalink to this definition">¶</a></dt>
+<dd><p>Delete this object and all its descendants. The <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a>
+object will persist but any attempt to read its properties will fail.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.dump">
+<tt class="descname">dump</tt><big>(</big><em>ofile=&lt;open file '&lt;stdout&gt;'</em>, <em>mode 'w' at 0x01E55078&gt;</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.dump" title="Permalink to this definition">¶</a></dt>
+<dd><p>Pretty-print the contents of this object, starting with the
+AD class definition, and followed by the attributes of this particular
+instance.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><strong>ofile</strong> &#8211; the open file to write output to [<cite>sys.stdout</cite>]</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="active_directory2.adbase.ADBase.factory">
+<em class="property">classmethod </em><tt class="descname">factory</tt><big>(</big><em>obj_or_path=None</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object corresponding to <cite>obj_or_path</cite>.</p>
+<ul class="simple">
+<li>If <cite>obj_or_path</cite> is an existing <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object, return it</li>
+<li>If <cite>obj_or_path</cite> is a Python COM object, return an <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object which wraps it</li>
+<li>Otherwise, assume that <cite>obj_or_path</cite> is an LDAP path and return the
+corresponding <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object</li>
+</ul>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>obj_or_path</strong> &#8211; an existing <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object, a Python COM object or an LDAP moniker</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.find">
+<tt class="descname">find</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.find" title="Permalink to this definition">¶</a></dt>
+<dd><p>Hand off arguments to <a class="reference internal" href="#active_directory2.adbase.ADBase.search" title="active_directory2.adbase.ADBase.search"><tt class="xref py py-meth docutils literal"><span class="pre">search()</span></tt></a> and return the first result</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.find_computer">
+<tt class="descname">find_computer</tt><big>(</big><em>name=None</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.find_computer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first computer object matching <cite>name</cite>. Ambiguous name resolution
+is used, so <cite>name</cite> can match display name or account name. If no name is
+passed, this computer is found.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.find_group">
+<tt class="descname">find_group</tt><big>(</big><em>name</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.find_group" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first group object matching <cite>name</cite>. Ambiguous name resolution
+is used, so <cite>name</cite> can match display name or account name.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.find_ou">
+<tt class="descname">find_ou</tt><big>(</big><em>name</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.find_ou" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first organizational unit object matching <cite>name</cite>. Ambiguous name resolution
+is used, so <cite>name</cite> can match display name or account name.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.find_user">
+<tt class="descname">find_user</tt><big>(</big><em>name=None</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.find_user" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the first user object matching <cite>name</cite>. Ambiguous name resolution
+is used, so <cite>name</cite> can match display name or account name. If no name is
+passed, the logged-on user is found.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.flat">
+<tt class="descname">flat</tt><big>(</big><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.flat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a flat iteration over all items under this container.</p>
+</dd></dl>
+
+<dl class="classmethod">
+<dt id="active_directory2.adbase.ADBase.from_path">
+<em class="property">classmethod </em><tt class="descname">from_path</tt><big>(</big><em>path</em>, <em>cred=None</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.from_path" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create an object of this class from an AD path and, optionally, credentials</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>obj_or_path</strong> &#8211; a valid LDAP moniker</li>
+<li><strong>cred</strong> &#8211; anything accepted by <tt class="xref py py-func docutils literal"><span class="pre">credentials.credentials()</span></tt></li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">a <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> object</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.get">
+<tt class="descname">get</tt><big>(</big><em>attr</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.get" title="Permalink to this definition">¶</a></dt>
+<dd><p>Force an attribute value to be read from AD, not from
+the local AD cache. (NB This is a system cache, not a Python
+one. No cacheing of attributes is done at Python level).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><strong>attr</strong> &#8211; a valid attribute name for this object</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.move">
+<tt class="descname">move</tt><big>(</big><em>rdn</em>, <em>elsewhere</em>, <em>new_rdn=None</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.move" title="Permalink to this definition">¶</a></dt>
+<dd><p>Move a child object to another container, optionally
+renaming it on the way.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>rdn</strong> &#8211; the rdn of an object within this container</li>
+<li><strong>elsewhere</strong> (anything accepted by <a class="reference internal" href="#active_directory2.adbase.ADBase.factory" title="active_directory2.adbase.ADBase.factory"><tt class="xref py py-meth docutils literal"><span class="pre">factory()</span></tt></a>) &#8211; another container</li>
+<li><strong>new_rdn</strong> &#8211; the new rdn of the object if it is to be renamed as well
+as moved.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.query">
+<tt class="descname">query</tt><big>(</big><em>obj</em>, <em>filter</em>, <em>attributes=None</em>, <em>flags=&lt;Unset&gt;</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.query" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run an LDAP query specified by <cite>filter</cite> against the AD object <cite>obj</cite>.
+This query is at the heart of the search functionality in this package.
+It can be called directly either from this module or from any of the
+higher-level AD objects such as <tt class="xref py py-class docutils literal"><span class="pre">adbase.ADBase</span></tt> which expose
+it as a method.</p>
+<p>The result is an iteration of dictionaries mapping attribute names
+to a list of values. No attempt is made here to determine which
+values are single and which are multivalued.</p>
+<p>Typical usage:</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>obj</strong> &#8211; An ADSI object which implements the IDirectorySearch interface</li>
+<li><strong>filter</strong> &#8211; A valid ADSI/LDAP filter string</li>
+<li><strong>attributes</strong> &#8211; A list of attributes (AD fields) to return. None =&gt; All</li>
+<li><strong>flags</strong> &#8211; A combination of <tt class="xref py py-data docutils literal"><span class="pre">constants.ADS_SEARCHPREF</span></tt> values</li>
+</ul>
+</td>
+</tr>
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body"><p class="first last">iterator over a dictionary mapping attribute names to lists of values</p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.rename">
+<tt class="descname">rename</tt><big>(</big><em>rdn</em>, <em>new_rdn</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.rename" title="Permalink to this definition">¶</a></dt>
+<dd><p>Rename a child within this container (the underlying action is
+a move to the same container).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>rdn</strong> &#8211; the rdn of an object within this container</li>
+<li><strong>new_rdn</strong> &#8211; the new rdn of the object</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.search">
+<tt class="descname">search</tt><big>(</big><em>*args</em>, <em>**kwargs</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.search" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an iterator of <a class="reference internal" href="#active_directory2.adbase.ADBase" title="active_directory2.adbase.ADBase"><tt class="xref py py-class docutils literal"><span class="pre">ADBase</span></tt></a> objects corresponding to
+the LDAP filter formed from the positional and keyword params.
+The <tt class="xref py py-func docutils literal"><span class="pre">active_directory2.core.and_()</span></tt> and <tt class="xref py py-func docutils literal"><span class="pre">active_directory2.core.or_()</span></tt>
+functions can be convenient ways of building up the filter.</p>
+<p>The filter is constructed as follows:</p>
+<ul class="simple">
+<li>All params are and-ed together, producing a &amp;(...) filter</li>
+<li>Positional params are taken as-is (and so can be fully-fledged filters)</li>
+<li>Keyword params become equi-filters of the form k=v</li>
+</ul>
+<p>So a call like this:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">obj</span><span class="o">.</span><span class="n">search</span> <span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">or_</span> <span class="p">(</span><span class="n">cn</span><span class="o">=</span><span class="s">&quot;tim&quot;</span><span class="p">,</span> <span class="n">sn</span><span class="o">=</span><span class="s">&quot;golden&quot;</span><span class="p">),</span> <span class="s">&quot;logonCount &gt;= 0&quot;</span><span class="p">,</span> <span class="n">objectCategory</span><span class="o">=</span><span class="s">&quot;person&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>would generate this filter:</p>
+<div class="highlight-python"><pre>&amp;(|((cn=tim)(sn=golden))(logonCount &gt;= 0)(objectCategory=person))</pre>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.set">
+<tt class="descname">set</tt><big>(</big><em>**kwargs</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.set" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set several properties at once. This should be slightly faster than setting
+the properties individually as SetInfo is called only once, at the end:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="kn">from</span> <span class="nn">active_directory2</span> <span class="kn">import</span> <span class="n">ad</span>
+<span class="n">user01</span> <span class="o">=</span> <span class="n">ad</span><span class="o">.</span><span class="n">find_user</span> <span class="p">(</span><span class="s">&quot;user01&quot;</span><span class="p">)</span>
+<span class="n">user01</span><span class="o">.</span><span class="n">set</span> <span class="p">(</span><span class="n">displayName</span><span class="o">=</span><span class="s">&quot;User One&quot;</span><span class="p">,</span> <span class="n">sAMAccountName</span><span class="o">=</span><span class="s">&quot;user-01&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="active_directory2.adbase.ADBase.walk">
+<tt class="descname">walk</tt><big>(</big><em>level=0</em><big>)</big><a class="headerlink" href="#active_directory2.adbase.ADBase.walk" title="Permalink to this definition">¶</a></dt>
+<dd><p>Mimic the behaviour of Python <cite>os.walk</cite> iterator.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field"><th class="field-name">Returns:</th><td class="field-body">iterator of level, this container, containers, items</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="../cookbook.html" title="active_directory Cookbook"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="core.html" title="core – Core AD Functionality"
+             >previous</a> |</li>
+        <li><a href="../contents.html">active_directory2 v1.0rc1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2011, Tim Golden.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.0.7.
+    </div>
+  </body>
+</html>
