@@ -115,11 +115,11 @@ class TestRootObj (unittest.TestCase):
   def test_server (self):
     self._test (server=config.server)
 
-  @unittest.skip ("Doesn't seem possible to come with a reproducible test")
+  @unittest.skip ("Doesn't seem possible to come up with a reproducible test")
   def test_server_and_scheme (self):
     self._test (server=config.server, scheme="GC:")
 
-  @unittest.skip ("Doesn't seem possible to come with a reproducible test")
+  @unittest.skip ("Doesn't seem possible to come up with a reproducible test")
   @unittest.skipUnless (config.is_inside_domain, "Serverless testing not enabled")
   def test_scheme (self):
     self._test (scheme="GC:")

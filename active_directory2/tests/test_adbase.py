@@ -135,7 +135,7 @@ class TestADBase (Base):
     ou1, ou2 = ous[:2]
     u1 = ou1.find (objectCategory="person")
     u1_guid = u1.objectGuid
-    ou1.move (u1.Name, ou2)
+    u1.move (ou2)
     u2 = ou2.find (cn=u1.cn)
     self.assertEquals (u1_guid, u2.objectGuid)
 
@@ -148,7 +148,7 @@ class TestADBase (Base):
     name = str (uuid.uuid1 ())
     u1 = ou.find (objectCategory="person")
     u1_guid = u1.objectGuid
-    ou.rename (u1.Name, "cn=%s" % name)
+    u1.rename ("cn=%s" % name)
     u2 = ou.find (cn=name)
     self.assertEquals (u1_guid, u2.objectGuid)
 

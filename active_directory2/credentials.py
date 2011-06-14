@@ -34,18 +34,20 @@ class CredentialsCache (object):
 
   def push (self, cred):
     cred = credentials (cred)
-    if cred.server in self._cache:
-      raise CredentialsAlreadyCachedError ("Credentials already cached for %s; please pop them before replacing" % cred.server)
-    self._cache[cred.server] = cred
+    self._cache.setdefault (cred.server, []).append (cred)
 
   def pop (self, server):
-    return self._cache.pop (server)
+    return self._cache[server].pop ()
 
-  def get (self, server):
-    return self._cache.get (server)
+  def get (self, server, default=None):
+    creds = self._cache.setdefault (server, [])
+    if creds:
+      return creds[-1]
+    else:
+      return default
 
   def __iter__ (self):
-    return iter (self._cache.values ())
+    return ((k, v[-1]) for (k, v) in self._cache.items ())
 
   def clear (self):
     self._cache.clear ()

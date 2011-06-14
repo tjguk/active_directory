@@ -2,7 +2,7 @@
 ur"""Core functionality behind the active_directory2 functionality.
 The functions in this module either return strings or Python COM
 objects representing the underlying ADSI COM objects. These will
-be wrapped by :mod:`ADBase` and other modules to give extended
+be wrapped by :class:`adbase.ADBase` and other classes to give extended
 functionality, but they can be useful on their own.
 
 The functions in this module are built upon by all the other modules,
@@ -24,8 +24,6 @@ from . import exc
 from .log import logger
 from . import support
 from . import utils
-
-local = threading.local ()
 
 _base_monikers = {}
 def _base_moniker (server=None, scheme="LDAP:"):

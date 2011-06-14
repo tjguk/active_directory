@@ -145,6 +145,7 @@ class ADBase (object):
     self.schema = self._schemas[cls]
     if self.schema:
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
+    self.dn = self.distinguishedName
 
   def _put (self, name, value):
     #
@@ -244,17 +245,17 @@ class ADBase (object):
     return hash (self.com_object.GUID)
 
   @classmethod
-  def from_path (cls, path, cred=None):
+  def from_path (cls, path):
     ur"""Create an object of this class from an AD path and, optionally, credentials
 
     :param obj_or_path: a valid LDAP moniker
     :param cred: anything accepted by :func:`credentials.credentials`
     :returns: a :class:`ADBase` object
     """
-    return cls (core.open_object (path, cred))
+    return cls (core.open_object (path))
 
   @classmethod
-  def factory (cls, obj_or_path=None, cred=None):
+  def factory (cls, obj_or_path=None):
     ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
 
     * If `obj_or_path` is an existing :class:`ADBase` object, return it
@@ -271,7 +272,7 @@ class ADBase (object):
     elif isinstance (obj_or_path, win32com.client.CDispatch):
       return cls (obj_or_path)
     else:
-      return cls.from_path (obj_or_path, cred)
+      return cls.from_path (obj_or_path)
 
   def as_string (self):
     return self.path
@@ -323,7 +324,7 @@ class ADBase (object):
       self._put (name, value)
     exc.wrapped (self.com_object.SetInfo)
 
-  def move (self, rdn, elsewhere, new_rdn=None):
+  def move0 (self, rdn, elsewhere, new_rdn=None):
     ur"""Move a child object to another container, optionally
     renaming it on the way.
 
@@ -340,7 +341,23 @@ class ADBase (object):
       new_rdn or rdn
     )
 
-  def rename (self, rdn, new_rdn):
+  def move (self, elsewhere, new_rdn=None):
+    ur"""Move an object to another container, optionally renaming it
+    on the way.
+
+    :param elsewhere: another container
+    :type elsewhere: anything accepted by :meth:`factory`
+    :param new_rdn: the rdn of the object in its new container if it is to
+                    be renamed as well as moved
+    """
+    elsewhere_obj = self.__class__.factory (elsewhere)
+    exc.wrapped (
+      elsewhere_obj.com_object.MoveHere,
+      self.path,
+      new_rdn or self.Name
+    )
+
+  def rename0 (self, rdn, new_rdn):
     ur"""Rename a child within this container (the underlying action is
     a move to the same container).
 
@@ -348,6 +365,13 @@ class ADBase (object):
     :param new_rdn: the new rdn of the object
     """
     self.move (rdn, self, new_rdn)
+
+  def rename (self, new_rdn):
+    ur"""Rename this object within its current container
+
+    :param new_rdn: the new rdn of this object
+    """
+    self.move (self.parent, new_rdn)
 
   def delete (self):
     ur"""Delete this object and all its descendants. The :class:`ADBase`
