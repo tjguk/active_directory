@@ -1,4 +1,5 @@
 import os, sys
+import subprocess
 import unittest as unittest0
 try:
   unittest0.skipUnless
@@ -21,3 +22,6 @@ class TestTemplate (unittest.TestCase):
   def tearDown (self):
     pass
 
+if __name__ == '__main__':
+  unittest.main (exit=False)
+  raw_input ()

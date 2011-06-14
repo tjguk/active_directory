@@ -97,7 +97,7 @@ class TestADBase (Base):
       self.ou.dump (ofile=ofile)
       ofile.seek (0)
       data = ofile.read ()
-      self.assertIn ("ADsPath => %s" % self.ou0.ADsPath.encode ("ascii"), data)
+      self.assertIn ("ADsPath => %r" % self.ou0.ADsPath.encode ("ascii"), data)
 
   def test_set (self):
     _, username, _ = base.find_pattern (type_pattern="user")
@@ -117,12 +117,28 @@ class TestADBase (Base):
     self.assertIs (self.ou.find (distinguishedName=dn), None)
 
   def test_move (self):
-    ous = list (self.ou.search ("!distinguishedName=%s" self.ou.distinguishedName, objectCategory="organizationalUnit"))
+    ous = list (self.ou.search (
+      "!distinguishedName=%s" % self.ou.distinguishedName,
+      objectCategory="organizationalUnit"
+    ))
     ou1, ou2 = ous[:2]
     u1 = ou1.find (objectCategory="person")
     u1_guid = u1.objectGuid
-    ou1.move (u1, ou2)
+    ou1.move (u1.Name, ou2)
     u2 = ou2.find (cn=u1.cn)
+    self.assertEquals (u1_guid, u2.objectGuid)
+
+  def test_rename (self):
+    ou = self.ou.find (
+    "!distinguishedName=%s" % self.ou.distinguishedName,
+      objectCategory="organizationalUnit"
+    )
+    self.assertIsNot (ou, None)
+    name = str (uuid.uuid1 ())
+    u1 = ou.find (objectCategory="person")
+    u1_guid = u1.objectGuid
+    ou.rename (u1.Name, "cn=%s" % name)
+    u2 = ou.find (cn=name)
     self.assertEquals (u1_guid, u2.objectGuid)
 
 class TestSearch (Base):
@@ -166,3 +182,7 @@ class TestSearch (Base):
     user = self.ou.find_user (name)
     self.assertTrue (user)
     self.assertEquals (username, user.Name)
+
+if __name__ == '__main__':
+  unittest.main (exit=sys.stdout.isatty)
+  raw_input ()

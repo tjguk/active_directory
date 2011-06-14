@@ -213,7 +213,7 @@ class ADBase (object):
     # a NULL class) and then use the Class attribute to fill in
     # the Delete method.
     #
-    exc.wrapped (container.Delete, self._get_object (rdn).Class, rdn)
+    exc.wrapped (self.Delete, self._get_object (rdn).Class, rdn)
 
   def __repr__ (self):
     return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
