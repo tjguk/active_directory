@@ -104,6 +104,7 @@ import logging
 from win32com import adsi
 import win32com.client
 
+from . import adcore
 from . import adbase
 from . import adobject
 from . import constants
@@ -116,7 +117,7 @@ def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
 
-class RootDSE (adbase.ADCore):
+class RootDSE (adcore.ADCore):
 
   properties = u"""configurationNamingContext
 currentTime

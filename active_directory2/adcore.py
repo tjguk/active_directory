@@ -1,6 +1,9 @@
 # -*- coding: iso-8859-1 -*-
 import os, sys
 
+import win32com.client
+from win32com import adsi
+
 from . import core
 from . import constants
 from . import exc

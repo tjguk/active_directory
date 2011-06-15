@@ -95,11 +95,11 @@ class ADBase (adcore.ADCore):
 
   def __init__ (self, obj):
     adcore.ADCore.__init__ (self, obj)
-    scheme, server, dn = utils.parse_moniker (path)
+    scheme, server, dn = utils.parse_moniker (self.path)
     self.server = server.rstrip ("/")
-    self.cls = cls = com_object.Class
+    self.cls = cls = self.com_object.Class
     if cls not in self._schemas:
-      schema_path = com_object.Schema
+      schema_path = self.com_object.Schema
       try:
         #
         # Relying on the fact that by this time a valid
@@ -112,7 +112,8 @@ class ADBase (adcore.ADCore):
     self.schema = self._schemas[cls]
     if self.schema:
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
-    self.dn = self.distinguishedName
+    if "distinguishedName" in self.properties:
+      self.dn = self.distinguishedName
 
   def _put (self, name, value):
     #
