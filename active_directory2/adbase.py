@@ -246,10 +246,9 @@ class ADBase (object):
 
   @classmethod
   def from_path (cls, path):
-    ur"""Create an object of this class from an AD path and, optionally, credentials
+    ur"""Create an object of this class from an AD path
 
     :param obj_or_path: a valid LDAP moniker
-    :param cred: anything accepted by :func:`credentials.credentials`
     :returns: a :class:`ADBase` object
     """
     return cls (core.open_object (path))
@@ -264,7 +263,6 @@ class ADBase (object):
       corresponding :class:`ADBase` object
 
     :param obj_or_path: an existing :class:`ADBase` object, a Python COM object or an LDAP moniker
-    :param cred: anything accepted by :func:`credentials.credentials`
     :returns: a :class:`ADBase` object
     """
     if isinstance (obj_or_path, cls):
@@ -324,7 +322,7 @@ class ADBase (object):
       self._put (name, value)
     exc.wrapped (self.com_object.SetInfo)
 
-  def move0 (self, rdn, elsewhere, new_rdn=None):
+  def move_child (self, rdn, elsewhere, new_rdn=None):
     ur"""Move a child object to another container, optionally
     renaming it on the way.
 
@@ -341,37 +339,14 @@ class ADBase (object):
       new_rdn or rdn
     )
 
-  def move (self, elsewhere, new_rdn=None):
-    ur"""Move an object to another container, optionally renaming it
-    on the way.
-
-    :param elsewhere: another container
-    :type elsewhere: anything accepted by :meth:`factory`
-    :param new_rdn: the rdn of the object in its new container if it is to
-                    be renamed as well as moved
-    """
-    elsewhere_obj = self.__class__.factory (elsewhere)
-    exc.wrapped (
-      elsewhere_obj.com_object.MoveHere,
-      self.path,
-      new_rdn or self.Name
-    )
-
-  def rename0 (self, rdn, new_rdn):
+  def rename_child (self, rdn, new_rdn):
     ur"""Rename a child within this container (the underlying action is
     a move to the same container).
 
     :param rdn: the rdn of an object within this container
     :param new_rdn: the new rdn of the object
     """
-    self.move (rdn, self, new_rdn)
-
-  def rename (self, new_rdn):
-    ur"""Rename this object within its current container
-
-    :param new_rdn: the new rdn of this object
-    """
-    self.move (self.parent, new_rdn)
+    self.move_child (rdn, self, new_rdn)
 
   def delete (self):
     ur"""Delete this object and all its descendants. The :class:`ADBase`

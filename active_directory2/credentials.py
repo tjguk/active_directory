@@ -105,7 +105,9 @@ def credentials (cred):
     try:
       return Credentials (*cred)
     except (ValueError, TypeError):
-      raise InvalidCredentialsError ("Credentials must be a Credentials object or (username, password[, type])")
+      raise InvalidCredentialsError ("Credentials must be a Credentials object or (username, password[, server])")
+
+cache = Credentials.cache
 
 def push (cred):
   cred = credentials (cred)

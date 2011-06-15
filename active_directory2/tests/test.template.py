@@ -11,10 +11,12 @@ else:
 del unittest0
 
 from active_directory2 import core
-from active_directory2.tests import utils
-from active_directory2.tests import config
+from active_directory2.tests import base, config, utils
 
-class TestTemplate (unittest.TestCase):
+class Base (base.base):
+  pass
+
+class TestTemplate (Base):
 
   def setUp (self):
     pass
@@ -23,5 +25,5 @@ class TestTemplate (unittest.TestCase):
     pass
 
 if __name__ == '__main__':
-  unittest.main (exit=False)
+  unittest.main (exit=sys.stdout.isatty)
   raw_input ()

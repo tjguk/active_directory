@@ -12,7 +12,7 @@ del unittest0
 
 from win32com import adsi
 
-from active_directory2 import core, adbase
+from active_directory2 import core, credentials, adbase
 from active_directory2.tests import utils
 from active_directory2.tests import config
 
@@ -59,7 +59,8 @@ def find_pattern (type_pattern="*", name_pattern="*"):
 class Base (unittest.TestCase):
 
   def setUp (self):
-    self.root = core.root_obj (server=config.server, cred=config.cred)
+    with credentials.credentials (config.cred):
+      self.root = core.root_obj (server=config.server)
     self._ou = self.root.GetObject ("organizationalUnit", config.test_base)
     self.ou = build_from_data (self._ou, DATA)
     self.addCleanup (self._remove_ou)

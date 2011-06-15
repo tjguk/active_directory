@@ -14,9 +14,8 @@ import uuid
 import pythoncom
 from win32com import adsi
 
-from active_directory2 import core, adbase
-from active_directory2.tests import base, utils
-from active_directory2.tests import config
+from active_directory2 import core, credentials, adbase
+from active_directory2.tests import base, config, utils
 
 class Base (base.Base):
 
@@ -86,8 +85,9 @@ class TestADBase (Base):
     self.assertEquals (len (set ([self.ou, ou2])), 1)
 
   def test_from_path (self):
-    ou2 = adbase.ADBase.from_path (self.ou0.ADsPath, cred=config.cred)
-    self.assertEquals (self.ou, ou2)
+    with credentials.credentials (config.cred):
+      ou2 = adbase.ADBase.from_path (self.ou0.ADsPath)
+      self.assertEquals (self.ou, ou2)
 
   def test_dump (self):
     #
@@ -127,7 +127,7 @@ class TestADBase (Base):
     ou.delete ()
     self.assertIs (self.ou.find (distinguishedName=dn), None)
 
-  def test_move (self):
+  def test_move_child (self):
     ous = list (self.ou.search (
       "!distinguishedName=%s" % self.ou.distinguishedName,
       objectCategory="organizationalUnit"
@@ -135,11 +135,24 @@ class TestADBase (Base):
     ou1, ou2 = ous[:2]
     u1 = ou1.find (objectCategory="person")
     u1_guid = u1.objectGuid
-    u1.move (ou2)
+    ou1.move_child (u1.Name, ou2)
     u2 = ou2.find (cn=u1.cn)
     self.assertEquals (u1_guid, u2.objectGuid)
 
-  def test_rename (self):
+  def test_move_child_with_rename (self):
+    ous = list (self.ou.search (
+      "!distinguishedName=%s" % self.ou.distinguishedName,
+      objectCategory="organizationalUnit"
+    ))
+    ou1, ou2 = ous[:2]
+    u1 = ou1.find (objectCategory="person")
+    u1_guid = u1.objectGuid
+    new_name = str (uuid.uuid1 ())
+    ou1.move_child (u1.Name, ou2, "cn=%s" % new_name)
+    u2 = ou2.find (cn=new_name)
+    self.assertEquals (u1_guid, u2.objectGuid)
+
+  def test_rename_child (self):
     ou = self.ou.find (
     "!distinguishedName=%s" % self.ou.distinguishedName,
       objectCategory="organizationalUnit"
@@ -148,8 +161,9 @@ class TestADBase (Base):
     name = str (uuid.uuid1 ())
     u1 = ou.find (objectCategory="person")
     u1_guid = u1.objectGuid
-    u1.rename ("cn=%s" % name)
+    ou.rename_child (u1.Name, "cn=%s" % name)
     u2 = ou.find (cn=name)
+    self.assertIsNot (u2, None)
     self.assertEquals (u1_guid, u2.objectGuid)
 
 class TestSearch (Base):
