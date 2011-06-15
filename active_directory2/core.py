@@ -87,6 +87,12 @@ def root_obj (server=None, scheme="LDAP:", cred=None):
     _root_objs[server] = open_object (root_moniker (server, scheme), cred=cred)
   return _root_objs[server]
 
+def _partition_obj (partition, server=None, cred=None):
+  return open_object (
+    _base_moniker (server) + exc.wrapped (root_dse (server).Get, partition),
+    cred=cred
+  )
+
 _schema_objs = {}
 def schema_obj (server=None, cred=None):
   ur"""Return the COM object representing the schema for the domain specified
@@ -97,12 +103,21 @@ def schema_obj (server=None, cred=None):
   :returns: The COM object corresponding to the domain schema
   """
   if server not in _schema_objs:
-    dse = root_dse (server)
-    _schema_objs[server] = open_object (
-      _base_moniker (server) + exc.wrapped (dse.Get, "schemaNamingContext"),
-      cred=cred
-    )
+    _schema_objs[server] = _partition_obj ("schemaNamingContext", server, cred)
   return _schema_objs[server]
+
+_configuration_objs = {}
+def configuration_obj (server=None, cred=None):
+  ur"""Return the COM object representing the configuration for the domain specified
+  by a server, optionally authenticated.
+
+  :param server: A specific server whose rootDSE is to be found [none - any server]
+  :param cred: anything accepted by :func:`credentials.credentials`
+  :returns: The COM object corresponding to the domain configuration
+  """
+  if server not in _configuration_objs:
+    _configuration_objs[server] = _partition_obj ("configurationNamingContext", server, cred)
+  return _configuration_objs[server]
 
 _class_schemas = {}
 def class_schema (class_name, server=None, cred=None):

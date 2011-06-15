@@ -4,48 +4,18 @@ import socket
 
 import win32api
 from win32com import adsi
-import win32com.client
 
+from . import adcore
 from . import core
 from . import constants
 from . import exc
 from . import support
 from . import utils
 
-class NotAContainerError (exc.ActiveDirectoryError):
-  pass
-
 class NoFilterError (exc.ActiveDirectoryError):
   pass
 
-class _ADContainer (object):
-  ur"""A support object which takes an existing AD COM object
-  which implements the IADsContainer interface and provides
-  a corresponding iterator.
-
-  It is not expected to be called by user code (although it
-  can be). It is the basis of the :meth:`ADBase.__iter__` method
-  of :class:`ADBase` and its subclasses.
-  """
-
-  def __init__ (self, ad_com_object):
-    try:
-      self.container = exc.wrapped (ad_com_object.QueryInterface, adsi.IID_IADsContainer)
-    except exc.ActiveDirectoryError, (error_code, _, _):
-      if error_code == exc.E_NOINTERFACE:
-        raise NotAContainerError
-
-  def __iter__ (self):
-    enumerator = exc.wrapped (adsi.ADsBuildEnumerator, self.container)
-    while True:
-      items = exc.wrapped (adsi.ADsEnumerateNext, enumerator, 10)
-      if items:
-        for item in items:
-          yield item
-      else:
-        break
-
-class ADBase (object):
+class ADBase (adcore.ADCore):
   """A slender wrapper around an AD COM object.
 
   Attributes can be read & set. If the underlying object is a
@@ -121,13 +91,10 @@ class ADBase (object):
   #
   # For speed, hardcode the known properties of the IADs class
   #
-  _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
   _schemas = {}
 
   def __init__ (self, obj):
-    utils._set (self, "properties", set ())
-    self.com_object = com_object = adsi._get_good_ret (obj)
-    self.path = path = com_object.ADsPath
+    adcore.ADCore.__init__ (self, obj)
     scheme, server, dn = utils.parse_moniker (path)
     self.server = server.rstrip ("/")
     self.cls = cls = com_object.Class
@@ -156,30 +123,6 @@ class ADBase (object):
       exc.wrapped (self.com_object.PutEx, constants.ADS_PROPERTY.CLEAR, name, None)
     else:
       exc.wrapped (self.com_object.Put, name, value)
-
-  @staticmethod
-  def _munged_attribute (name):
-    #
-    # AD names are either camelCase or hyphen-separated, never underscored
-    # Since Python identifiers can't include hypens but can include underscores,
-    # translate underscores to hyphens.
-    #
-    return u"-".join (name.rstrip ("_").split (u"_"))
-
-  def __getattr__ (self, name):
-    #
-    # Attempt to get the attribute by attribute access and the Get
-    # method, with and without attribute name munging.
-    #
-    def _getattr (name):
-      try:
-        return exc.wrapped (getattr, self.com_object, name)
-      except AttributeError:
-        return exc.wrapped (self.com_object.Get, name)
-    try:
-      return _getattr (self._munged_attribute (name))
-    except AttributeError:
-      return _getattr (self._munged_attribute (name))
 
   def __setattr__ (self, name, value):
     munged_name = self._munged_attribute (name)
@@ -225,80 +168,11 @@ class ADBase (object):
     #
     exc.wrapped (self.Delete, self._get_object (rdn).Class, rdn)
 
-  def __repr__ (self):
-    return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
-
-  def __str__ (self):
-    return self.as_string ()
-
-  def __iter__(self):
-    try:
-      for item in _ADContainer (self.com_object):
-        yield self.__class__ (item)
-    except NotAContainerError:
-      raise TypeError ("%r is not iterable" % self)
-
   def __eq__ (self, other):
     return self.com_object.GUID == other.com_object.GUID
 
   def __hash__ (self):
     return hash (self.com_object.GUID)
-
-  @classmethod
-  def from_path (cls, path):
-    ur"""Create an object of this class from an AD path
-
-    :param obj_or_path: a valid LDAP moniker
-    :returns: a :class:`ADBase` object
-    """
-    return cls (core.open_object (path))
-
-  @classmethod
-  def factory (cls, obj_or_path=None):
-    ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
-
-    * If `obj_or_path` is an existing :class:`ADBase` object, return it
-    * If `obj_or_path` is a Python COM object, return an :class:`ADBase` object which wraps it
-    * Otherwise, assume that `obj_or_path` is an LDAP path and return the
-      corresponding :class:`ADBase` object
-
-    :param obj_or_path: an existing :class:`ADBase` object, a Python COM object or an LDAP moniker
-    :returns: a :class:`ADBase` object
-    """
-    if isinstance (obj_or_path, cls):
-      return obj_or_path
-    elif isinstance (obj_or_path, win32com.client.CDispatch):
-      return cls (obj_or_path)
-    else:
-      return cls.from_path (obj_or_path)
-
-  def as_string (self):
-    return self.path
-
-  def dump (self, ofile=sys.stdout):
-    ur"""Pretty-print the contents of this object, starting with the
-    AD class definition, and followed by the attributes of this particular
-    instance.
-
-    :param ofile: the open file to write output to [`sys.stdout`]
-    """
-    def munged (value):
-      if isinstance (value, unicode):
-        value = value.encode ("ascii", "backslashreplace")
-      return value
-    ofile.write (self.as_string () + u"\n")
-    ofile.write ("[\n")
-    for property in self.__class__._properties:
-      value = exc.wrapped (getattr, self, property, None)
-      if value:
-        ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
-    ofile.write ("]\n")
-    ofile.write ("{\n")
-    for property in sorted (self.properties):
-      value = exc.wrapped (getattr, self, property, None)
-      if value:
-        ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
-    ofile.write ("}\n")
 
   def get (self, attr):
     ur"""Force an attribute value to be read from AD, not from

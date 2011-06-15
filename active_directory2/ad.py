@@ -116,9 +116,9 @@ def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
 
-class RootDSE (adbase.ADBase):
+class RootDSE (adbase.ADCore):
 
-  _properties = u"""configurationNamingContext
+  properties = u"""configurationNamingContext
 currentTime
 defaultNamingContext
 dnsHostName
@@ -142,6 +142,9 @@ supportedLDAPVersion
 supportedSASLMechanisms
   """.split ()
 
+  def __init__ (self, root_dse_obj=None):
+    adbase.ADCore.__init__ (self, root_dse_obj or core.root_dse ())
+
 def AD (server=None, cred=None, use_gc=False):
   if use_gc:
     scheme = u"GC:"
@@ -151,10 +154,7 @@ def AD (server=None, cred=None, use_gc=False):
     base_moniker = scheme + "//" + server + "/"
   else:
     base_moniker = scheme + "//"
-  root_obj = core.root_dse (server, scheme)
-  default_naming_context = exc.wrapped (root_obj.Get, u"defaultNamingContext")
-  moniker = base_moniker + default_naming_context
-  return adbase.ADBase (core.open_object (moniker, cred))
+  return adbase.ADBase (core.root_obj (server, scheme, cred=cred))
 
 #
 # Convenience functions for common needs
