@@ -45,7 +45,7 @@ class ADCore (object):
   properties = []
 
   def __init__ (self, obj):
-    self.com_object = com_object = adsi._get_good_ret (obj)
+    utils._set (self, "com_object", adsi._get_good_ret (obj))
     utils._set (self, "properties", set (self.__class__.properties))
     self.path = self.com_object.ADsPath
 
@@ -57,6 +57,10 @@ class ADCore (object):
     # translate underscores to hyphens.
     #
     return u"-".join (name.rstrip ("_").split (u"_"))
+
+  @staticmethod
+  def _unmunged_attribute (name):
+    return "_".join (name.split ("-"))
 
   def __repr__ (self):
     return u"<%s: %s>" % (self.__class__.__name__, self.as_string ())
@@ -88,7 +92,7 @@ class ADCore (object):
   def __iter__(self):
     try:
       for item in _ADContainer (self.com_object):
-        yield self.__class__ (item)
+        yield self.__class__.factory (item)
     except NotAContainerError:
       raise TypeError ("%r is not iterable" % self)
 
@@ -100,6 +104,10 @@ class ADCore (object):
     :returns: a :class:`ADBase` object
     """
     return cls (core.open_object (path))
+
+  @classmethod
+  def from_obj (cls, obj):
+    return cls (obj)
 
   @classmethod
   def factory (cls, obj_or_path=None):
@@ -116,10 +124,10 @@ class ADCore (object):
     """
     if isinstance (obj_or_path, cls):
       return obj_or_path
-    elif isinstance (obj_or_path, win32com.client.CDispatch):
-      return cls (obj_or_path)
+    elif isinstance (obj_or_path, (adsi.IDispatchType, win32com.client.CDispatch)):
+      return cls.from_obj (obj_or_path)
     elif hasattr (obj_or_path, "com_object"):
-      return cls (obj_or_path.com_object)
+      return cls.from_obj (obj_or_path.com_object)
     else:
       return cls.from_path (obj_or_path)
 

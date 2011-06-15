@@ -139,7 +139,7 @@ class ADBase (adcore.ADCore):
     return adsi._get_good_ret (obj)
 
   def __getitem__ (self, rdn):
-    return self.__class__ (self._get_object (rdn))
+    return self.__class__.factory (self._get_object (rdn))
 
   def __setitem__ (self, rdn, info):
     #
@@ -157,7 +157,7 @@ class ADBase (adcore.ADCore):
     for k, v in info.items ():
       setattr (obj, k, v)
     exc.wrapped (obj.SetInfo)
-    return self.__class__ (obj)
+    return self.__class__.factory (obj)
 
   def __delitem__ (self, rdn):
     #
