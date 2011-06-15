@@ -25,6 +25,12 @@ from .log import logger
 from . import support
 from . import utils
 
+def namespaces ():
+  ur"""Return the ADs: namespaces object. This can only be accessed via
+  a GetObject call, and can't be authenticated against.
+  """
+  return win32com.client.GetObject ("ADs:")
+
 _base_monikers = {}
 def _base_moniker (server=None, scheme="LDAP:"):
   ur"""Form a moniker from a server and scheme, returning a cached hit if available.

@@ -117,35 +117,6 @@ def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
 
-class RootDSE (adcore.ADCore):
-
-  properties = u"""configurationNamingContext
-currentTime
-defaultNamingContext
-dnsHostName
-domainControllerFunctionality
-domainFunctionality
-dsServiceName
-forestFunctionality
-highestCommittedUSN
-isGlobalCatalogReady
-isSynchronized
-ldapServiceName
-namingContexts
-rootDomainNamingContext
-schemaNamingContext
-serverName
-subschemaSubentry
-supportedCapabilities
-supportedControl
-supportedLDAPPolicies
-supportedLDAPVersion
-supportedSASLMechanisms
-  """.split ()
-
-  def __init__ (self, root_dse_obj=None):
-    adbase.ADCore.__init__ (self, root_dse_obj or core.root_dse ())
-
 def AD (server=None, cred=None, use_gc=False):
   if use_gc:
     scheme = u"GC:"

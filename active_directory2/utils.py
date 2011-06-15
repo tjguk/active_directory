@@ -88,7 +88,7 @@ def escaped_moniker (moniker):
     return moniker.replace (u"/", u"\\/")
 
 def parse_moniker (moniker):
-  scheme, server, dn = re.match ("([^:]+://)([A-za-z0-9-_]+/)?(.*)", moniker).groups ()
+  scheme, server, dn = re.match ("([^:]+:(?://)?)([A-za-z0-9-_]+/)?(.*)", moniker).groups ()
   if scheme is None:
     scheme = u"LDAP://"
   if scheme != u"WinNT:":

@@ -105,18 +105,21 @@ class ADCore (object):
   def factory (cls, obj_or_path=None):
     ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
 
-    * If `obj_or_path` is an existing :class:`ADBase` object, return it
-    * If `obj_or_path` is a Python COM object, return an :class:`ADBase` object which wraps it
+    * If `obj_or_path` is an existing instance of this class, return it
+    * If `obj_or_path` is a Python COM object, return an instance of this class which wraps it
+    * If `obj_or_path` has a `com_object` attribute return an instance of this class which wraps it
     * Otherwise, assume that `obj_or_path` is an LDAP path and return the
-      corresponding :class:`ADBase` object
+      corresponding instance of this class
 
-    :param obj_or_path: an existing :class:`ADBase` object, a Python COM object or an LDAP moniker
-    :returns: a :class:`ADBase` object
+    :param obj_or_path: an existing instance of this or a related class, a Python COM object or an LDAP moniker
+    :returns: an instance of this class
     """
     if isinstance (obj_or_path, cls):
       return obj_or_path
     elif isinstance (obj_or_path, win32com.client.CDispatch):
       return cls (obj_or_path)
+    elif hasattr (obj_or_path, "com_object"):
+      return cls (obj_or_path.com_object)
     else:
       return cls.from_path (obj_or_path)
 
@@ -148,4 +151,36 @@ class ADCore (object):
         ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("}\n")
 
+class RootDSE (ADCore):
+
+  properties = u"""configurationNamingContext
+currentTime
+defaultNamingContext
+dnsHostName
+domainControllerFunctionality
+domainFunctionality
+dsServiceName
+forestFunctionality
+highestCommittedUSN
+isGlobalCatalogReady
+isSynchronized
+ldapServiceName
+namingContexts
+rootDomainNamingContext
+schemaNamingContext
+serverName
+subschemaSubentry
+supportedCapabilities
+supportedControl
+supportedLDAPPolicies
+supportedLDAPVersion
+supportedSASLMechanisms
+  """.split ()
+
 adcore = ADCore.factory
+
+def namespaces ():
+  return ADCore (core.namespaces ())
+
+def root_dse ():
+  return RootDSE (core.root_dse ())
