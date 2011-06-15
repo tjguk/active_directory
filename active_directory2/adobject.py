@@ -18,12 +18,13 @@ class Descriptor (object):
 
   def __init__ (self, name):
      self.name = name
+     self.getter = types.CONVERTERS.get (self.name, lambda x : x)
 
   def __get__ (self, obj, objtype=None):
     if obj is None:
       return self
     else:
-      return getattr (obj.com_object, self.name)
+      return self.getter (getattr (obj.com_object, self.name))
 
   def __set__ (self, obj, value):
     setattr (obj.com_object, self.name, value)
