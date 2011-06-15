@@ -140,7 +140,10 @@ class ADCore (object):
     ofile.write (self.as_string () + u"\n")
     ofile.write ("[\n")
     for property in self.__class__._properties:
-      value = exc.wrapped (getattr, self, property, None)
+      try:
+        value = exc.wrapped (getattr, self, property, None)
+      except NotImplementedError:
+        value = None
       if value:
         ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("]\n")
