@@ -42,11 +42,9 @@ class _ADContainer (object):
 class ADCore (object):
 
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
-  properties = []
 
   def __init__ (self, obj):
     utils._set (self, "com_object", adsi._get_good_ret (obj))
-    utils._set (self, "properties", set (self.__class__.properties))
 
   @staticmethod
   def _munged_attribute (name):
@@ -156,16 +154,10 @@ class ADCore (object):
       if value:
         ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("]\n")
-    ofile.write ("{\n")
-    for property in sorted (self.properties):
-      value = exc.wrapped (getattr, self, property, None)
-      if value:
-        ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
-    ofile.write ("}\n")
 
 class RootDSE (ADCore):
 
-  properties = u"""configurationNamingContext
+  _properties = ADCore._properties + u"""configurationNamingContext
 currentTime
 defaultNamingContext
 dnsHostName
@@ -196,3 +188,6 @@ def namespaces ():
 
 def root_dse ():
   return RootDSE (core.root_dse ())
+
+def attribute (*args, **kwargs):
+  return adcore (core.attribute (*args, **kwargs))

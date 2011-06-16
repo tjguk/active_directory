@@ -88,13 +88,11 @@ class ADBase (adcore.ADCore):
     my_ou.rename ("cn=User2", "cn=User3")
   """
 
-  #
-  # For speed, hardcode the known properties of the IADs class
-  #
   _schemas = {}
 
   def __init__ (self, obj):
     adcore.ADCore.__init__ (self, obj)
+    utils._set (self, "properties", set ())
     scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
     self.server = server.rstrip ("/")
     self.cls = cls = self.com_object.Class
@@ -174,6 +172,25 @@ class ADBase (adcore.ADCore):
 
   def __hash__ (self):
     return hash (self.com_object.GUID)
+
+  def dump (self, ofile=sys.stdout):
+    ur"""Pretty-print the contents of this object, starting with the
+    AD class definition, and followed by the attributes of this particular
+    instance.
+
+    :param ofile: the open file to write output to [`sys.stdout`]
+    """
+    def munged (value):
+      if isinstance (value, unicode):
+        value = value.encode ("ascii", "backslashreplace")
+      return value
+    super (ADBase, self).dump (ofile)
+    ofile.write ("{\n")
+    for property in sorted (self.properties):
+      value = exc.wrapped (getattr, self, property, None)
+      if value:
+        ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
+    ofile.write ("}\n")
 
   def get (self, attr):
     ur"""Force an attribute value to be read from AD, not from

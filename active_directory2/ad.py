@@ -117,7 +117,7 @@ def enable_debugging ():
   logger.addHandler (logging.StreamHandler (sys.stdout))
   logger.setLevel (logging.DEBUG)
 
-def AD (server=None, cred=None, use_gc=False):
+def AD (server=None, cred=None, use_gc=False, factory=adbase):
   if use_gc:
     scheme = u"GC:"
   else:
@@ -126,7 +126,7 @@ def AD (server=None, cred=None, use_gc=False):
     base_moniker = scheme + "//" + server + "/"
   else:
     base_moniker = scheme + "//"
-  return adbase.ADBase (core.root_obj (server, scheme, cred=cred))
+  return factory (core.root_obj (server, scheme, cred=cred))
 
 #
 # Convenience functions for common needs

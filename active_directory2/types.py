@@ -15,18 +15,18 @@ from . import support
 # Converters
 #
 BASE_TIME = datetime.datetime (1601, 1, 1)
+DELTA0 = datetime.timedelta (0)
 def ularge_to_datetime (ularge):
-  print "Converting %d:%d to datetime" % (ularge.HighPart, ularge.LowPart)
-  hi, lo = utils.signed_to_unsigned (ularge.HighPart), utils.signed_to_unsigned (ularge.LowPart)
-  print "Converting %d:%d to datetime" % (hi, lo)
-  ns100 = (hi << 32) + lo
-  print "ns100:", ns100, hex (ns100)
-  delta = datetime.timedelta (microseconds=ns100 / 10)
-  print "delta:", delta
+  delta = ularge_to_timedelta (ularge)
   try:
-    return BASE_TIME + delta
+    return BASE_TIME - delta
   except OverflowError:
-    return datetime.datetime.max if delta > 0 else datetime.datetime.min
+    return datetime.datetime.max if delta > DELTA0 else datetime.datetime.min
+
+def ularge_to_timedelta (ularge):
+  hi, lo = ularge.HighPart, ularge.LowPart
+  ns100 = (hi << 32) + lo
+  return datetime.timedelta (microseconds=-ns100 / 10)
 
 def datetime_to_ularge (datetime):
   raise NotImplementedError
