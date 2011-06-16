@@ -39,6 +39,7 @@ def _base_moniker (server=None, scheme="LDAP:"):
   :param scheme: A valid AD scheme; typically LDAP: but could be GC: or WinNT:
   :return: A string of the form LDAP://<server>/ where the server segment might be missing
   """
+  logger.debug ("_base_moniker: server=%s, scheme=%s", server, scheme)
   if (server, scheme) not in _base_monikers:
     if server:
       _base_monikers[server, scheme] = scheme + "//" + server + "/"
@@ -55,6 +56,7 @@ def root_dse (server=None, scheme="LDAP:"):
   :param scheme: Typically LDAP: or GC: [LDAP:]
   :returns: The COM Object corresponding to the RootDSE for the server or domain
   """
+  logger.debug ("root_dse: server=%s, scheme=%s", server, scheme)
   if (server, scheme) not in _root_dses:
     _root_dses[server, scheme] = exc.wrapped (
       win32com.client.GetObject,

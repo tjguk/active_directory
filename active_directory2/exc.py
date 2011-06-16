@@ -19,6 +19,9 @@ class BadPathnameError (ActiveDirectoryError):
 class AttributeNotFound (ActiveDirectoryError):
   pass
 
+class LogonError (ActiveDirectoryError):
+  pass
+
 def wrapper (winerror_map, default_exception):
   u"""Used by each module to map specific windows error codes onto
   Python exceptions. Always includes a default which is raised if
@@ -63,6 +66,7 @@ E_ADS_PROPERTY_NOT_FOUND = 0x8000500D
 E_ADS_PROPERTY_NOT_SUPPORTED = 0x80005006
 E_ADS_PROPERTY_INVALID = 0x80005007
 
+
 WINERROR_MAP = {
   ERROR_MEMBER_NOT_IN_ALIAS : MemberNotInGroupError,
   ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError,
@@ -71,6 +75,7 @@ WINERROR_MAP = {
   E_ADS_PROPERTY_NOT_FOUND : AttributeError,
   E_ADS_PROPERTY_NOT_SUPPORTED : AttributeError,
   E_ADS_PROPERTY_INVALID : AttributeError,
+  0x8009030C : LogonError,
 }
 wrapped = wrapper (WINERROR_MAP, ActiveDirectoryError)
 

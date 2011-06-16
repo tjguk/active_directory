@@ -110,12 +110,8 @@ from .adobject import adobject
 from . import constants
 from . import core
 from . import exc
+from .log import logger
 from . import utils
-
-logger = logging.getLogger ("active_directory")
-def enable_debugging ():
-  logger.addHandler (logging.StreamHandler (sys.stdout))
-  logger.setLevel (logging.DEBUG)
 
 def AD (server=None, cred=None, use_gc=False, factory=adbase):
   if use_gc:

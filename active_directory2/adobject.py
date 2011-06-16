@@ -1,3 +1,4 @@
+import os, sys
 import re
 
 import win32com.client
@@ -7,6 +8,7 @@ from win32com.adsi import adsicon
 from . import adbase
 from . import core
 from . import exc
+from .log import logger
 from . import types
 from . import utils
 
@@ -14,12 +16,13 @@ class Descriptor (object):
 
   _descriptors = {}
 
-  def __init__ (self, name, attribute=None):
+  def __init__ (self, name, attribute):
      self.name = name
      self.attribute = attribute
      self.getter, self.setter = types.get_converters (self.name)
 
   def __get__ (self, obj, objtype=None):
+    logger.debug ("%s.__get__: obj=%s, objtype=%s", self.name, obj, objtype)
     if obj is None:
       return self
     else:
@@ -29,15 +32,20 @@ class Descriptor (object):
       return self.getter (value)
 
   def __set__ (self, obj, value):
+    logger.debug ("%s.__set__: obj=%s, value=%s", self.name, obj, value)
     if self.attribute.systemOnly:
       raise AttributeError ("Attribute %s is read-only" % self.name)
     if self.setter is None:
       setattr (obj.com_object, self.name, value)
     else:
       setattr (obj.com_object, self.name, self.setter (value))
+    obj.com_object.SetInfo ()
 
   def __delete__ (self, obj):
     raise NotImplementedError
+
+  def dump (self, ofile=sys.stdout):
+    adbase.adbase (self.attribute).dump ()
 
 def descriptor (name, attribute):
   if name not in Descriptor._descriptors:
@@ -53,9 +61,10 @@ class ADMetaClass (type):
     obj = dict.pop ("obj")
     if obj:
       scheme, server, dn = utils.parse_moniker (obj.ADsPath)
+      server = server.rstrip ("/")
       schema = core.open_object (obj.Schema)
       dict['properties'] = schema.MandatoryProperties + schema.OptionalProperties
-      core.attributes (list (dict['properties']), server)
+      core.attributes (dict['properties'], server)
       for p in dict['properties']:
         dict[_munged (p)] = descriptor (p, core.attribute (p, server))
     return type.__new__ (meta, name, bases, dict)
@@ -81,5 +90,9 @@ class ADObject (adbase.ADBase):
       return getattr (self.com_object, attr)
     else:
       raise AttributeError (attr)
+
+  def __setattr__ (self, attr, value):
+    logger.debug ("ADObject.__setattr__: attr=%s, value=%s", attr, value)
+    super (adbase.ADBase, self).__setattr__ (attr, value)
 
 adobject = ADObject.factory

@@ -9,6 +9,7 @@ from . import adcore
 from . import core
 from . import constants
 from . import exc
+from .log import logger
 from . import support
 from . import utils
 
@@ -124,6 +125,7 @@ class ADBase (adcore.ADCore):
       exc.wrapped (self.com_object.Put, name, value)
 
   def __setattr__ (self, name, value):
+    logger.debug ("ADBase.__setattr__: name=%s, value=%s", name, value)
     munged_name = self._munged_attribute (name)
     if munged_name in self.properties:
       self._put (munged_name, value)
