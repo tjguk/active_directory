@@ -66,21 +66,13 @@ class ADCore (object):
     return self.as_string ()
 
   def __getattr__ (self, name):
-
-    #
-    # Attempt to get the attribute by attribute access and the Get
-    # method, with and without attribute name munging.
-    #
-    def _getattr (name):
-      try:
-        return exc.wrapped (getattr, self.com_object, name)
-      except AttributeError:
-        return exc.wrapped (self.com_object.Get, name)
-
     try:
-      return _getattr (name)
+      return exc.wrapped (self.com_object.Get, name)
     except AttributeError:
-      return _getattr (self._munged_attribute (name))
+      try:
+        return exc.wrapped (self.com_object.Get, self._munged_attribute (name))
+      except AttributeError:
+        return exc.wrapepd (getattr, self.com_object, name)
 
   def __eq__ (self, other):
     return self.com_object.ADsPath == other.com_object.ADsPath
