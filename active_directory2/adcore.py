@@ -72,7 +72,7 @@ class ADCore (object):
       try:
         return exc.wrapped (self.com_object.Get, self._munged_attribute (name))
       except AttributeError:
-        return exc.wrapepd (getattr, self.com_object, name)
+        return exc.wrapped (getattr, self.com_object, name)
 
   def __eq__ (self, other):
     return self.com_object.ADsPath == other.com_object.ADsPath
@@ -143,7 +143,7 @@ class ADCore (object):
         value = exc.wrapped (getattr, self, property, None)
       except NotImplementedError:
         value = None
-      if value:
+      if not value in (None, ''):
         ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("]\n")
 

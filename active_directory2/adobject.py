@@ -5,8 +5,6 @@ from win32com import adsi
 from win32com.adsi import adsicon
 
 from . import adbase
-from . import credentials
-from . import constants
 from . import core
 from . import exc
 from . import types
@@ -16,27 +14,34 @@ class Descriptor (object):
 
   _descriptors = {}
 
-  def __init__ (self, name):
+  def __init__ (self, name, attribute=None):
      self.name = name
-     self.getter = types.CONVERTERS.get (self.name, lambda x : x)
+     self.attribute = attribute
+     self.getter, self.setter = types.get_converters (self.name)
 
   def __get__ (self, obj, objtype=None):
     if obj is None:
       return self
     else:
       value = getattr (obj.com_object, self.name, None)
-      if value is not None:
-        return self.getter (value)
+      if value is None or self.getter is None:
+        return value
+      return self.getter (value)
 
   def __set__ (self, obj, value):
-    setattr (obj.com_object, self.name, value)
+    if self.attribute.systemOnly:
+      raise AttributeError ("Attribute %s is read-only" % self.name)
+    if self.setter is None:
+      setattr (obj.com_object, self.name, value)
+    else:
+      setattr (obj.com_object, self.name, self.setter (value))
 
   def __delete__ (self, obj):
-    raise AttributeError ("Can't delete %s" % self.name)
+    raise NotImplementedError
 
-def descriptor (name):
+def descriptor (name, attribute):
   if name not in Descriptor._descriptors:
-    Descriptor._descriptors[name] = Descriptor (name)
+    Descriptor._descriptors[name] = Descriptor (name, attribute)
   return Descriptor._descriptors[name]
 
 def _munged (name):
@@ -47,10 +52,12 @@ class ADMetaClass (type):
   def __new__ (meta, name, bases, dict):
     obj = dict.pop ("obj")
     if obj:
+      scheme, server, dn = utils.parse_moniker (obj.ADsPath)
       schema = core.open_object (obj.Schema)
       dict['properties'] = schema.MandatoryProperties + schema.OptionalProperties
+      core.attributes (list (dict['properties']), server)
       for p in dict['properties']:
-        dict[_munged (p)] = descriptor (_munged (p))
+        dict[_munged (p)] = descriptor (p, core.attribute (p, server))
     return type.__new__ (meta, name, bases, dict)
 
 class ADObject (adbase.ADBase):
@@ -58,6 +65,7 @@ class ADObject (adbase.ADBase):
   __metaclass__ = ADMetaClass
   klasses = {}
   obj = None
+  schema_obj = {}
 
   @classmethod
   def from_obj (cls, obj):

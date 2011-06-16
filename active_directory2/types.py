@@ -62,7 +62,6 @@ def convert_to_boolean (item):
 
 def convert_to_datetime (item):
   if item is None: return None
-  return item
   return ularge_to_datetime (item)
 
 def convert_pytime_to_datetime (item):
@@ -293,6 +292,8 @@ register_converters ("sAMAccountType", convert_from_enum (constants.SAM_ACCOUNT_
 #
 register_converters ("distinguishedName", no_conversion, no_conversion)
 register_converters ("accountExpires", convert_to_datetime)
+register_converters ("minPwdAge", ularge_to_timedelta)
+register_converters ("maxPwdAge", ularge_to_timedelta)
 CONVERTERS = dict (
   badPasswordTime = convert_to_datetime,
   creationTime = convert_to_datetime,
@@ -310,10 +311,8 @@ CONVERTERS = dict (
   lockoutTime = convert_to_datetime,
   #~ manager = convert_to_object (adobject.ad),
   #~ masteredBy = convert_to_objects (adobject.ad),
-  maxPwdAge = convert_to_datetime,
   #~ member = convert_to_objects (adobject.ad),
   #~ memberOf = convert_to_objects (adobject.ad),
-  minPwdAge = convert_to_datetime,
   modifiedCount = convert_to_datetime,
   modifiedCountAtLastProm = convert_to_datetime,
   msExchMailboxGuid = convert_to_guid,
