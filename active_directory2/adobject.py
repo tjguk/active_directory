@@ -24,7 +24,9 @@ class Descriptor (object):
     if obj is None:
       return self
     else:
-      return self.getter (getattr (obj.com_object, self.name))
+      value = getattr (obj.com_object, self.name, None)
+      if value is not None:
+        return self.getter (value)
 
   def __set__ (self, obj, value):
     setattr (obj.com_object, self.name, value)
@@ -61,9 +63,10 @@ class ADObject (adbase.ADBase):
   def from_obj (cls, obj):
     obj = adsi._get_good_ret (obj)
     klass = obj.Class.encode ("ascii")
-    if klass not in cls.klasses:
-      cls.klasses[klass] = type (klass, (cls,), dict (obj=obj))
-    return cls.klasses[klass] (obj)
+    class_name = "%s" % klass[0].upper () + klass[1:]
+    if class_name not in cls.klasses:
+      cls.klasses[class_name] = type (class_name, (cls,), dict (obj=obj))
+    return cls.klasses[class_name] (obj)
 
   def __getattr__ (self, attr):
     if hasattr (self, "com_object"):

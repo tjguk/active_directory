@@ -8,21 +8,25 @@ from . import core
 from . import utils
 from . import support
 
-def ularge_to_datetime (ularge):
-  return utils.file_time_to_system_time (ularge)
+#~ def ularge_to_datetime (ularge):
+  #~ return utils.file_time_to_system_time (ularge)
 
 #
 # Converters
 #
-#~ BASE_TIME = datetime.datetime (1601, 1, 1)
-#~ def ularge_to_datetime (ularge):
-  #~ print "Converting %d:%d to datetime" % (ularge.HighPart, ularge.LowPart)
-  #~ hi, lo = utils.i32 (ularge.HighPart), utils.i32 (ularge.LowPart)
-  #~ ns100 = (hi << 32) + lo
-  #~ print "ns100:", ns100, hex (ns100)
-  #~ delta = datetime.timedelta (microseconds=ns100 / 10)
-  #~ print "delta:", delta
-  #~ return BASE_TIME + delta
+BASE_TIME = datetime.datetime (1601, 1, 1)
+def ularge_to_datetime (ularge):
+  print "Converting %d:%d to datetime" % (ularge.HighPart, ularge.LowPart)
+  hi, lo = utils.signed_to_unsigned (ularge.HighPart), utils.signed_to_unsigned (ularge.LowPart)
+  print "Converting %d:%d to datetime" % (hi, lo)
+  ns100 = (hi << 32) + lo
+  print "ns100:", ns100, hex (ns100)
+  delta = datetime.timedelta (microseconds=ns100 / 10)
+  print "delta:", delta
+  try:
+    return BASE_TIME + delta
+  except OverflowError:
+    return datetime.datetime.max if delta > 0 else datetime.datetime.min
 
 def datetime_to_ularge (datetime):
   raise NotImplementedError
@@ -58,6 +62,7 @@ def convert_to_boolean (item):
 
 def convert_to_datetime (item):
   if item is None: return None
+  return item
   return ularge_to_datetime (item)
 
 def convert_pytime_to_datetime (item):
@@ -292,7 +297,7 @@ CONVERTERS = dict (
   badPasswordTime = convert_to_datetime,
   creationTime = convert_to_datetime,
   dSASignature = convert_to_hex,
-  forceLogoff = convert_to_datetime,
+  #~ forceLogoff = convert_to_datetime,
   #~ fSMORoleOwner = convert_to_object (adobject.ad),
   groupType = convert_to_flags (constants.GROUP_TYPES),
   isGlobalCatalogReady = convert_to_boolean,

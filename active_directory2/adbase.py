@@ -95,7 +95,7 @@ class ADBase (adcore.ADCore):
 
   def __init__ (self, obj):
     adcore.ADCore.__init__ (self, obj)
-    scheme, server, dn = utils.parse_moniker (self.path)
+    scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
     self.server = server.rstrip ("/")
     self.cls = cls = self.com_object.Class
     if cls not in self._schemas:

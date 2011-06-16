@@ -104,9 +104,9 @@ import logging
 from win32com import adsi
 import win32com.client
 
-from . import adcore
-from . import adbase
-from . import adobject
+from .adcore import adcore, namespaces, root_dse
+from .adbase import adbase
+from .adobject import adobject
 from . import constants
 from . import core
 from . import exc

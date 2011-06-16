@@ -47,7 +47,6 @@ class ADCore (object):
   def __init__ (self, obj):
     utils._set (self, "com_object", adsi._get_good_ret (obj))
     utils._set (self, "properties", set (self.__class__.properties))
-    self.path = self.com_object.ADsPath
 
   @staticmethod
   def _munged_attribute (name):
@@ -69,6 +68,7 @@ class ADCore (object):
     return self.as_string ()
 
   def __getattr__ (self, name):
+
     #
     # Attempt to get the attribute by attribute access and the Get
     # method, with and without attribute name munging.
@@ -78,16 +78,17 @@ class ADCore (object):
         return exc.wrapped (getattr, self.com_object, name)
       except AttributeError:
         return exc.wrapped (self.com_object.Get, name)
+
     try:
-      return _getattr (self._munged_attribute (name))
+      return _getattr (name)
     except AttributeError:
       return _getattr (self._munged_attribute (name))
 
   def __eq__ (self, other):
-    return self.path == other.path
+    return self.com_object.ADsPath == other.com_object.ADsPath
 
   def __hash__ (self):
-    return hash (self.path)
+    return hash (self.com_object.ADsPath)
 
   def __iter__(self):
     try:
@@ -132,7 +133,7 @@ class ADCore (object):
       return cls.from_path (obj_or_path)
 
   def as_string (self):
-    return self.path
+    return self.com_object.ADsPath
 
   def dump (self, ofile=sys.stdout):
     ur"""Pretty-print the contents of this object, starting with the
