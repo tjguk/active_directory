@@ -1,9 +1,13 @@
 import netrc
+import threading
+
 import win32cred
 
 from . import constants
 from . import exc
 from .log import logger
+
+local = threading.local ()
 
 class CredentialsError (exc.ActiveDirectoryError):
   pass
@@ -58,8 +62,6 @@ class Credentials (object):
   SIMPLE = 1
   PASSTHROUGH = 2
 
-  cache = CredentialsCache ()
-
   def __init__ (self, username, password, server=None, type=SIMPLE):
     self.username = username
     self.password = password
@@ -74,11 +76,11 @@ class Credentials (object):
     return "<%s: %r %r on %s>" % (self.__class__.__name__, self.username, self.password, self.server)
 
   def __enter__ (self):
-    self.__class__.cache.push (self)
+    cache.push (self)
     return self
 
   def __exit__ (self, *args):
-    self.__class__.cache.pop (self.server)
+    cache.pop (self.server)
 
   @classmethod
   def from_netrc (cls, host, netrc_filepath=None):
@@ -107,11 +109,4 @@ def credentials (cred):
     except (ValueError, TypeError):
       raise InvalidCredentialsError ("Credentials must be a Credentials object or (username, password[, server])")
 
-cache = Credentials.cache
-
-def push (cred):
-  cred = credentials (cred)
-  Credentials.cache.push (cred)
-
-def pop (server):
-  return Credentials.cache.pop (server)
+cache = local.cache = CredentialsCache ()
