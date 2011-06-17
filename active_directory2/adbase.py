@@ -95,8 +95,9 @@ class ADBase (adcore.ADCore):
     adcore.ADCore.__init__ (self, obj)
     utils._set (self, "properties", set ())
     scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
-    self.server = server.rstrip ("/")
-    self.cls = cls = self.com_object.Class
+    utils._set (self, "server", server.rstrip ("/"))
+    cls = self.com_object.Class
+    utils._set (self, "cls", cls)
     if cls not in self._schemas:
       schema_path = self.com_object.Schema
       try:
@@ -108,11 +109,11 @@ class ADBase (adcore.ADCore):
         self._schemas[cls] = core.open_object (schema_path)
       except exc.BadPathnameError:
         self._schemas[cls] = None
-    self.schema = self._schemas[cls]
+    utils._set (self, "schema", self._schemas[cls])
     if self.schema:
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
     if "distinguishedName" in self.properties:
-      self.dn = self.distinguishedName
+      utils._set (self, "dn", self.distinguishedName)
 
   def _put (self, name, value):
     #
@@ -273,6 +274,9 @@ class ADBase (adcore.ADCore):
     if not (args or kwargs):
       raise NoFilterError
     filter = support.and_ (*args, **kwargs)
+    #
+    # TODO: use FAST_BIND semantics
+    #
     for result in core.query (self.com_object, filter, ['distinguishedName']):
       rdn = support.rdn (self.distinguishedName, result['distinguishedName'][0])
       if not rdn:

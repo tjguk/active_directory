@@ -14,6 +14,7 @@ every time. (Although the bind itself should be cached by AD behind the scenes).
 import re
 import threading
 
+import pythoncom
 import win32com.client
 from win32com import adsi
 from win32com.adsi import adsicon
@@ -25,22 +26,25 @@ from .log import logger
 from . import support
 from . import utils
 
-caches = threading.local ()
-#~ caches.base_monikers = {}
-#~ caches.root_dses = {}
-#~ caches.root_monikers = {}
-#~ caches.root_objs = {}
-#~ caches.schema_objs = {}
+_caches = threading.local ()
+_thread_status = threading.local ()
+
+def _init_if_needed ():
+  if not _thread_status.__dict__.get ("initialised", False):
+    logger.debug ("About to initialise %s", threading.current_thread ())
+    pythoncom.CoInitializeEx (pythoncom.COINIT_APARTMENTTHREADED)
+    _thread_status.initialised = True
 
 def namespaces ():
   ur"""Return the ADs: namespaces object. This can only be accessed via
   a GetObject call, and can't be authenticated against.
   """
+  _init_if_needed ()
   return win32com.client.GetObject ("ADs:")
 
 def _get_cache (name):
   logger.debug (name)
-  return caches.__dict__.setdefault (name, {})
+  return _caches.__dict__.setdefault (name, {})
 
 def _base_moniker (server=None, scheme="LDAP:"):
   ur"""Form a moniker from a server and scheme, returning a cached hit if available.
@@ -72,6 +76,7 @@ def root_dse (server=None, scheme="LDAP:"):
   _root_dses = _get_cache ("root_dses")
   if (server, scheme) not in _root_dses:
     logger.debug ("Refreshing")
+    _init_if_needed ()
     _root_dses[server, scheme] = exc.wrapped (
       win32com.client.GetObject,
       _base_moniker (server, scheme) + "rootDSE"
@@ -287,9 +292,10 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
   scheme, server, dn = utils.parse_moniker (moniker)
   cred = credentials.credentials (cred)
   if cred is None:
-    cred = credentials.Credentials.cache.get (server.rstrip ("/"))
+    cred = credentials.cache.get (server.rstrip ("/"))
   if cred is None:
     cred = credentials.Passthrough
+  _init_if_needed ()
   return exc.wrapped (
     adsi.ADsOpenObject,
     moniker,
@@ -297,3 +303,4 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
     cred.password,
     flags | (constants.AUTHENTICATION_TYPES.SERVER_BIND if server else 0) | cred.authentication_type
   )
+
