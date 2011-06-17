@@ -7,8 +7,6 @@ from . import constants
 from . import exc
 from .log import logger
 
-local = threading.local ()
-
 class CredentialsError (exc.ActiveDirectoryError):
   pass
 
@@ -21,6 +19,8 @@ class InvalidCredentialsError (CredentialsError):
 class CredentialsAlreadyCachedError (CredentialsError):
   pass
 
+local = threading.local ()
+
 class CredentialsCache (object):
 
   #
@@ -31,7 +31,7 @@ class CredentialsCache (object):
     self._cache = {}
 
   def __repr__ (self):
-    return "<%s: %s>" % (self.__class__.__name__, list (self._cache) or "Empty")
+    return "<%s (%d): %s>" % (self.__class__.__name__, id (self), list (self._cache) or "Empty")
 
   def __str__ (self):
     return str (self._cache)
@@ -76,11 +76,11 @@ class Credentials (object):
     return "<%s: %r %r on %s>" % (self.__class__.__name__, self.username, self.password, self.server)
 
   def __enter__ (self):
-    cache.push (self)
+    cache ().push (self)
     return self
 
   def __exit__ (self, *args):
-    cache.pop (self.server)
+    cache ().pop (self.server)
 
   @classmethod
   def from_netrc (cls, host, netrc_filepath=None):
@@ -109,4 +109,11 @@ def credentials (cred):
     except (ValueError, TypeError):
       raise InvalidCredentialsError ("Credentials must be a Credentials object or (username, password[, server])")
 
-cache = local.cache = CredentialsCache ()
+def push (cred):
+  cache ().push (cred)
+
+def pop ():
+  return cache ().pop ()
+
+def cache ():
+  return local.__dict__.setdefault ("cache", CredentialsCache ())
