@@ -7,6 +7,8 @@ from . import constants
 from . import exc
 from .log import logger
 
+local = threading.local ()
+
 class CredentialsError (exc.ActiveDirectoryError):
   pass
 
@@ -19,9 +21,7 @@ class InvalidCredentialsError (CredentialsError):
 class CredentialsAlreadyCachedError (CredentialsError):
   pass
 
-local = threading.local ()
-
-class CredentialsCache (object):
+class _CredentialsCache (object):
 
   #
   # TODO: This needs to use the secure cacheing mechanism
@@ -116,4 +116,4 @@ def pop ():
   return cache ().pop ()
 
 def cache ():
-  return local.__dict__.setdefault ("cache", CredentialsCache ())
+  return local.__dict__.setdefault ("cache", _CredentialsCache ())
