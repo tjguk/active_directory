@@ -25,13 +25,23 @@ from .log import logger
 from . import support
 from . import utils
 
+caches = threading.local ()
+#~ caches.base_monikers = {}
+#~ caches.root_dses = {}
+#~ caches.root_monikers = {}
+#~ caches.root_objs = {}
+#~ caches.schema_objs = {}
+
 def namespaces ():
   ur"""Return the ADs: namespaces object. This can only be accessed via
   a GetObject call, and can't be authenticated against.
   """
   return win32com.client.GetObject ("ADs:")
 
-_base_monikers = {}
+def _get_cache (name):
+  logger.debug (name)
+  return caches.__dict__.setdefault (name, {})
+
 def _base_moniker (server=None, scheme="LDAP:"):
   ur"""Form a moniker from a server and scheme, returning a cached hit if available.
 
@@ -39,15 +49,17 @@ def _base_moniker (server=None, scheme="LDAP:"):
   :param scheme: A valid AD scheme; typically LDAP: but could be GC: or WinNT:
   :return: A string of the form LDAP://<server>/ where the server segment might be missing
   """
-  logger.debug ("_base_moniker: server=%s, scheme=%s", server, scheme)
+  logger.debug ("server=%s, scheme=%s", server, scheme)
+  _base_monikers = _get_cache ("base_monikers")
+  logger.debug ("_base_monikers: %s", _base_monikers)
   if (server, scheme) not in _base_monikers:
+    logger.debug ("Refreshing")
     if server:
       _base_monikers[server, scheme] = scheme + "//" + server + "/"
     else:
       _base_monikers[server, scheme] = scheme + "//"
   return _base_monikers[server, scheme]
 
-_root_dses = {}
 def root_dse (server=None, scheme="LDAP:"):
   ur"""Return the object representing the RootDSE for a domain, optionally
   specified by a server and a scheme (typically LDAP: or GC:).
@@ -56,15 +68,16 @@ def root_dse (server=None, scheme="LDAP:"):
   :param scheme: Typically LDAP: or GC: [LDAP:]
   :returns: The COM Object corresponding to the RootDSE for the server or domain
   """
-  logger.debug ("root_dse: server=%s, scheme=%s", server, scheme)
+  logger.debug ("server=%s, scheme=%s", server, scheme)
+  _root_dses = _get_cache ("root_dses")
   if (server, scheme) not in _root_dses:
+    logger.debug ("Refreshing")
     _root_dses[server, scheme] = exc.wrapped (
       win32com.client.GetObject,
       _base_moniker (server, scheme) + "rootDSE"
     )
   return _root_dses[server, scheme]
 
-_root_monikers = {}
 def root_moniker (server=None, scheme="LDAP:"):
   ur"""Return the moniker representing the domain specified by a server and
   a scheme (typically LDAP: or GC:). If you need the corresponding object,
@@ -74,13 +87,15 @@ def root_moniker (server=None, scheme="LDAP:"):
   :param scheme: Typically LDAP: or GC: [LDAP:]
   :returns: The moniker corresponding to the domain
   """
+  logger.debug ("server=%s, scheme=%s", server, scheme)
+  _root_monikers = _get_cache ("root_monikers")
   if (server, scheme) not in _root_monikers:
+    logger.debug ("Refreshing")
     dse = root_dse (server, scheme)
     _root_monikers[server, scheme] = \
       _base_moniker (server, scheme) + exc.wrapped (dse.Get, "defaultNamingContext")
   return _root_monikers[server, scheme]
 
-_root_objs = {}
 def root_obj (server=None, scheme="LDAP:", cred=None):
   ur"""Return the COM object representing the domain specified by a server and
   a scheme (typically LDAP: or GC:), optionally authenticated. If you only
@@ -91,17 +106,20 @@ def root_obj (server=None, scheme="LDAP:", cred=None):
   :param cred: anything accepted by :func:`credentials.credentials`
   :returns: The COM object corresponding to the domain
   """
+  logger.debug ("server=%s, scheme=%s, cred=%s", server, scheme, cred)
+  _root_objs = _get_cache ("root_objs")
   if server not in _root_objs:
+    logger.debug ("Refreshing")
     _root_objs[server] = open_object (root_moniker (server, scheme), cred=cred)
   return _root_objs[server]
 
 def _partition_obj (partition, server=None, cred=None):
+  logger.debug ("partition=%s, server=%s, cred=%s", partition, server, cred)
   return open_object (
     _base_moniker (server) + exc.wrapped (root_dse (server).Get, partition),
     cred=cred
   )
 
-_schema_objs = {}
 def schema_obj (server=None, cred=None):
   ur"""Return the COM object representing the schema for the domain specified
   by a server, optionally authenticated.
@@ -110,11 +128,13 @@ def schema_obj (server=None, cred=None):
   :param cred: anything accepted by :func:`credentials.credentials`
   :returns: The COM object corresponding to the domain schema
   """
+  logger.debug ("server=%s, cred=%s", server, cred)
+  _schema_objs = _get_cache ("schema_objs")
   if server not in _schema_objs:
+    logger.debug ("Refreshing")
     _schema_objs[server] = _partition_obj ("schemaNamingContext", server, cred)
   return _schema_objs[server]
 
-_configuration_objs = {}
 def configuration_obj (server=None, cred=None):
   ur"""Return the COM object representing the configuration for the domain specified
   by a server, optionally authenticated.
@@ -123,19 +143,23 @@ def configuration_obj (server=None, cred=None):
   :param cred: anything accepted by :func:`credentials.credentials`
   :returns: The COM object corresponding to the domain configuration
   """
+  logger.debug ("server=%s, cred=%s", server, cred)
+  _configuration_objs = _get_cache ("configuration_objs")
   if server not in _configuration_objs:
+    logger.debug ("Refreshing")
     _configuration_objs[server] = _partition_obj ("configurationNamingContext", server, cred)
   return _configuration_objs[server]
 
-_class_schemas = {}
 def class_schema (class_name, server=None, cred=None):
   ur""":returns: the name of the schema for a particular AD Class
   """
+  logger.debug ("class_name=%s, server=%s, cred=%s", class_name, server, cred)
+  _class_schemas = _get_cache ("class_schemas")
   if class_name not in _class_schemas:
+    logger.debug ("Refreshing")
     _class_schemas[class_name] = open_object (_base_moniker (server) + "schema/%s" % class_name, cred=cred)
   return _class_schemas[class_name]
 
-_attributes = {}
 def attributes (names="*", server=None, cred=None):
   ur"""Return an iteration of name, obj pairs representing all the attributes named.
   The dict contains: lDAPDisplayName, instanceType, oMObjectClass, oMSyntax, attributeId, isSingleValued
@@ -145,6 +169,8 @@ def attributes (names="*", server=None, cred=None):
   :param cred: anything accepted by :func:`credentials.credentials`
   :returns: An iteration of (name, info)
   """
+  logger.debug ("names=%s, server=%s, cred=%s", names, server, cred)
+  _attributes = _get_cache ("attributes")
   schema = schema_obj (server, cred)
   unknown_names = set (names) - set (_attributes)
   if unknown_names:
@@ -173,6 +199,7 @@ def attribute (name, server=None, cred=None):
 
   :returns: `name`, `info` per :func:`attributes` for the named attribute
   """
+  logger.debug ("name=%s, server=%s, cred=%s", name, server, cred)
   for name, attr in attributes ([name], server=server, cred=cred):
     return attr
 
@@ -195,6 +222,7 @@ def query (obj, filter, attributes=None, flags=constants.ADS_SEARCHPREF.Unset):
   :param flags: A combination of :data:`constants.ADS_SEARCHPREF` values
   :returns: iterator over a dictionary mapping attribute names to lists of values
   """
+  logger.debug ("obj=%s, filter=%s, attributes=%s, flags=%s", obj, filter, attributes, flags)
   SEARCH_PREFERENCES = {
     adsicon.ADS_SEARCHPREF_PAGESIZE : 1000,
     adsicon.ADS_SEARCHPREF_SEARCH_SCOPE : adsicon.ADS_SCOPE_SUBTREE,
@@ -255,6 +283,7 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
       me = core.open_object (core.root_moniker ())
     me = core.open_object ("LDAP://testing/dc=test,dc=local", cred=credentials.Anonymous)
   """
+  logger.debug ("moniker=%s, cred=%s, flags=%s", moniker, cred, flags)
   scheme, server, dn = utils.parse_moniker (moniker)
   cred = credentials.credentials (cred)
   if cred is None:
