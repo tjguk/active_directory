@@ -8,8 +8,8 @@ ad.logger.setLevel (logging.INFO)
 
 def f (ident, filter, queue):
   for item in ad.AD ().search (filter):
-    queue.put ((ident, item.dn))
-  queue.put ((ident, "***"))
+    queue.put ((ident, item))
+  queue.put ((ident, None))
 
 if __name__ == '__main__':
   q = Queue.Queue ()
@@ -20,7 +20,7 @@ if __name__ == '__main__':
   incomplete = dict (users=True, groups=True)
   while any (incomplete.values ()):
     ident, dn = q.get ()
-    if dn == "***":
+    if dn is None:
       incomplete[ident] = False
     else:
       print ident, ":", dn
