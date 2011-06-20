@@ -18,7 +18,7 @@ class Descriptor (object):
 
   def __init__ (self, name, attribute):
      self.name = name
-     self.attribute = attribute
+     self.attribute = adbase.adbase (attribute)
      self.getter, self.setter = types.get_converters (self.name)
 
   def __get__ (self, obj, objtype=None):
@@ -44,8 +44,11 @@ class Descriptor (object):
   def __delete__ (self, obj):
     raise NotImplementedError
 
+  def __repr__ (self):
+    return "<%s: %s>" % (self.__class__.__name__, self.name)
+
   def dump (self, ofile=sys.stdout):
-    adbase.adbase (self.attribute).dump ()
+    self.attribute.dump (ofile=ofile)
 
 def descriptor (name, attribute):
   if name not in Descriptor._descriptors:
@@ -59,6 +62,7 @@ class ADMetaClass (type):
 
   def __new__ (meta, name, bases, dict):
     obj = dict.pop ("obj")
+    cred = dict.pop ("cred")
     if obj:
       scheme, server, dn = utils.parse_moniker (obj.ADsPath)
       server = server.rstrip ("/")
@@ -74,15 +78,16 @@ class ADObject (adbase.ADBase):
   __metaclass__ = ADMetaClass
   klasses = {}
   obj = None
+  cred = None
   schema_obj = {}
 
   @classmethod
-  def from_obj (cls, obj):
+  def from_obj (cls, obj, cred=None):
     obj = adsi._get_good_ret (obj)
     klass = obj.Class.encode ("ascii")
     class_name = "%s" % klass[0].upper () + klass[1:]
     if class_name not in cls.klasses:
-      cls.klasses[class_name] = type (class_name, (cls,), dict (obj=obj))
+      cls.klasses[class_name] = type (class_name, (cls,), dict (obj=obj, cred=cred))
     return cls.klasses[class_name] (obj)
 
   def __getattr__ (self, attr):

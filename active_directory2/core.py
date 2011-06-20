@@ -46,6 +46,12 @@ def _get_cache (name):
   logger.debug (name)
   return _caches.__dict__.setdefault (name, {})
 
+def _get_server (server):
+  logger.debug ("server=%s", server)
+  if server is not None:
+    _caches.server = server
+  return getattr (_caches, "server", None)
+
 def _base_moniker (server=None, scheme="LDAP:"):
   ur"""Form a moniker from a server and scheme, returning a cached hit if available.
 
@@ -56,6 +62,7 @@ def _base_moniker (server=None, scheme="LDAP:"):
   logger.debug ("server=%s, scheme=%s", server, scheme)
   _base_monikers = _get_cache ("base_monikers")
   logger.debug ("_base_monikers: %s", _base_monikers)
+  server = _get_server (server)
   if (server, scheme) not in _base_monikers:
     logger.debug ("Refreshing")
     if server:
@@ -74,6 +81,7 @@ def root_dse (server=None, scheme="LDAP:"):
   """
   logger.debug ("server=%s, scheme=%s", server, scheme)
   _root_dses = _get_cache ("root_dses")
+  server = _get_server (server)
   if (server, scheme) not in _root_dses:
     logger.debug ("Refreshing")
     _init_if_needed ()
@@ -94,6 +102,7 @@ def root_moniker (server=None, scheme="LDAP:"):
   """
   logger.debug ("server=%s, scheme=%s", server, scheme)
   _root_monikers = _get_cache ("root_monikers")
+  server = _get_server (server)
   if (server, scheme) not in _root_monikers:
     logger.debug ("Refreshing")
     dse = root_dse (server, scheme)
@@ -113,6 +122,7 @@ def root_obj (server=None, scheme="LDAP:", cred=None):
   """
   logger.debug ("server=%s, scheme=%s, cred=%s", server, scheme, cred)
   _root_objs = _get_cache ("root_objs")
+  server = _get_server (server)
   if server not in _root_objs:
     logger.debug ("Refreshing")
     _root_objs[server] = open_object (root_moniker (server, scheme), cred=cred)
@@ -120,6 +130,7 @@ def root_obj (server=None, scheme="LDAP:", cred=None):
 
 def _partition_obj (partition, server=None, cred=None):
   logger.debug ("partition=%s, server=%s, cred=%s", partition, server, cred)
+  server = _get_server (server)
   return open_object (
     _base_moniker (server) + exc.wrapped (root_dse (server).Get, partition),
     cred=cred
@@ -135,6 +146,7 @@ def schema_obj (server=None, cred=None):
   """
   logger.debug ("server=%s, cred=%s", server, cred)
   _schema_objs = _get_cache ("schema_objs")
+  server = _get_server (server)
   if server not in _schema_objs:
     logger.debug ("Refreshing")
     _schema_objs[server] = _partition_obj ("schemaNamingContext", server, cred)
@@ -150,6 +162,7 @@ def configuration_obj (server=None, cred=None):
   """
   logger.debug ("server=%s, cred=%s", server, cred)
   _configuration_objs = _get_cache ("configuration_objs")
+  server = _get_server (server)
   if server not in _configuration_objs:
     logger.debug ("Refreshing")
     _configuration_objs[server] = _partition_obj ("configurationNamingContext", server, cred)
@@ -160,6 +173,7 @@ def class_schema (class_name, server=None, cred=None):
   """
   logger.debug ("class_name=%s, server=%s, cred=%s", class_name, server, cred)
   _class_schemas = _get_cache ("class_schemas")
+  server = _get_server (server)
   if class_name not in _class_schemas:
     logger.debug ("Refreshing")
     _class_schemas[class_name] = open_object (_base_moniker (server) + "schema/%s" % class_name, cred=cred)
@@ -290,11 +304,15 @@ def open_object (moniker, cred=None, flags=constants.AUTHENTICATION_TYPES.DEFAUL
   """
   logger.debug ("moniker=%s, cred=%s, flags=%s", moniker, cred, flags)
   scheme, server, dn = utils.parse_moniker (moniker)
+  server = _get_server (server)
   cred = credentials.credentials (cred)
+  logger.debug (cred)
   if cred is None:
-    cred = credentials.cache.get (server.rstrip ("/"))
+    cred = credentials.cache ().get ()
+  logger.debug (cred)
   if cred is None:
     cred = credentials.Passthrough
+  logger.debug (cred)
   _init_if_needed ()
   return exc.wrapped (
     adsi.ADsOpenObject,

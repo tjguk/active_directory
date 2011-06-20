@@ -28,33 +28,32 @@ class _CredentialsCache (object):
   #
 
   def __init__ (self):
-    self._cache = {}
+    self._cache = []
 
   def __repr__ (self):
-    return "<%s (%d): %s>" % (self.__class__.__name__, id (self), list (self._cache) or "Empty")
+    return "<%s (%d): %s>" % (self.__class__.__name__, threading.current_thread ().ident, list (self._cache) or "Empty")
 
   def __str__ (self):
     return str (self._cache)
 
   def push (self, cred):
     cred = credentials (cred)
-    self._cache.setdefault (cred.server, []).append (cred)
+    self._cache.append (cred)
 
   def pop (self, server):
-    return self._cache[server].pop ()
+    return self._cache.pop ()
 
-  def get (self, server, default=None):
-    creds = self._cache.setdefault (server, [])
-    if creds:
-      return creds[-1]
+  def get (self, default=None):
+    if self._cache:
+      return self._cache[-1]
     else:
       return default
 
   def __iter__ (self):
-    return ((k, v[-1]) for (k, v) in self._cache.items ())
+    return iter (self._cache)
 
   def clear (self):
-    self._cache.clear ()
+    self._cache[:] = []
 
 class Credentials (object):
 
@@ -62,10 +61,9 @@ class Credentials (object):
   SIMPLE = 1
   PASSTHROUGH = 2
 
-  def __init__ (self, username, password, server=None, type=SIMPLE):
+  def __init__ (self, username, password, type=SIMPLE):
     self.username = username
     self.password = password
-    self.server = server
     self.type = type
     if type == self.ANONYMOUS:
       self.authentication_type = constants.AUTHENTICATION_TYPES.NO_AUTHENTICATION
@@ -73,14 +71,14 @@ class Credentials (object):
       self.authentication_type = constants.AUTHENTICATION_TYPES.SECURE_AUTHENTICATION
 
   def __repr__ (self):
-    return "<%s: %r %r on %s>" % (self.__class__.__name__, self.username, self.password, self.server)
+    return "<%s: %r %r>" % (self.__class__.__name__, self.username, self.password)
 
   def __enter__ (self):
     cache ().push (self)
     return self
 
   def __exit__ (self, *args):
-    cache ().pop (self.server)
+    cache ().pop ()
 
   @classmethod
   def from_netrc (cls, host, netrc_filepath=None):

@@ -43,8 +43,9 @@ class ADCore (object):
 
   _properties = ["ADsPath", "Class", "GUID", "Name", "Parent", "Schema"]
 
-  def __init__ (self, obj):
+  def __init__ (self, obj, cred=None):
     utils._set (self, "com_object", adsi._get_good_ret (obj))
+    utils._set (self, "cred", cred)
 
   @staticmethod
   def _munged_attribute (name):
@@ -74,6 +75,22 @@ class ADCore (object):
       except AttributeError:
         return exc.wrapped (getattr, self.com_object, name)
 
+  def _put (self, name, value):
+    #
+    # The only way to clear an AD value is by using the
+    # extended PutEx mechanism.
+    #
+    if value is None:
+      exc.wrapped (self.com_object.PutEx, constants.ADS_PROPERTY.CLEAR, name, None)
+    else:
+      exc.wrapped (self.com_object.Put, name, value)
+
+  def __setattr__ (self, name, value):
+    logger.debug ("name=%s, value=%s", name, value)
+    munged_name = self._munged_attribute (name)
+    self._put (munged_name, value)
+    exc.wrapped (self.com_object.SetInfo)
+
   def __eq__ (self, other):
     return self.com_object.ADsPath == other.com_object.ADsPath
 
@@ -88,20 +105,20 @@ class ADCore (object):
       raise TypeError ("%r is not iterable" % self)
 
   @classmethod
-  def from_path (cls, path):
+  def from_path (cls, path, cred=None):
     ur"""Create an object of this class from an AD path
 
     :param obj_or_path: a valid LDAP moniker
     :returns: a :class:`ADBase` object
     """
-    return cls (core.open_object (path))
+    return cls (core.open_object (path, cred=cred))
 
   @classmethod
-  def from_obj (cls, obj):
-    return cls (obj)
+  def from_obj (cls, obj, cred=None):
+    return cls (obj, cred=cred)
 
   @classmethod
-  def factory (cls, obj_or_path=None):
+  def factory (cls, obj_or_path=None, cred=None):
     ur"""Return an :class:`ADBase` object corresponding to `obj_or_path`.
 
     * If `obj_or_path` is an existing instance of this class, return it
@@ -116,11 +133,11 @@ class ADCore (object):
     if isinstance (obj_or_path, cls):
       return obj_or_path
     elif isinstance (obj_or_path, (adsi.IDispatchType, win32com.client.CDispatch)):
-      return cls.from_obj (obj_or_path)
+      return cls.from_obj (obj_or_path, cred=cred)
     elif hasattr (obj_or_path, "com_object"):
-      return cls.from_obj (obj_or_path.com_object)
+      return cls.from_obj (obj_or_path.com_object, cred=cred)
     else:
-      return cls.from_path (obj_or_path)
+      return cls.from_path (obj_or_path, cred=cred)
 
   def as_string (self):
     return self.com_object.ADsPath
@@ -178,8 +195,8 @@ adcore = ADCore.factory
 def namespaces ():
   return ADCore (core.namespaces ())
 
-def root_dse ():
-  return RootDSE (core.root_dse ())
+def root_dse (server=None):
+  return RootDSE (core.root_dse (server=server))
 
 def attribute (*args, **kwargs):
   return adcore (core.attribute (*args, **kwargs))

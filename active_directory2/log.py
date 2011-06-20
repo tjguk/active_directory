@@ -10,7 +10,7 @@ stderr_handler.setLevel (logging.WARN)
 stderr_handler.setFormatter (formatter)
 logger.addHandler (stderr_handler)
 
-debug_handler = logging.FileHandler ("active_directory2.debug.log")
+debug_handler = logging.FileHandler ("active_directory2.debug.log", mode="w")
 debug_handler.setLevel (logging.DEBUG)
 debug_handler.setFormatter (formatter)
 logger.addHandler (debug_handler)

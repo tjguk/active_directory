@@ -3,17 +3,18 @@ import logging
 import Queue
 import threading
 
-from active_directory2 import ad
+from active_directory2 import ad, credentials
 
 def f (ident, filter, queue):
-  for item in ad.AD (server=ident).search (filter):
-    queue.put ((ident, item))
-  queue.put ((ident, None))
+  with credentials.credentials (("tim@westpark.local", "password", ident)):
+    for item in ad.AD (server=ident).search (filter):
+      queue.put ((ident, item))
+    queue.put ((ident, None))
 
 if __name__ == '__main__':
   q = Queue.Queue ()
-  t1 = threading.Thread (target=f, args=('svr-dc1', 'objectClass=user', q))
-  t2 = threading.Thread (target=f, args=('svr-dc2', 'objectClass=group', q))
+  t1 = threading.Thread (target=f, args=('holst', 'objectClass=user', q))
+  t2 = threading.Thread (target=f, args=('holst', 'objectClass=group', q))
   t1.start ()
   t2.start ()
   incomplete = dict (users=True, groups=True)

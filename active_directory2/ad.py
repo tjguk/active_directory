@@ -114,6 +114,7 @@ from .log import logger
 from . import utils
 
 def AD (server=None, cred=None, use_gc=False, factory=adbase):
+  logger.debug ("server=%s, cred=%s, use_gc=%s, factory=%s", server, cred, use_gc, factory)
   if use_gc:
     scheme = u"GC:"
   else:
@@ -122,7 +123,7 @@ def AD (server=None, cred=None, use_gc=False, factory=adbase):
     base_moniker = scheme + "//" + server + "/"
   else:
     base_moniker = scheme + "//"
-  return factory (core.root_obj (server, scheme, cred=cred))
+  return factory (core.root_obj (server, scheme, cred=cred), cred=cred)
 
 #
 # Convenience functions for common needs

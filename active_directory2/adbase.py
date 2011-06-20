@@ -91,8 +91,8 @@ class ADBase (adcore.ADCore):
 
   _schemas = {}
 
-  def __init__ (self, obj):
-    adcore.ADCore.__init__ (self, obj)
+  def __init__ (self, obj, cred=None):
+    adcore.ADCore.__init__ (self, obj, cred)
     utils._set (self, "properties", set ())
     scheme, server, dn = utils.parse_moniker (self.com_object.ADsPath)
     utils._set (self, "server", server.rstrip ("/"))
@@ -106,7 +106,7 @@ class ADBase (adcore.ADCore):
         # bind must have been created on this connection
         # which ADSI will reuse without prompting.
         #
-        self._schemas[cls] = core.open_object (schema_path)
+        self._schemas[cls] = core.open_object (schema_path, cred=self.cred)
       except exc.BadPathnameError:
         self._schemas[cls] = None
     utils._set (self, "schema", self._schemas[cls])
@@ -114,16 +114,6 @@ class ADBase (adcore.ADCore):
       self.properties.update (self.schema.MandatoryProperties + self.schema.OptionalProperties)
     if "distinguishedName" in self.properties:
       utils._set (self, "dn", self.distinguishedName)
-
-  def _put (self, name, value):
-    #
-    # The only way to clear an AD value is by using the
-    # extended PutEx mechanism.
-    #
-    if value is None:
-      exc.wrapped (self.com_object.PutEx, constants.ADS_PROPERTY.CLEAR, name, None)
-    else:
-      exc.wrapped (self.com_object.Put, name, value)
 
   def __setattr__ (self, name, value):
     logger.debug ("ADBase.__setattr__: name=%s, value=%s", name, value)
