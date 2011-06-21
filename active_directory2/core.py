@@ -49,7 +49,7 @@ def _get_cache (name):
 def _get_server (server):
   logger.debug ("server=%s", server)
   if server is not None:
-    _caches.server = server
+    _caches.server = server.rstrip ("/")
   return getattr (_caches, "server", None)
 
 def _base_moniker (server=None, scheme="LDAP:"):
