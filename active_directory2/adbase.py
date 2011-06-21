@@ -181,7 +181,7 @@ class ADBase (adcore.ADCore):
     ofile.write ("{\n")
     for property in sorted (self.properties):
       value = exc.wrapped (getattr, self, property, None)
-      if value:
+      if value is not None:
         ofile.write ("  %s => %r\n" % (unicode (property).encode ("ascii", "backslashreplace"), munged (value)))
     ofile.write ("}\n")
 

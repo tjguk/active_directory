@@ -19,7 +19,8 @@ class Descriptor (object):
   def __init__ (self, name, attribute):
      self.name = name
      self.attribute = adbase.adbase (attribute)
-     self.getter, self.setter = types.get_converters (self.name)
+     self.getter, self.setter, self.searcher = types.get_converters (self.name)
+     logger.debug ("name=%s, getter=%s, setter=%s, searcher=%s", self.name, self.getter, self.setter, self.searcher)
 
   def __get__ (self, obj, objtype=None):
     logger.debug ("%s.__get__: obj=%s, objtype=%s", self.name, obj, objtype)
