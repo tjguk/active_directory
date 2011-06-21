@@ -113,7 +113,7 @@ from . import exc
 from .log import logger
 from . import utils
 
-def AD (server=None, cred=None, use_gc=False, factory=adbase):
+def AD (server=None, cred=None, use_gc=False, factory=adobject):
   logger.debug ("server=%s, cred=%s, use_gc=%s, factory=%s", server, cred, use_gc, factory)
   if use_gc:
     scheme = u"GC:"

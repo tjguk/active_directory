@@ -22,10 +22,10 @@ def register_converters (type, name, getter=None, setter=None, searcher=None):
   _getter, _setter, _searcher = _converters.get (name, (None, None, None))
   _converters[name] = (getter or _getter, setter or _setter, searcher or _searcher)
 
-def converters (type, name):
+def _converters (type, name):
   return _get_converters (type).get (name, (None, None, None))
 
-def converter (name, offset):
+def _converter (name, offset):
   name_converter = converters ("name", name)[offset]
   if name_converter:
     return name_converter
@@ -36,13 +36,19 @@ def converter (name, offset):
   return None
 
 def getter (name):
-  return converter (name, 0)
+  return _converter (name, 0)
 
 def setter (name):
-  return converter (name, 1)
+  return _converter (name, 1)
 
 def searcher (name):
-  return converter (name, 2)
+  return _converter (name, 2)
+
+def converters (name):
+  name_converters = _converters ("name", name)
+  syntax = core.attribute (name).attributeSyntax
+  syntax_converters = _converters ("syntax", syntax)
+  return [(n or s) for (n, s) in zip (name_converters, syntax_converters)]
 
 #
 # Generic converters
@@ -53,23 +59,39 @@ def searcher (name):
 BASE_TIME = datetime.datetime (1601, 1, 1)
 DELTA0 = datetime.timedelta (0)
 def interval_to_datetime (interval):
-  delta = interval_to_timedelta (interval)
+  hi = utils.signed_to_unsigned (interval.HighPart)
+  lo = utils.signed_to_unsigned (interval.LowPart)
+  ns100 = (hi << 32) + lo
+  if ns100 in (0, 0x7FFFFFFFFFFFFFFF):
+    return datetime.datetime.max
+  delta = datetime.timedelta (microseconds=ns100 / 10)
   try:
-    return BASE_TIME - delta
+    return BASE_TIME + delta
   except OverflowError:
     return datetime.datetime.max if delta > DELTA0 else datetime.datetime.min
 
 def interval_to_timedelta (interval):
-  hi = utils.signed_to_unsigned (ularge.HighPart)
-  lo = utils.signed_to_unsigned (ularge.LowPart)
+  hi = utils.signed_to_unsigned (interval.HighPart)
+  lo = utils.signed_to_unsigned (interval.LowPart)
   ns100 = (hi << 32) + lo
-  return datetime.timedelta (microseconds=-ns100 / 10)
+  return datetime.timedelta (microseconds=ns100 / 10)
 
 def largeint_to_long (value):
   return (value.HighPart << 32) + value.LowPart
 
+#
+# Name Converters
+#
 
 #
-# Syntax Converters
+# Register Syntax Converters
 #
 register_converters ("syntax", "2.5.5.16", getter=largeint_to_long)
+
+#
+# Register Name Converters
+#
+register_converters ("name", "accountExpires", getter=interval_to_datetime)
+register_converters ("name", "pwdLastSet", getter=interval_to_datetime)
+register_converters ("name", "badPasswordTime", getter=interval_to_datetime)
+register_converters ("name", "lastLogon", getter=interval_to_datetime)
