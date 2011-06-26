@@ -16,6 +16,17 @@ _local = threading.local ()
 # Within each of those types there are getters, setters & searchers
 # If a name converter exists this is used, otherwise a syntax converter
 #
+# Syntax converters try to convert on the basis of the property's
+# syntax. This might involve converting a binary object which
+# represents a SID to the corresponding PySID structure. Or a
+# datetime representation to the corresponding Python datetime.
+#
+# Name converters are more specific and allow individual named
+# properties to be converted specifically. For example, several
+# properties contain time intervals masquerading as large integers.
+# These have to be converted to the equivalent time delta and then
+# converted again (usually) to a datetime object.
+#
 def _get_converters (type):
   return _local.__dict__.setdefault (type, {})
 
@@ -82,8 +93,6 @@ def interval_to_datetime (interval):
     return datetime.datetime.max if delta > DELTA0 else datetime.datetime.min
 
 def interval_to_timedelta (interval):
-  #~ hi = utils.signed_to_unsigned (interval.HighPart)
-  #~ lo = utils.signed_to_unsigned (interval.LowPart)
   ns100 = (interval.HighPart << 32) + interval.LowPart
   return datetime.timedelta (microseconds=-ns100 / 10)
 
