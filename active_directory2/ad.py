@@ -15,25 +15,6 @@ has only really been developed to aid searching, but since
 you can always access the original COM object, there's nothing
 to stop you using it for any AD operations.
 
-Key functions are:
-
-* :func:`ado_connection`, :func:`ado_query` and :func:`ado_query_string` - these offer the
-  most raw functionality: slightly assisting an ADO query and returning a
-  Python dictionary of results::
-
-    import datetime
-    from active_directory2 import ado
-    #
-    # Find all objects created this month in creation order
-    #
-    this_month = datetime.date.today ().replace (day=1)
-    query_string = ado.query_string (
-      filter=core.schema.whenCreated >= this_month,
-      attributes=["distinguishedName", "whenCreated"]
-    )
-    for new_object in ado.query (query_string, sort_on="whenCreated"):
-      print "%(distinguishedName)s => %(whenCreated)s" % new_object
-
 * :func:`ad` - this is the wrap-all function which transforms an LDAP: moniker
   into a Python object which offers the existing properties and members in
   Pythonic wrappers. It will also convert an existing LDAP COM Object::
