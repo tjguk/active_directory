@@ -7,6 +7,7 @@ from win32com import adsi
 from . import core
 from . import constants
 from . import exc
+from .log import logger
 from . import utils
 
 class NotAContainerError (exc.ActiveDirectoryError):
