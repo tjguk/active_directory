@@ -59,6 +59,30 @@ def descriptor (name, attribute):
 def _munged (name):
   return "_".join (name.split ("-"))
 
+class ADMixin (object):
+  pass
+
+class _Group (ADMixin):
+
+  def __iter__(self):
+    for item in self.com_object.member:
+      yield adobject ("LDAP://" + item)
+
+  def walk (self, level=0):
+    subordinates = [(s, s.Class) for s in self]
+    yield (
+      level,
+      self,
+      (s for s, cls in subordinates if cls == "group"),
+      (s for s, cls in subordinates if cls == "user")
+    )
+    for s, cls in subordinates:
+      if cls == "group":
+        for walked in s.walk (level+1):
+          yield walked
+
+_mixins = dict ((cls.__name__, cls) for cls in ADMixin.__subclasses__ ())
+
 class ADMetaClass (type):
 
   def __new__ (meta, name, bases, dict):
@@ -87,8 +111,14 @@ class ADObject (adbase.ADBase):
     obj = adsi._get_good_ret (obj)
     klass = obj.Class.encode ("ascii")
     class_name = "%s" % klass[0].upper () + klass[1:]
+
+    mixin_class_name = "_" + class_name
+    if mixin_class_name in _mixins:
+      bases = [_mixins[mixin_class_name], cls]
+    else:
+      bases = [cls]
     if class_name not in cls.klasses:
-      cls.klasses[class_name] = type (class_name, (cls,), dict (obj=obj, cred=cred))
+      cls.klasses[class_name] = type (class_name, tuple (bases), dict (obj=obj, cred=cred))
     return cls.klasses[class_name] (obj)
 
   def __getattr__ (self, attr):
