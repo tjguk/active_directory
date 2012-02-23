@@ -81,7 +81,9 @@ Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
 Many thanks, obviously to Mark Hammond for creating
- the pywin32 extensions.
+the pywin32 extensions.
+
+Python 3.x port carried out by Ken Gillett, to whom many thanks
 """
 from __future__ import generators
 
@@ -468,7 +470,7 @@ class _AD_object (object):
 
   def __iter__(self):
     return self.AD_iterator(self.com_object)
-    
+
   def walk (self):
     children = list (self)
     this_containers = [c for c in children if c.is_container]
@@ -547,11 +549,11 @@ class _AD_object (object):
   def find_group (self, name):
     for group in self.search (objectCategory='group', cn=name):
       return group
-      
+
   def find_ou (self, name):
     for ou in self.search (objectClass="organizationalUnit", ou=name):
       return ou
-      
+
   def find_public_folder (self, name):
     for public_folder in self.search (objectClass="publicFolder", displayName=name):
       return public_folder
@@ -658,7 +660,7 @@ class _AD_domain_dns (_AD_object):
       wellKnownObjects = convert_to_objects
     ))
     self._property_map['msDs-masteredBy'] = convert_to_objects
-    
+
 class _AD_public_folder (_AD_object):
   pass
 
@@ -725,10 +727,10 @@ def find_computer (name=None):
 
 def find_group (name):
   return root ().find_group (name)
-  
+
 def find_ou (name):
   return root ().find_ou (name)
-  
+
 def find_public_folder (name):
   return root ().find_public_folder (name)
 

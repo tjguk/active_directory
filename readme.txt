@@ -42,7 +42,7 @@ up-and-running already. Otherwise...
   -------
   If you're running Win9x / NT4 you'll need to get AD support
   from Microsoft. Microsoft URLs change quite often, so I suggest you
-  do this: 
+  do this:
   http://www.google.com/search?q=site%3Amicrosoft.com+active+directory+downloads
 
   Python
@@ -67,6 +67,6 @@ for person in active_directory.search (objectCategory='Person'):
 
 What License is it released under?
 ==================================
-(c) Tim Golden <mail@timgolden.me.uk> 2004-2007
+(c) Tim Golden <mail@timgolden.me.uk> 2004-2012
 Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php

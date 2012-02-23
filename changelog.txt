@@ -1,18 +1,8 @@
 active_directory.py - What's New?
 
-3rd April 2008 0.7.1
-. Removed any features which post-date Python 2.2
+23rd Feb 2012 0.6.7-3.x
 
-12th Jan 2008 0.7
-. Added general-purpose find_... function to _AD_object instances.
-  The idea is that .find_abc_def ('xxx') translates to a call to
-  .search (objectClass="abcDef", name="xxx") and returns the first
-  item found.
-. Added ability to clear cache
-. Some tidying-up and commenting
-. Added hashability to allow for inclusion in sets
-. Added general-purpose .search_... function which operates in
-  the same way as find_... 
+Migrated to Python 3.x by Ken Gillett
 
 27th Apr 2007 0.6.6
 . Escaped slash character in LDAP moniker

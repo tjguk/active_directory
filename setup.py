@@ -13,7 +13,7 @@ classifiers = [
 
 setup (
   name = "active_directory",
-  version = "0.7",
+  version = "0.6.7-3.x",
   description = "Active Directory",
   author = "Tim Golden",
   author_email = "mail@timgolden.me.uk",
