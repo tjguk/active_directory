@@ -15,179 +15,99 @@ has only really been developed to aid searching, but since
 you can always access the original COM object, there's nothing
 to stop you using it for any AD operations.
 
-Key functions are:
++ The active directory class (_AD_object or a subclass) will determine
+  its properties and allow you to access them as instance properties.
 
-* :func:`connection`, :func:`query` and :func:`query_string` - these offer the
-  most raw functionality: slightly assisting an ADO query and returning a
-  Python dictionary of results::
+   eg
+     import active_directory
+     goldent = active_directory.find_user ("goldent")
+     print ad.displayName
 
-    import datetime
-    import active_directory as ad
-    #
-    # Find all objects created this month in creation order
-    #
-    this_month = datetime.date.today ().replace (day=1)
-    query_string = ad.query_string (
-      filter=ad.schema.whenCreated >= this_month,
-      attributes=["distinguishedName", "whenCreated"]
-    )
-    for new_object in ad.query (query_string, sort_on="whenCreated"):
-      print "%(distinguishedName)s => %(whenCreated)s" % new_object
++ Any object returned by the AD object's operations is themselves
+  wrapped as AD objects so you get the same benefits.
 
-* :func:`ad` - this is the wrap-all function which transforms an LDAP: moniker
-  into a Python object which offers the existing properties and members in
-  Pythonic wrappers. It will also convert an existing LDAP COM Object::
-
-    import active_directory as ad
-
-    me =
-
-* :func:`find_user`, :func:`find_group`, :func:`find_ou` - these are module-level
-  convenience functions which each return a Python object corresponding to the
-  user, group or ou of the name passed in::
-
-    import active_directory as ad
-
-    camden_users = (obj for obj in ad.find_ou ("Camden") if obj.Class == "User")
-
-* The active directory class (ADBase or a subclass) will determine
-  its properties and allow you to access them as instance properties::
-
-     import active_directory as ad
-     goldent = ad.find_user ("goldent")
-     print goldent.displayName
-
-* Any object returned by the AD object's operations is itself
-  wrapped as an AD object so you get the same benefits::
-
-    import active_directory as  ad
-    users = ad.root ().child ("cn=users")
-    for user in users.search (displayName='Tim*'):
+  eg
+    import active_directory
+    users = active_directory.root ().child ("cn=users")
+    for user in users.search ("displayName='Tim*'"):
       print user.displayName
 
-* To search the AD, there are two module-level general
++ To search the AD, there are two module-level general
   search functions, and module-level convenience functions
-  to find a user, computer etc. Usage is illustrated below::
+  to find a user, computer etc. Usage is illustrated below:
 
    import active_directory as ad
 
    for user in ad.search (
-     objectClass='User',
-     ad.or_ (displayName='Tim Golden', sAMAccountName='goldent')
+     "objectClass='User'",
+     "displayName='Tim Golden' OR sAMAccountName='goldent'"
    ):
      #
-     # This search returns an ADUser object
+     # This search returns an AD_object
      #
      print user
 
-* Typical usage will be::
+   query = \"""
+     SELECT Name, displayName
+     FROM 'LDAP://cn=users,DC=gb,DC=vo,DC=local'
+     WHERE displayName = 'John*'
+   \"""
+   for user in ad.search_ex (query):
+     #
+     # This search returns an ADO_object, which
+     #  is faster but doesn't give the convenience
+     #  of the AD methods etc.
+     #
+     print user
 
-    import active_directory as ad
+   print ad.find_user ("goldent")
 
-    for computer in ad.search (objectClass='computer'):
-      print computer.displayName
+   print ad.find_computer ("vogbp200")
 
-(c) Tim Golden <mail@timgolden.me.uk> October 2004-2010
+   users = ad.AD ().child ("cn=users")
+   for u in users.search ("displayName='Tim*'"):
+     print u
+
++ Typical usage will be:
+
+import active_directory
+
+for computer in active_directory.search ("objectClass='computer'"):
+  print computer.displayName
+
+(c) Tim Golden <active-directory@timgolden.me.uk> October 2004
 Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
-Many thanks, obviously, to Mark Hammond for creating
+Many thanks, obviously to Mark Hammond for creating
 the pywin32 extensions without which this wouldn't
-have been possible. (Or would at least have been much
-more work...)
+have been possible.
 """
-__VERSION__ = "1.0rc1"
+from __future__ import generators
+
+__VERSION__ = "0.7.1"
+
+try:
+  set
+except NameError:
+  from sets import Set as set
 
 import os, sys
 import datetime
-import re
 import struct
 
-import pythoncom
-import pywintypes
 import win32api
-import win32com.client
+from win32com.client import Dispatch, GetObject
 import win32security
-#~ from win32com import adsi
-#~ from win32com.adsi import adsicon
-
-ADsGetObject = win32com.client.GetObject
-
-def signed_to_unsigned (signed):
-  unsigned, = struct.unpack ("L", struct.pack ("l", signed))
-  return unsigned
-
-def unsigned_to_signed (unsigned):
-  signed, = struct.unpack ("l", struct.pack ("L", unsigned))
-  return signed
-
-class ActiveDirectoryError (Exception):
-  """Base class for all AD Exceptions"""
-  pass
-
-class MemberAlreadyInGroupError (ActiveDirectoryError):
-  pass
-
-class MemberNotInGroupError (ActiveDirectoryError):
-  pass
-
-class BadPathnameError (ActiveDirectoryError):
-  pass
-
-ERROR_DS_NO_SUCH_OBJECT = 0x80072030
-ERROR_OBJECT_ALREADY_EXISTS = 0x80071392
-ERROR_MEMBER_NOT_IN_ALIAS = 0x80070561
-ERROR_MEMBER_IN_ALIAS = 0x80070562
-E_ADS_BAD_PATHNAME = 0x80005000
-ERROR_NOT_IMPLEMENTED = 0x80004001
-E_ADS_PROPERTY_NOT_FOUND = 0x8000500D
-
-def wrapper (winerror_map, default_exception):
-  """Used by each module to map specific windows error codes onto
-  Python exceptions. Always includes a default which is raised if
-  no specific exception is found.
-  """
-  def _wrapped (function, *args, **kwargs):
-    """Call a Windows API with parameters, and handle any
-    exception raised either by mapping it to a module-specific
-    one or by passing it back up the chain.
-    """
-    try:
-      return function (*args, **kwargs)
-    except pywintypes.com_error as error:
-      hresult_code, hresult_name, additional_info, parameter_in_error = error
-      hresult_code = signed_to_unsigned (hresult_code)
-      exception_string = ["%08X - %s" % (hresult_code, hresult_name)]
-      if additional_info:
-        wcode, source_of_error, error_description, whlp_file, whlp_context, scode = additional_info
-        scode = signed_to_unsigned (scode)
-        exception_string.append ("  Error in: %s" % source_of_error)
-        exception_string.append ("  %08X - %s" % (scode, (error_description or "").strip ()))
-      else:
-        scode = None
-      exception = winerror_map.get (hresult_code, winerror_map.get (scode, default_exception))
-      raise exception (hresult_code, hresult_name, "\n".join (exception_string))
-    except pywintypes.error as error:
-      errno, errctx, errmsg = error
-      exception = winerror_map.get (errno, default_exception)
-      raise exception (errno, errctx, errmsg)
-    except (WindowsError, IOError) as error:
-      exception = winerror_map.get (err.errno, default_exception)
-      if exception:
-        raise exception (err.errno, "", err.strerror)
-  return _wrapped
-
-WINERROR_MAP = {
-  ERROR_MEMBER_NOT_IN_ALIAS : MemberNotInGroupError,
-  ERROR_MEMBER_IN_ALIAS : MemberAlreadyInGroupError,
-  E_ADS_BAD_PATHNAME : BadPathnameError,
-  ERROR_NOT_IMPLEMENTED : NotImplementedError,
-  E_ADS_PROPERTY_NOT_FOUND : AttributeError
-}
-wrapped = wrapper (WINERROR_MAP, ActiveDirectoryError)
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
+
+def signed_to_unsigned (signed):
+  return struct.unpack ("L", struct.pack ("l", signed))[0]
+
+def unsigned_to_signed (unsigned):
+  return struct.unpack ("l", struct.pack ("L", unsigned))[0]
 
 #
 # For ease of presentation, ms-style constant lists are
@@ -195,8 +115,8 @@ def delta_as_microseconds (delta) :
 # by name, and by name-as-attribute. This means you can do, eg:
 #
 # print GROUP_TYPES[2]
-# print GROUP_TYPES['GLOBAL']
-# print GROUP_TYPES.GLOBAL
+# print GROUP_TYPES['GLOBAL_GROUP']
+# print GROUP_TYPES.GLOBAL_GROUP
 #
 # The first is useful when displaying the contents
 # of an AD object; the other two when you want a more
@@ -223,36 +143,17 @@ class Enum (object):
     except KeyError:
       raise AttributeError
 
-  def __repr__ (self):
-    return repr (self._name_map)
-
-  def __str__ (self):
-    return str (self._name_map)
-
   def item_names (self):
     return self._name_map.items ()
 
   def item_numbers (self):
     return self._number_map.items ()
 
-ADS_SYSTEMFLAG = Enum (
-  DISALLOW_DELETE             = 0x80000000,
-  CONFIG_ALLOW_RENAME         = 0x40000000,
-  CONFIG_ALLOW_MOVE           = 0x20000000,
-  CONFIG_ALLOW_LIMITED_MOVE   = 0x10000000,
-  DOMAIN_DISALLOW_RENAME      = 0x08000000,
-  DOMAIN_DISALLOW_MOVE        = 0x04000000,
-  CR_NTDS_NC                  = 0x00000001,
-  CR_NTDS_DOMAIN              = 0x00000002,
-  ATTR_NOT_REPLICATED         = 0x00000001,
-  ATTR_IS_CONSTRUCTED         = 0x00000004
-)
-
 GROUP_TYPES = Enum (
-  GLOBAL = 0x00000002,
-  DOMAIN_LOCAL = 0x00000004,
-  LOCAL = 0x00000004,
-  UNIVERSAL = 0x00000008,
+  GLOBAL_GROUP = 0x00000002,
+  DOMAIN_LOCAL_GROUP = 0x00000004,
+  LOCAL_GROUP = 0x00000004,
+  UNIVERSAL_GROUP = 0x00000008,
   SECURITY_ENABLED = 0x80000000
 )
 
@@ -272,61 +173,50 @@ AUTHENTICATION_TYPES = Enum (
 )
 
 SAM_ACCOUNT_TYPES = Enum (
-  DOMAIN_OBJECT = 0x0 ,
-  GROUP_OBJECT = 0x10000000 ,
-  NON_SECURITY_GROUP_OBJECT = 0x10000001 ,
-  ALIAS_OBJECT = 0x20000000 ,
-  NON_SECURITY_ALIAS_OBJECT = 0x20000001 ,
-  USER_OBJECT = 0x30000000 ,
-  NORMAL_USER_ACCOUNT = 0x30000000 ,
-  MACHINE_ACCOUNT = 0x30000001 ,
-  TRUST_ACCOUNT = 0x30000002 ,
-  APP_BASIC_GROUP = 0x40000000,
-  APP_QUERY_GROUP = 0x40000001 ,
-  ACCOUNT_TYPE_MAX = 0x7fffffff
+  SAM_DOMAIN_OBJECT = 0x0 ,
+  SAM_GROUP_OBJECT = 0x10000000 ,
+  SAM_NON_SECURITY_GROUP_OBJECT = 0x10000001 ,
+  SAM_ALIAS_OBJECT = 0x20000000 ,
+  SAM_NON_SECURITY_ALIAS_OBJECT = 0x20000001 ,
+  SAM_USER_OBJECT = 0x30000000 ,
+  SAM_NORMAL_USER_ACCOUNT = 0x30000000 ,
+  SAM_MACHINE_ACCOUNT = 0x30000001 ,
+  SAM_TRUST_ACCOUNT = 0x30000002 ,
+  SAM_APP_BASIC_GROUP = 0x40000000,
+  SAM_APP_QUERY_GROUP = 0x40000001 ,
+  SAM_ACCOUNT_TYPE_MAX = 0x7fffffff
 )
 
 USER_ACCOUNT_CONTROL = Enum (
-  SCRIPT = 0x00000001,
-  ACCOUNTDISABLE = 0x00000002,
-  HOMEDIR_REQUIRED = 0x00000008,
-  LOCKOUT = 0x00000010,
-  PASSWD_NOTREQD = 0x00000020,
-  PASSWD_CANT_CHANGE = 0x00000040,
-  ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x00000080,
-  TEMP_DUPLICATE_ACCOUNT = 0x00000100,
-  NORMAL_ACCOUNT = 0x00000200,
-  INTERDOMAIN_TRUST_ACCOUNT = 0x00000800,
-  WORKSTATION_TRUST_ACCOUNT = 0x00001000,
-  SERVER_TRUST_ACCOUNT = 0x00002000,
-  DONT_EXPIRE_PASSWD = 0x00010000,
-  MNS_LOGON_ACCOUNT = 0x00020000,
-  SMARTCARD_REQUIRED = 0x00040000,
-  TRUSTED_FOR_DELEGATION = 0x00080000,
-  NOT_DELEGATED = 0x00100000,
-  USE_DES_KEY_ONLY = 0x00200000,
-  DONT_REQUIRE_PREAUTH = 0x00400000,
-  PASSWORD_EXPIRED = 0x00800000,
-  TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x01000000
-)
-
-ADS_PROPERTY = Enum (
-  CLEAR = 1,
-  UPDATE = 2,
-  APPEND = 3,
-  DELETE = 4
+  ADS_UF_SCRIPT = 0x00000001,
+  ADS_UF_ACCOUNTDISABLE = 0x00000002,
+  ADS_UF_HOMEDIR_REQUIRED = 0x00000008,
+  ADS_UF_LOCKOUT = 0x00000010,
+  ADS_UF_PASSWD_NOTREQD = 0x00000020,
+  ADS_UF_PASSWD_CANT_CHANGE = 0x00000040,
+  ADS_UF_ENCRYPTED_TEXT_PASSWORD_ALLOWED = 0x00000080,
+  ADS_UF_TEMP_DUPLICATE_ACCOUNT = 0x00000100,
+  ADS_UF_NORMAL_ACCOUNT = 0x00000200,
+  ADS_UF_INTERDOMAIN_TRUST_ACCOUNT = 0x00000800,
+  ADS_UF_WORKSTATION_TRUST_ACCOUNT = 0x00001000,
+  ADS_UF_SERVER_TRUST_ACCOUNT = 0x00002000,
+  ADS_UF_DONT_EXPIRE_PASSWD = 0x00010000,
+  ADS_UF_MNS_LOGON_ACCOUNT = 0x00020000,
+  ADS_UF_SMARTCARD_REQUIRED = 0x00040000,
+  ADS_UF_TRUSTED_FOR_DELEGATION = 0x00080000,
+  ADS_UF_NOT_DELEGATED = 0x00100000,
+  ADS_UF_USE_DES_KEY_ONLY = 0x00200000,
+  ADS_UF_DONT_REQUIRE_PREAUTH = 0x00400000,
+  ADS_UF_PASSWORD_EXPIRED = 0x00800000,
+  ADS_UF_TRUSTED_TO_AUTHENTICATE_FOR_DELEGATION = 0x01000000
 )
 
 ENUMS = {
   "GROUP_TYPES" : GROUP_TYPES,
   "AUTHENTICATION_TYPES" : AUTHENTICATION_TYPES,
   "SAM_ACCOUNT_TYPES" : SAM_ACCOUNT_TYPES,
-  "USER_ACCOUNT_CONTROL" : USER_ACCOUNT_CONTROL,
-  "ADS_PROPERTY" : ADS_PROPERTY,
-  "ADS_SYSTEMFLAG" : ADS_SYSTEMFLAG,
+  "USER_ACCOUNT_CONTROL" : USER_ACCOUNT_CONTROL
 }
-
-DEFAULT_BIND_FLAGS = AUTHENTICATION_TYPES.SECURE_AUTHENTICATION
 
 def _set (obj, attribute, value):
   """Helper function to add an attribute directly into the instance
@@ -334,11 +224,25 @@ def _set (obj, attribute, value):
   """
   obj.__dict__[attribute] = value
 
-def and_ (*args, **kwargs):
-  return "&%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
+def _and (*args):
+  """Helper function to return its parameters and-ed
+   together and bracketed, ready for a SQL statement.
 
-def or_ (*args, **kwargs):
-  return "|%s" % "".join (["(%s)" % s for s in args] + ["(%s=%s)" % (k, v) for (k, v) in kwargs.items ()])
+  eg,
+
+    _and ("x=1", "y=2") => "(x=1 AND y=2)"
+  """
+  return " AND ".join (args)
+
+def _or (*args):
+  """Helper function to return its parameters or-ed
+   together and bracketed, ready for a SQL statement.
+
+  eg,
+
+    _or ("x=1", _and ("a=2", "b=3")) => "(x=1 OR (a=2 AND b=3))"
+  """
+  return " OR ".join (args)
 
 def _add_path (root_path, relative_path):
   """Add another level to an LDAP path.
@@ -358,134 +262,54 @@ def _add_path (root_path, relative_path):
 
   return protocol + relative_path + "," + start_path
 
-class _Proxy (object):
-
-  ESCAPED_CHARACTERS = dict ((special, r"\%02x" % ord (special)) for special in "*()\x00/")
-
-  @classmethod
-  def escaped_filter (cls, s):
-    for original, escape in cls.ESCAPED_CHARACTERS.items ():
-      s = s.replace (original, escape)
-    return s
-
-  def _munge (cls, other):
-    if isinstance (other, ADBase):
-      return other.dn
-
-    if isinstance (other, datetime.date):
-      other = datetime.datetime (*other.timetuple ()[:7])
-      # now drop through to datetime converter below
-
-    if isinstance (other, datetime.datetime):
-      return datetime_to_ad_time (other)
-
-    other = unicode (other)
-    if other.endswith ("*"):
-      other, suffix = other[:-1], other[-1]
-    else:
-      suffix = ""
-    #~ other = cls.escaped_filter (other)
-    return other + suffix
-
-  def __init__ (self, name):
-    self._name = name
-
-  def __unicode__ (self):
-    return self._name
-
-  def __repr__ (self):
-    return "<_Proxy for %s>" % self._name
-
-  def __hash__ (self):
-    return hash (self._name)
-
-  def __eq__ (self, other):
-    return "%s=%s" % (self._name, self._munge (other))
-
-  def __ne__ (self, other):
-    return "!%s=%s" % (self._name, self._munge (other))
-
-  def __gt__ (self, other):
-    raise NotImplementedError ("> Not implemented")
-
-  def __ge__ (self, other):
-    return "%s>=%s" % (self._name, self._munge (other))
-
-  def __lt__ (self, other):
-    raise NotImplementedError ("< Not implemented")
-
-  def __le__ (self, other):
-    return "%s<=%s" % (self._name, self._munge (other))
-
-  def __and__ (self, other):
-    return "%s:1.2.840.113556.1.4.803:=%s" % (self._name, self._munge (other))
-
-  def __or__ (self, other):
-    return "%s:1.2.840.113556.1.4.804:=%s" % (self._name, self._munge (other))
-
-  def is_within (self, dn):
-    return "%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
-
-  def is_not_within (self, dn):
-    return "!%s:1.2.840.113556.1.4.1941:=%s" % (self._name, self._munge (dn))
-
-class _Attributes (object):
-
-  def __init__ (self):
-    self._proxies = {}
-
-  def __getattr__ (self, attr):
-    return self._proxies.setdefault (attr, _Proxy (attr))
-
-schema = _Attributes ()
-
-def connect (username=None, password=None):
-  """Return an ADODB connection, optionally authenticated by
-  username & password.
-  """
-  connection = win32com.client.Dispatch ("ADODB.Connection")
+def connection ():
+  connection = Dispatch ("ADODB.Connection")
   connection.Provider = "ADsDSOObject"
-  if username:
-    connection.Open ("Active Directory Provider", username, password)
-  else:
-    connection.Open ("Active Directory Provider")
+  connection.Open ("Active Directory Provider")
   return connection
 
-_command_properties = {
-  "Page Size" : 500,
-  "Asynchronous" : True
-}
-def query (query_string, connection=None, **command_properties):
-  """Basic AD query, passing a raw query string straight through to an
-  Active Directory, optionally using a (possibly pre-authenticated) connection
-  or creating one on demand. command_properties may be specified which will be
-  passed through to the ADO command with underscores replaced by spaces. Useful
-  values include:
+class ADO_record (object):
+  """Simple wrapper around an ADO result set"""
 
-  =============== ==========================================================
-  page_size       How many records to return in one go
-  size_limit      Stop after returning this many records
-  cache_results   Boolean: cache results; turn off if a large result
-  time_limit      Stop returning records after this many seconds
-  timeout         Stop waiting for the records to start after this many seconds
-  asynchronous    Boolean: Start returning records immediately
-  sort_on         field name to sort on
-  =============== ==========================================================
+  def __init__ (self, record):
+    self.record = record
+    self.fields = {}
+    for i in range (record.Fields.Count):
+      field = record.Fields.Item (i)
+      self.fields[field.Name] = field
 
-  :param query_string: An AD query string in any acceptable format. See :func:`query_string`
-                       for an easy way of producing this
-  :param connection: (optional) An ADODB.Connection, as provided by :func:`connect`. If
-                     this is supplied it will be used and not closed. If it is not supplied, a default connection
-                     will be created, used and then closed.
-  :param command_properties: A collection of keywords which will be passed through to the
-                             ADO query as Properties.
+  def __getattr__ (self, name):
+    """Allow access to field names by name rather than by Item (...)"""
+    try:
+      return self.fields[name]
+    except KeyError:
+      raise AttributeError
+
+  def __str__ (self):
+    """Return a readable presentation of the entire record"""
+    s = []
+    s.append (repr (self))
+    s.append ("{")
+    for name, item in self.fields.items ():
+      s.append ("  %s = %s" % (name, item))
+    s.append ("}")
+    return "\n".join (s)
+
+def query (query_string, **command_properties):
+  """Auxiliary function to serve as a quick-and-dirty
+   wrapper round an ADO query
   """
-  command = win32com.client.Dispatch ("ADODB.Command")
-  _connection = connection or connect ()
-  command.ActiveConnection = _connection
-
-  for k, v in _command_properties.items ():
-    command.Properties (k.replace ("_", " ")).Value = v
+  command = Dispatch ("ADODB.Command")
+  command.ActiveConnection = connection ()
+  #
+  # Add any client-specified ADO command properties.
+  # NB underscores in the keyword are replaced by spaces.
+  #
+  # Examples:
+  #   "Cache_results" = False => Don't cache large result sets
+  #   "Page_size" = 500 => Return batches of this size
+  #   "Time Limit" = 30 => How many seconds should the search continue
+  #
   for k, v in command_properties.items ():
     command.Properties (k.replace ("_", " ")).Value = v
   command.CommandText = query_string
@@ -493,63 +317,47 @@ def query (query_string, connection=None, **command_properties):
   results = []
   recordset, result = command.Execute ()
   while not recordset.EOF:
-    yield dict ((field.Name, field.Value) for field in recordset.Fields)
+    yield ADO_record (recordset)
     recordset.MoveNext ()
 
-  if connection is None:
-    _connection.Close ()
+if datetime:
+  BASE_TIME = datetime.datetime (1601, 1, 1)
+  def ad_time_to_datetime (ad_time):
+    hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
+    ns100 = (hi << 32) + lo
+    delta = datetime.timedelta (microseconds=ns100 / 10)
+    return BASE_TIME + delta
 
-def query_string (base=None, filter="", attributes=["ADsPath"], scope="Subtree", range=None):
-  """Easy way to produce a valid AD query string, with meaninful defaults. This
-  is the first parameter to the :func:`query` function so the following will
-  yield the display name of every user in the domain::
+  def ad_time_from_datetime (timestamp):
+    delta = timestamp - BASE_TIME
+    ns100 = 10 * delta_as_microseconds (delta)
+    hi = (ns100 & 0xffffffff00000000) >> 32
+    lo = (ns100 & 0xffffffff)
+    return hi, lo
 
-    import active_directory as ad
+  def pytime_to_datetime (pytime):
+    return datetime.datetime.fromtimestamp (int (pytime))
 
-    for u in ad.query (
-      ad.query_string (filter="(objectClass=User)", attributes=["displayName"])
-    ):
-      print u['displayName']
+  def pytime_from_datetime (datetime):
+    pass
 
-  :param base: An LDAP:// moniker representing the starting point of the search [domain root]
-  :param filter: An AD filter string to limit the search [no filter]
-  :param attributes: Iterable of attribute names [ADsPath]
-  :param scope: One of - Subtree, Base, OneLevel [Subtree]
-  :param range: Limit the number of returns of multivalued attributes [no range]
-  """
-  if base is None:
-    base = "LDAP://" + wrapped (ADsGetObject, "LDAP://rootDSE").Get ("defaultNamingContext")
-  if not filter.startswith ("("):
-    filter = "(%s)" % filter
-  segments = ["<%s>" % base, filter, ",".join (attributes)]
-  if range:
-    segments += ["Range=%s-%s" % range]
-  segments += [scope]
-  return ";".join (segments)
+else:
+  def ad_time_to_datetime (ad_time):
+    return ad_time
 
-def search_ex (query_string="", username=None, password=None):
-  """FIXME: Historical version of :func:`query`"""
-  return query (query_string, connection=connect (username, password))
+  def ad_time_from_datetime (timestamp):
+    return timestamp
 
-BASE_TIME = datetime.datetime (1601, 1, 1)
-def ad_time_to_datetime (ad_time):
-  hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
-  ns100 = (hi << 32) + lo
-  delta = datetime.timedelta (microseconds=ns100 / 10)
-  return BASE_TIME + delta
+  def pytime_to_datetime (pytime):
+    return pytime
 
-def datetime_to_ad_time (datetime):
-  return datetime.strftime ("%y%m%d%H%M%SZ")
+  def pytime_from_datetime (datetime):
+    return datetime
 
-def pytime_to_datetime (pytime):
-  return datetime.datetime.fromtimestamp (int (pytime))
-
-def pytime_from_datetime (datetime):
-  pass
 
 def convert_to_object (item):
   if item is None: return None
-  return ad (item)
+  return AD_object (item)
 
 def convert_to_objects (items):
   if items is None:
@@ -557,11 +365,7 @@ def convert_to_objects (items):
   else:
     if not isinstance (items, (tuple, list)):
       items = [items]
-    return [ad (item) for item in items]
-
-def convert_to_boolean (item):
-  if item is None: return None
-  return item == "TRUE"
+    return [AD_object (item) for item in items]
 
 def convert_to_datetime (item):
   if item is None: return None
@@ -582,11 +386,7 @@ def convert_to_guid (item):
 
 def convert_to_hex (item):
   if item is None: return None
-  return "<%s>" % "".join (["%02x" % ord (i) for i in item])
-
-def convert_to_hexes (item):
-  if item is None: return None
-  return [convert_to_hex (i) for i in item]
+  return "".join (["%02x" % ord (i) for i in item])
 
 def convert_to_enum (name):
   def _convert_to_enum (item):
@@ -602,30 +402,23 @@ def convert_to_flags (enum_name):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_to_flags
 
-def convert_to_breadcrumbs (item):
-  return " > ".join (item)
-
 def ddict (**kwargs):
   return kwargs
 
 _PROPERTY_MAP = ddict (
   accountExpires = convert_to_datetime,
-  auditingPolicy = convert_to_hex,
   badPasswordTime = convert_to_datetime,
   creationTime = convert_to_datetime,
   dSASignature = convert_to_hex,
   forceLogoff = convert_to_datetime,
   fSMORoleOwner = convert_to_object,
   groupType = convert_to_flags ("GROUP_TYPES"),
-  isGlobalCatalogReady = convert_to_boolean,
-  isSynchronized = convert_to_boolean,
   lastLogoff = convert_to_datetime,
   lastLogon = convert_to_datetime,
   lastLogonTimestamp = convert_to_datetime,
   lockoutDuration = convert_to_datetime,
   lockoutObservationWindow = convert_to_datetime,
   lockoutTime = convert_to_datetime,
-  manager = convert_to_object,
   masteredBy = convert_to_objects,
   maxPwdAge = convert_to_datetime,
   member = convert_to_objects,
@@ -634,21 +427,18 @@ _PROPERTY_MAP = ddict (
   modifiedCount = convert_to_datetime,
   modifiedCountAtLastProm = convert_to_datetime,
   msExchMailboxGuid = convert_to_guid,
-  mSMQDigests = convert_to_hex,
-  mSMQSignCertificates = convert_to_hex,
-  objectClass = convert_to_breadcrumbs,
   objectGUID = convert_to_guid,
   objectSid = convert_to_sid,
+  Parent = convert_to_object,
   publicDelegates = convert_to_objects,
   publicDelegatesBL = convert_to_objects,
   pwdLastSet = convert_to_datetime,
   replicationSignature = convert_to_hex,
   replUpToDateVector = convert_to_hex,
-  repsFrom = convert_to_hexes,
+  repsFrom = convert_to_hex,
   repsTo = convert_to_hex,
   sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
   subRefs = convert_to_objects,
-  systemFlags = convert_to_flags ("ADS_SYSTEMFLAG"),
   userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL"),
   uSNChanged = convert_to_datetime,
   uSNCreated = convert_to_datetime,
@@ -703,6 +493,8 @@ def convert_from_flags (enum_name):
     return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
   return _convert_from_flags
 
+
+
 _PROPERTY_MAP_IN = ddict (
   accountExpires = convert_from_datetime,
   badPasswordTime = convert_from_datetime,
@@ -727,6 +519,7 @@ _PROPERTY_MAP_IN = ddict (
   msExchMailboxGuid = convert_from_guid,
   objectGUID = convert_from_guid,
   objectSid = convert_from_sid,
+  Parent = convert_from_object,
   publicDelegates = convert_from_objects,
   publicDelegatesBL = convert_from_objects,
   pwdLastSet = convert_from_datetime,
@@ -743,198 +536,36 @@ _PROPERTY_MAP_IN = ddict (
 )
 _PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
-class _Members (set):
-
-  def __init__ (self, group):
-    super (_Members, self).__init__ (ad (i) for i in iter (wrapped (group.com_object.members)))
-    self._group = group
-
-  def _effect (self, original):
-    group = self._group.com_object
-    for member in (self - original):
-      #~ group.Add (member.AdsPath)
-      wrapped (group.Add, member.AdsPath)
-    for member in (original - self):
-      #~ group.Remove (member.AdsPath)
-      wrapped (group.Remove, member.AdsPath)
-
-  def update (self, *others):
-    original = set (self)
-    for other in others:
-      super (_Members, self).update (ad (o) for o in other)
-    self._effect (original)
-
-  def __ior__ (self, other):
-    return self.update (other)
-
-  def intersection_update (self, *others):
-    original = set (self)
-    for other in others:
-      super (_Members, self).intersection_update (ad (o) for o in other)
-    self._effect (original)
-
-  def __iand__ (self, other):
-    return self.intersection_update (self, other)
-
-  def difference_update (self, *others):
-    original = set (self)
-    for other in others:
-      self.difference_update (ad (o) for o in other)
-    self._effect (original)
-
-  def symmetric_difference_update (self, *others):
-    original = set (self)
-    for other in others:
-      self.symmetric_difference_update (ad (o) for o in others)
-    self._effect (original)
-
-  def add (self, elem):
-    original = set (self)
-    result = super (_Members, self).add (ad (elem))
-    self._effect (original)
-    return result
-
-  def remove (self, elem):
-    original = set (self)
-    result = super (_Members, self).remove (ad (elem))
-    self._effect (original)
-    return result
-
-  def discard (self, elem):
-    original = set (self)
-    result = super (_Members, self).discard (ad (elem))
-    self._effect (original)
-    return result
-
-  def pop (self):
-    original = set (self)
-    result = super (_Members, self).pop ()
-    self._effect (original)
-    return result
-
-  def clear (self):
-    original = set (self)
-    super (_Members, self).clear ()
-    self._effect (original)
-
-  def __contains__ (self, element):
-    return  super (_Members, self).__contains__ (ad (element))
-
-class ADSimple (object):
-
-  _properties = []
-
+class _AD_root (object):
   def __init__ (self, obj):
     _set (self, "com_object", obj)
-    _set (self, "properties", self._properties)
-    self.path = obj.ADsPath
+    _set (self, "properties", {})
+    for i in range (obj.PropertyCount):
+      property = obj.Item (i)
+      proprties[property.Name] = property.Value
 
-  def __getattr__ (self, name):
-    try:
-      return wrapped (getattr, self.com_object, name)
-    except AttributeError:
-      return wrapped (self.com_object.GetEx, name)
-
-  def as_string (self):
-    return self.path
-
-  def dump (self, ofile=sys.stdout):
-    def encode (text):
-      try:
-        return text.encode (sys.stdout.encoding)
-      except UnicodeEncodeError:
-        return repr (text)
-
-    ofile.write (self.as_string () + "\n")
-    ofile.write ("{\n")
-    for name in self.properties:
-      try:
-        value = getattr (self, name)
-      except:
-        value = "Unable to get value"
-      if value:
-        if isinstance (name, unicode):
-          name = encode (name)
-        if isinstance (value, (tuple, list)):
-          value = "[(%d items)]" % len (value)
-        if isinstance (value, unicode):
-          value = encode (value)
-          if len (value) > 60:
-            value = value[:25] + "..." + value[-25:]
-        try:
-          ofile.write ("  %s => %s\n" % (name, value))
-        except UnicodeEncodeError:
-          ofile.write ("  %s => %r\n" % (name, value))
-    ofile.write ("}\n")
-
-
-class RootDSE (ADSimple):
-
-  _properties = """configurationNamingContext
-currentTime
-defaultNamingContext
-dnsHostName
-domainControllerFunctionality
-domainFunctionality
-dsServiceName
-forestFunctionality
-highestCommittedUSN
-isGlobalCatalogReady
-isSynchronized
-ldapServiceName
-namingContexts
-rootDomainNamingContext
-schemaNamingContext
-serverName
-subschemaSubentry
-supportedCapabilities
-supportedControl
-supportedLDAPPolicies
-supportedLDAPVersion
-supportedSASLMechanisms
-  """.split ()
-
-#~ ROOT_DSE = RootDSE (wrapped (ADsGetObject, "LDAP://rootDSE"))
-
-class ADBase (ADSimple):
+class _AD_object (object):
   """Wrap an active-directory object for easier access
    to its properties and children. May be instantiated
    either directly from a COM object or from an ADs Path.
 
-   Every IADs-derived object has at least the following attributes:
-
-   Name, Class, GUID, ADsPath, Parent, Schema
-
    eg,
 
      import active_directory
-     users = active_directory.ad ("LDAP://cn=Users,DC=gb,DC=vo,DC=local")
+     users = AD_object (path="LDAP://cn=Users,DC=gb,DC=vo,DC=local")
   """
 
-  _default_properties = ["Name", "Class", "GUID", "ADsPath", "Parent", "Schema"]
-  _schema_cache = {}
-
-  def __init__ (self, obj, username=None, password=None, parse_schema=True):
-    super (ADBase, self).__init__ (obj)
-    schema = None
-    if parse_schema:
-      try:
-        schema = wrapped (ADsGetObject, wrapped (getattr, obj, "Schema", None))
-      except ActiveDirectoryError:
-        schema = None
-    properties, is_container = self._schema (schema)
-    _set (self, "properties", properties)
-    self.is_container = is_container
-
+  def __init__ (self, obj):
     #
-    # At this point, __getattr__ & __setattr__ have enough
-    # to decide whether an attribute belongs to the delegated
-    # object or not.
+    # Be careful here with attribute assignment;
+    #  __setattr__ & __getattr__ will fall over
+    #  each other if you aren't.
     #
-    self.username = username
-    self.password = password
-    self.connection = connect (username=username, password=password)
-    self.dn = wrapped (getattr, self.com_object, "distinguishedName", None) or self.com_object.name
+    _set (self, "com_object", obj)
+    schema = GetObject (obj.Schema)
+    _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
+    _set (self, "is_container", getattr (schema, "Container", False))
+
     self._property_map = _PROPERTY_MAP
     self._delegate_map = dict ()
 
@@ -958,25 +589,27 @@ class ADBase (ADSimple):
       object_class = "".join ([first] + [n.title () for n in rest])
       return self._search (object_class)
 
-    if name.startswith ("get_"):
-      names = name[len ("get_"):].lower ().split ("_")
-      first, rest = names[0], names[1:]
-      object_class = "".join ([first] + [n.title () for n in rest])
-      return self._get (object_class)
-
     #
     # Allow access to object's properties as though normal
-    # Python instance properties. Some properties are accessed
-    # directly through the object, others by calling its Get
-    # method. Not clear why.
+    #  Python instance properties. Some properties are accessed
+    #  directly through the object, others by calling its Get
+    #  method. Not clear why.
     #
     if name not in self._delegate_map:
-      attr = super (ADBase, self).__getattr__ (name)
+      try:
+        attr = getattr (self.com_object, name)
+      except AttributeError:
+        try:
+          attr = self.com_object.Get (name)
+        except:
+          raise AttributeError
+
       converter = self._property_map.get (name)
       if converter:
         self._delegate_map[name] = converter (attr)
       else:
         self._delegate_map[name] = attr
+
     return self._delegate_map[name]
 
   def __setitem__ (self, key, value):
@@ -988,60 +621,40 @@ class ADBase (ADSimple):
     #  fields.
     #
     if name in self.properties:
-      wrapped (self.com_object.Put, name, value)
-      wrapped (self.com_object.SetInfo)
+      self.com_object.Put (name, value)
+      self.com_object.SetInfo ()
     else:
-      super (ADBase, self).__setattr__ (name, value)
+      _set (self, name, value)
 
   def as_string (self):
-    return self.path
+    return self.path ()
 
   def __str__ (self):
     return self.as_string ()
 
   def __repr__ (self):
-    return "<%s: %s>" % (wrapped (getattr, self.com_object, "Class") or "AD", self.dn)
+    return "<%s: %s>" % (self.__class__.__name__, self.as_string ())
 
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
 
   def __hash__ (self):
-    return hash (self.com_object.Guid)
+    return hash (self.com_object.ADsPath)
 
   class AD_iterator:
     """ Inner class for wrapping iterated objects
     (This class and the __iter__ method supplied by
     Stian Søiland <stian@soiland.no>)
     """
-    def __init__ (self, com_object):
-      self._iter = iter (com_object)
-    def __iter__ (self):
+    def __init__(self, com_object):
+      self._iter = iter(com_object)
+    def __iter__(self):
       return self
-    def next (self):
-      return ad (self._iter.next ())
+    def next(self):
+      return AD_object(self._iter.next())
 
   def __iter__(self):
-    return self.AD_iterator (self.com_object)
-
-  def _get_parent (self):
-    return ad (self.com_object.Parent)
-  parent = property (_get_parent)
-
-  @classmethod
-  def _schema (cls, schema):
-    if schema is None:
-      return cls._default_properties, False
-
-    if schema.ADsPath not in cls._schema_cache:
-      properties = \
-        wrapped (getattr, schema, "MandatoryProperties", []) + \
-        wrapped (getattr, schema, "OptionalProperties", [])
-      cls._schema_cache[schema.ADsPath] = properties, wrapped (getattr, schema, "Container", False)
-
-    return cls._schema_cache[schema.ADsPath]
-
-  def refresh (self):
-    wrapped (self.com_object.GetInfo)
+    return self.AD_iterator(self.com_object)
 
   def walk (self):
     """Analogous to os.walk, traverse this AD subtree,
@@ -1062,6 +675,26 @@ class ADBase (ADSimple):
       for item in items:
         yield item
 
+  def dump (self, ofile=sys.stdout):
+    ofile.write (self.as_string () + "\n")
+    ofile.write ("{\n")
+    for name in self.properties:
+      try:
+        value = getattr (self, name)
+      except:
+        value = "Unable to get value"
+      if value:
+        try:
+          if isinstance (name, unicode):
+            name = name.encode (sys.stdout.encoding)
+          if isinstance (value, unicode):
+            value = value.encode (sys.stdout.encoding)
+          ofile.write ("  %s => %s\n" % (name, value))
+        except UnicodeEncodeError:
+          ofile.write ("  %s => %s\n" % (name, repr (value)))
+
+    ofile.write ("}\n")
+
   def set (self, **kwds):
     """Set a number of values at one time. Should be
      a little more efficient than assigning properties
@@ -1074,8 +707,29 @@ class ADBase (ADSimple):
       user.set (displayName = "Tim Golden", description="SQL Developer")
     """
     for k, v in kwds.items ():
-      wrapped (self.com_object.Put, k, v)
-    wrapped (self.com_object.SetInfo)
+      self.com_object.Put (k, v)
+    self.com_object.SetInfo ()
+
+  def path (self):
+    return self.com_object.ADsPath
+
+  def parent (self):
+    """Find this object's parent"""
+    return AD_object (path=self.com_object.Parent)
+
+  def child (self, relative_path):
+    """Return the relative child of this object. The relative_path
+     is inserted into this object's AD path to make a coherent AD
+     path for a child object.
+
+    eg,
+
+      import active_directory
+      root = active_directory.root ()
+      users = root.child ("cn=Users")
+
+    """
+    return AD_object (path=_add_path (self.path (), relative_path))
 
   def _find (self, object_class):
     """Helper function to allow general-purpose searching for
@@ -1094,14 +748,6 @@ class ADBase (ADSimple):
       return self.search (objectClass=object_class, *args, **kwargs)
     return _search
 
-  def _get (self, object_class):
-    """Helper function to allow general-purpose retrieval of a
-    child object by class.
-    """
-    def _get (rdn):
-      return self.get (object_class, rdn)
-    return _get
-
   def find (self, name):
     for item in self.search (name=name):
       return item
@@ -1111,11 +757,7 @@ class ADBase (ADSimple):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    filter = and_ (
-      or_ (sAMAccountName=name, displayName=name, cn=name),
-      sAMAccountType=SAM_ACCOUNT_TYPES.USER_OBJECT
-    )
-    for user in self.search (filter):
+    for user in self.search ("sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory='Person', objectClass='User'):
       return user
 
   def find_ou (self, name):
@@ -1123,70 +765,50 @@ class ADBase (ADSimple):
     return self.find_organizational_unit (name)
 
   def search (self, *args, **kwargs):
-    filter = and_ (*args, **kwargs)
-    query_string = "<%s>;(%s);objectGuid;Subtree" % (self.ADsPath, filter)
-    for result in query (query_string, connection=self.connection):
-      guid = "".join ("%02X" % ord (i) for i in result['objectGuid'])
-      yield ad ("LDAP://<GUID=%s>" % guid, username=self.username, password=self.password)
+    """The key method which puts together its arguments to construct
+    a valid AD search string, using AD-SQL (or whatever it's called)
+    rather than the conventional LDAP syntax.
 
-  def get (self, object_class, relative_path):
-    return ad (wrapped (self.com_object.GetObject, object_class, relative_path))
+    Position args are AND-ed together and passed along verbatim
+    Keyword args are AND-ed together as equi-filters
+    The results are always wrapped as an _AD_object or one of
+    its subclasses. No matter which class is returned, well-known
+    attributes are converted according to a property map to more
+    Pythonic types.
+    """
+    sql_string = []
+    sql_string.append ("SELECT *")
+    sql_string.append ("FROM '%s'" % self.path ())
+    clauses = []
+    if args:
+      clauses.append (_and (*args))
+    if kwargs:
+      clauses.append (_and (*["%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
+    where_clause = _and (*clauses)
+    if where_clause:
+      sql_string.append ("WHERE %s" % where_clause)
 
-  def new_ou (self, name, description=None, **kwargs):
-    obj = wrapped (self.com_object.Create, "organizationalUnit", "ou=%s" % name)
-    wrapped (obj.Put, "description", description or name)
-    wrapped (obj.SetInfo)
-    for name, value in kwargs.items ():
-      wrapped (obj.Put, name, value)
-    wrapped (obj.SetInfo)
-    return ad (obj)
+    for result in query ("\n".join (sql_string), Page_size=50):
+      yield AD_object (result.ADsPath.Value)
 
-  def new_group (self, name, type=GROUP_TYPES.DOMAIN_LOCAL | GROUP_TYPES.SECURITY_ENABLED, **kwargs):
-    obj = wrapped (self.com_object.Create, "group", "cn=%s" % name)
-    wrapped (obj.Put, "sAMAccountName", name)
-    wrapped (obj.Put, "groupType", type)
-    wrapped (obj.SetInfo)
-    for name, value in kwargs.items ():
-      wrapped (obj.Put, name, value)
-    wrapped (obj.SetInfo)
-    return ad (obj)
+class _AD_user (_AD_object):
+  def __init__ (self, *args, **kwargs):
+    _AD_object.__init__ (self, *args, **kwargs)
 
-  def new (self, object_class, sam_account_name, **kwargs):
-    obj = wrapped (self.com_object.Create, object_class, "cn=%s" % sam_account_name)
-    wrapped (obj.Put, "sAMAccountName", sam_account_name)
-    wrapped (obj.SetInfo)
-    for name, value in kwargs.items ():
-      wrapped (obj.Put, name, value)
-    wrapped (obj.SetInfo)
-    return ad (obj)
+class _AD_computer (_AD_object):
+  def __init__ (self, *args, **kwargs):
+    _AD_object.__init__ (self, *args, **kwargs)
 
-class WinNT (ADBase):
-
-  def __eq__ (self, other):
-    return self.com_object.ADsPath.lower () == other.com_object.ADsPath.lower ()
-
-  def __hash__ (self):
-    return hash (self.com_object.ADsPath.lower ())
-
-class Group (ADBase):
-
-  def _get_members (self):
-    return _Members (self)
-  def _set_members (self, members):
-    original = self.members
-    new_members = set (ad (m) for m in members)
-    for member in (new_members - original):
-      wrapped (self.com_object.Add, member.AdsPath)
-    for member in (original - new_members):
-      wrapped (self.com_object.Remove, member.AdsPath)
-  members = property (_get_members, _set_members)
+class _AD_group (_AD_object):
+  def __init__ (self, *args, **kwargs):
+    _AD_object.__init__ (self, *args, **kwargs)
 
   def walk (self):
     """Override the usual .walk method by returning instead:
 
     group, groups, users
     """
-    members = self.members
+    members = self.member or []
     groups = [m for m in members if m.Class == 'group']
     users = [m for m in members if m.Class == 'user']
     yield (self, groups, users)
@@ -1194,20 +816,37 @@ class Group (ADBase):
       for result in group.walk ():
         yield result
 
-  def flat (self):
-    for group, groups, members in self.walk ():
-      for member in members:
-        yield member
+class _AD_organisational_unit (_AD_object):
+  def __init__ (self, *args, **kwargs):
+    _AD_object.__init__ (self, *args, **kwargs)
 
-class WinNTGroup (WinNT, Group):
+class _AD_domain_dns (_AD_object):
+  def __init__ (self, *args, **kwargs):
+    _AD_object.__init__ (self, *args, **kwargs)
+
+class _AD_public_folder (_AD_object):
   pass
 
 _CLASS_MAP = {
-  "group" : Group,
+  "user" : _AD_user,
+  "computer" : _AD_computer,
+  "group" : _AD_group,
+  "organizationalUnit" : _AD_organisational_unit,
+  "domainDNS" : _AD_domain_dns,
+  "publicFolder" : _AD_public_folder
 }
-_WINNT_CLASS_MAP = {
-  "group" : WinNTGroup
-}
+_CACHE = {}
+def cached_AD_object (path, obj):
+  try:
+    return _CACHE[path]
+  except KeyError:
+    classed_obj = _CLASS_MAP.get (obj.Class, _AD_object) (obj)
+    _CACHE[path] = classed_obj
+    return classed_obj
+
+def clear_cache ():
+  _CACHE.clear ()
+
 def escaped_moniker (moniker):
   #
   # If the moniker *appears* to have been escaped
@@ -1219,71 +858,49 @@ def escaped_moniker (moniker):
   else:
     return moniker.replace ("/", "\\/")
 
-_namespace_names = None
-def ad (obj_or_path, username=None, password=None):
+def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
   is now  intended to be:
 
-    ad (obj_or_path)
+    AD_object (obj_or_path)
+
+  but for historical reasons will continue to support:
+
+    AD_object (obj=None, path="")
 
   @param obj_or_path Either an COM AD object or the path to one. If
   the path doesn't start with "LDAP://" this will be prepended.
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  if isinstance (obj_or_path, ADBase):
-    return obj_or_path
-
-  global _namespace_names
-  if _namespace_names is None:
-    _namespace_names = ["GC:"] + [ns.Name for ns in ADsGetObject ("ADs:")]
-  matcher = re.compile ("(" + "|".join (_namespace_names)+ ")?(//)?([A-za-z0-9-_]+/)?(.*)")
-  if isinstance (obj_or_path, basestring):
-    #
-    # Special-case the "ADs:" moniker which isn't a child of IADs
-    #
-    if obj_or_path == "ADs:":
-      return namespaces ()
-
-    scheme, slashes, server, dn = matcher.match (obj_or_path).groups ()
-    if scheme is None:
-        scheme, slashes = "LDAP:", "//"
-    if scheme == "WinNT:":
-      moniker = dn
+  scheme = "LDAP://"
+  if path and not obj_or_path:
+    obj_or_path = path
+  try:
+    if isinstance (obj_or_path, (type (""), type (""))):
+      moniker = obj_or_path.lower ()
+      if obj_or_path.upper ().startswith (scheme):
+        moniker = obj_or_path[len (scheme):]
+      else:
+        moniker = obj_or_path
+      moniker = escaped_moniker (moniker)
+      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + moniker))
     else:
-      moniker = escaped_moniker (dn)
-    obj_path = scheme + (slashes or "") + (server or "") + (moniker or "")
-    obj = wrapped (adsi.ADsOpenObject, obj_path, username, password, DEFAULT_BIND_FLAGS)
-  else:
-    obj = obj_or_path
-    scheme, slashes, server, dn = matcher.match (obj_or_path.AdsPath).groups ()
+      return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
+  except:
+    raise
+    #~ raise Exception, "Problem with path or object %s" % obj_or_path
 
-  if dn == "rootDSE":
-    return ADBase (obj, username, password, parse_schema=False)
+def AD (server=None):
+  default_naming_context = _root (server).Get ("defaultNamingContext")
+  return AD_object (GetObject ("LDAP://%s" % default_naming_context))
 
-  if scheme == "WinNT:":
-    class_map = _WINNT_CLASS_MAP.get (obj.Class.lower (), WinNT)
-  else:
-    class_map = _CLASS_MAP.get (obj.Class.lower (), ADBase)
-  return class_map (obj)
-AD_object = ad
-
-def AD (server=None, username=None, password=None, use_gc=False):
-  if use_gc:
-    scheme = "GC://"
-  else:
-    scheme = "LDAP://"
+def _root (server=None):
   if server:
-    root_moniker = scheme + server + "/rootDSE"
+    return GetObject ("LDAP://%s/rootDSE" % server)
   else:
-    root_moniker = scheme + "rootDSE"
-  root_obj = wrapped (adsi.ADsOpenObject, root_moniker, username, password, DEFAULT_BIND_FLAGS)
-  default_naming_context = root_obj.Get ("defaultNamingContext")
-  moniker = scheme + default_naming_context
-  obj = wrapped (adsi.ADsOpenObject, moniker, username, password, DEFAULT_BIND_FLAGS)
-  return ad (obj, username, password)
-
+    return GetObject ("LDAP://rootDSE")
 
 #
 # Convenience functions for common needs
@@ -1314,21 +931,26 @@ def search (*args, **kwargs):
 #  root of the logged-on active directory tree.
 #
 _ad = None
-def root (username=None, password=None):
+def root ():
   global _ad
   if _ad is None:
-    _ad = AD (username=username, password=password)
+    _ad = AD ()
   return _ad
 
-def namespaces ():
-  return ADBase (ADsGetObject ("ADs:"), parse_schema=False)
+def search_ex (query_string=""):
+  """Search the Active Directory by specifying a complete
+   query string. NB The results will *not* be AD_objects
+   but rather ADO_objects which are queried for their fields.
 
-def root_dse (username=None, password=None):
-  return RootDSE (adsi.ADsOpenObject ("LDAP://rootDSE", username, password, DEFAULT_BIND_FLAGS))
+   eg,
 
-
-"""
-Reading the schema:
-
-ad.ad (ad.query (ad.query_string (base="LDAP://" + ad.root_dse ().schemaNamingContext, filter="ldapDisplayName=ldapDisplayName")).next ()['ADsPath']).dump ()
-"""
+     import active_directory
+     for user in active_directory.search_ex (\"""
+       SELECT displayName
+       FROM 'LDAP://DC=gb,DC=vo,DC=local'
+       WHERE objectCategory = 'Person'
+     \"""):
+       print user.displayName
+  """
+  for result in query (query_string, Page_size=50):
+    yield result
