@@ -8,13 +8,15 @@ classifiers = [
   'License :: PSF',
   'Natural Language :: English',
   'Operating System :: Microsoft :: Windows :: Windows 95/98/2000',
-  'Topic :: System :: Systems Administration'
+  'Topic :: System :: Systems Administration',
+  'Programming Language :: Python :: 3'
 ]
 
 setup (
   name = "active_directory",
   version = "0.6.7-3.x",
   description = "Active Directory",
+  long_description = open ("readme.txt").read (),
   author = "Tim Golden",
   author_email = "mail@timgolden.me.uk",
   url = "http://timgolden.me.uk/python/active_directory.html",
