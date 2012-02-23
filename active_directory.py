@@ -3,20 +3,20 @@
  for Microsoft's Active Directory
 
 Active Directory is Microsoft's answer to LDAP, the industry-standard
-directory service holding information about users, computers and
-other resources in a tree structure, arranged by departments or
-geographical location, and optimized for searching.
+ directory service holding information about users, computers and
+ other resources in a tree structure, arranged by departments or
+ geographical location, and optimized for searching.
 
 There are several ways of attaching to Active Directory. This
-module uses the Dispatchable LDAP:// objects and wraps them
-lightly in helpful Python classes which do a bit of the
-otherwise tedious plumbing. The module is quite naive, and
-has only really been developed to aid searching, but since
-you can always access the original COM object, there's nothing
-to stop you using it for any AD operations.
+ module uses the Dispatchable LDAP:// objects and wraps them
+ lightly in helpful Python classes which do a bit of the
+ otherwise tedious plumbing. The module is quite naive, and
+ has only really been developed to aid searching, but since
+ you can always access the original COM object, there's nothing
+ to stop you using it for any AD operations.
 
-+ The active directory class (_AD_object or a subclass) will determine
-  its properties and allow you to access them as instance properties.
++ The active directory object (AD_object) will determine its
+   properties and allow you to access them as instance properties.
 
    eg
      import active_directory
@@ -24,7 +24,7 @@ to stop you using it for any AD operations.
      print ad.displayName
 
 + Any object returned by the AD object's operations is themselves
-  wrapped as AD objects so you get the same benefits.
+   wrapped as AD objects so you get the same benefits.
 
   eg
     import active_directory
@@ -33,8 +33,9 @@ to stop you using it for any AD operations.
       print user.displayName
 
 + To search the AD, there are two module-level general
-  search functions, and module-level convenience functions
-  to find a user, computer etc. Usage is illustrated below:
+   search functions, two module-level functions to
+   find a user and computer specifically and the search
+   method on each AD_object. Usage is illustrated below:
 
    import active_directory as ad
 
@@ -64,7 +65,7 @@ to stop you using it for any AD operations.
 
    print ad.find_computer ("vogbp200")
 
-   users = ad.AD ().child ("cn=users")
+   users = ad.root ().child ("cn=users")
    for u in users.search ("displayName='Tim*'"):
      print u
 
@@ -80,68 +81,53 @@ Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
 Many thanks, obviously to Mark Hammond for creating
-the pywin32 extensions without which this wouldn't
-have been possible.
+ the pywin32 extensions.
 """
 from __future__ import generators
 
-__VERSION__ = "0.7.1"
-
-try:
-  set
-except NameError:
-  from sets import Set as set
+__VERSION__ = "0.6.7"
 
 import os, sys
 import datetime
-import struct
-
 import win32api
+import socket
+
 from win32com.client import Dispatch, GetObject
 import win32security
 
-def delta_as_microseconds (delta) :
-  return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
+#
+# Code contributed by Stian Søiland <stian@soiland.no>
+#
+def i32(x):
+  """Converts a long (for instance 0x80005000L) to a signed 32-bit-int.
 
-def signed_to_unsigned (signed):
-  return struct.unpack ("L", struct.pack ("l", signed))[0]
+  Python2.4 will convert numbers >= 0x80005000 to large numbers
+  instead of negative ints.    This is not what we want for
+  typical win32 constants.
 
-def unsigned_to_signed (unsigned):
-  return struct.unpack ("l", struct.pack ("L", unsigned))[0]
+  Usage:
+      >>> i32(0x80005000L)
+      -2147363168
+  """
+  # x > 0x80000000L should be negative, such that:
+  # i32(0x80000000L) -> -2147483648L
+  # i32(0x80000001L) -> -2147483647L     etc.
+  return (x&0x80000000 and -2*0x40000000 or 0) + int(x&0x7fffffff)
 
-#
-# For ease of presentation, ms-style constant lists are
-# held as Enum objects, allowing access by number or
-# by name, and by name-as-attribute. This means you can do, eg:
-#
-# print GROUP_TYPES[2]
-# print GROUP_TYPES['GLOBAL_GROUP']
-# print GROUP_TYPES.GLOBAL_GROUP
-#
-# The first is useful when displaying the contents
-# of an AD object; the other two when you want a more
-# readable piece of code, without magic numbers.
-#
 class Enum (object):
 
   def __init__ (self, **kwargs):
     self._name_map = {}
     self._number_map = {}
     for k, v in kwargs.items ():
-      self._name_map[k] = unsigned_to_signed (v)
-      self._number_map[unsigned_to_signed (v)] = k
+      self._name_map[k] = i32 (v)
+      self._number_map[i32 (v)] = k
 
   def __getitem__ (self, item):
     try:
       return self._name_map[item]
     except KeyError:
-      return self._number_map[unsigned_to_signed (item)]
-
-  def __getattr__ (self, attr):
-    try:
-      return self._name_map[attr]
-    except KeyError:
-      raise AttributeError
+      return self._number_map[i32 (item)]
 
   def item_names (self):
     return self._name_map.items ()
@@ -158,18 +144,18 @@ GROUP_TYPES = Enum (
 )
 
 AUTHENTICATION_TYPES = Enum (
-  SECURE_AUTHENTICATION = 0x01,
-  USE_ENCRYPTION = 0x02,
-  USE_SSL = 0x02,
-  READONLY_SERVER = 0x04,
-  PROMPT_CREDENTIALS = 0x08,
-  NO_AUTHENTICATION = 0x10,
-  FAST_BIND = 0x20,
-  USE_SIGNING = 0x40,
-  USE_SEALING = 0x80,
-  USE_DELEGATION = 0x100,
-  SERVER_BIND = 0x200,
-  AUTH_RESERVED = 0x80000000
+  SECURE_AUTHENTICATION = i32 (0x01),
+  USE_ENCRYPTION = i32 (0x02),
+  USE_SSL = i32 (0x02),
+  READONLY_SERVER = i32 (0x04),
+  PROMPT_CREDENTIALS = i32 (0x08),
+  NO_AUTHENTICATION = i32 (0x10),
+  FAST_BIND = i32 (0x20),
+  USE_SIGNING = i32 (0x40),
+  USE_SEALING = i32 (0x80),
+  USE_DELEGATION = i32 (0x100),
+  SERVER_BIND = i32 (0x200),
+  AUTH_RESERVED = i32 (0x800000000)
 )
 
 SAM_ACCOUNT_TYPES = Enum (
@@ -262,11 +248,17 @@ def _add_path (root_path, relative_path):
 
   return protocol + relative_path + "," + start_path
 
+#
+# Global cached ADO Connection object
+#
+_connection = None
 def connection ():
-  connection = Dispatch ("ADODB.Connection")
-  connection.Provider = "ADsDSOObject"
-  connection.Open ("Active Directory Provider")
-  return connection
+  global _connection
+  if _connection is None:
+    _connection = Dispatch ("ADODB.Connection")
+    _connection.Provider = "ADsDSOObject"
+    _connection.Open ("Active Directory Provider")
+  return _connection
 
 class ADO_record (object):
   """Simple wrapper around an ADO result set"""
@@ -314,46 +306,17 @@ def query (query_string, **command_properties):
     command.Properties (k.replace ("_", " ")).Value = v
   command.CommandText = query_string
 
-  results = []
   recordset, result = command.Execute ()
   while not recordset.EOF:
     yield ADO_record (recordset)
     recordset.MoveNext ()
 
-if datetime:
-  BASE_TIME = datetime.datetime (1601, 1, 1)
-  def ad_time_to_datetime (ad_time):
-    hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
-    ns100 = (hi << 32) + lo
-    delta = datetime.timedelta (microseconds=ns100 / 10)
-    return BASE_TIME + delta
-
-  def ad_time_from_datetime (timestamp):
-    delta = timestamp - BASE_TIME
-    ns100 = 10 * delta_as_microseconds (delta)
-    hi = (ns100 & 0xffffffff00000000) >> 32
-    lo = (ns100 & 0xffffffff)
-    return hi, lo
-
-  def pytime_to_datetime (pytime):
-    return datetime.datetime.fromtimestamp (int (pytime))
-
-  def pytime_from_datetime (datetime):
-    pass
-
-else:
-  def ad_time_to_datetime (ad_time):
-    return ad_time
-
-  def ad_time_from_datetime (timestamp):
-    return timestamp
-
-  def pytime_to_datetime (pytime):
-    return pytime
-
-  def pytime_from_datetime (datetime):
-    return datetime
-
+BASE_TIME = datetime.datetime (1601, 1, 1)
+def ad_time_to_datetime (ad_time):
+  hi, lo = i32 (ad_time.HighPart), i32 (ad_time.LowPart)
+  ns100 = (hi << 32) + lo
+  delta = datetime.timedelta (microseconds=ns100 / 10)
+  return BASE_TIME + delta
 
 def convert_to_object (item):
   if item is None: return None
@@ -371,10 +334,6 @@ def convert_to_datetime (item):
   if item is None: return None
   return ad_time_to_datetime (item)
 
-def convert_pytime_to_datetime (item):
-  if item is None: return None
-  return pytime_to_datetime (item)
-
 def convert_to_sid (item):
   if item is None: return None
   return win32security.SID (item)
@@ -386,7 +345,7 @@ def convert_to_guid (item):
 
 def convert_to_hex (item):
   if item is None: return None
-  return "".join (["%02x" % ord (i) for i in item])
+  return "".join (["%x" % ord (i) for i in item])
 
 def convert_to_enum (name):
   def _convert_to_enum (item):
@@ -397,144 +356,10 @@ def convert_to_enum (name):
 def convert_to_flags (enum_name):
   def _convert_to_flags (item):
     if item is None: return None
-    item = unsigned_to_signed (item)
+    item = i32 (item)
     enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
+    return set (name for (bitmask, name) in enum.item_numbers () if item & bitmask)
   return _convert_to_flags
-
-def ddict (**kwargs):
-  return kwargs
-
-_PROPERTY_MAP = ddict (
-  accountExpires = convert_to_datetime,
-  badPasswordTime = convert_to_datetime,
-  creationTime = convert_to_datetime,
-  dSASignature = convert_to_hex,
-  forceLogoff = convert_to_datetime,
-  fSMORoleOwner = convert_to_object,
-  groupType = convert_to_flags ("GROUP_TYPES"),
-  lastLogoff = convert_to_datetime,
-  lastLogon = convert_to_datetime,
-  lastLogonTimestamp = convert_to_datetime,
-  lockoutDuration = convert_to_datetime,
-  lockoutObservationWindow = convert_to_datetime,
-  lockoutTime = convert_to_datetime,
-  masteredBy = convert_to_objects,
-  maxPwdAge = convert_to_datetime,
-  member = convert_to_objects,
-  memberOf = convert_to_objects,
-  minPwdAge = convert_to_datetime,
-  modifiedCount = convert_to_datetime,
-  modifiedCountAtLastProm = convert_to_datetime,
-  msExchMailboxGuid = convert_to_guid,
-  objectGUID = convert_to_guid,
-  objectSid = convert_to_sid,
-  Parent = convert_to_object,
-  publicDelegates = convert_to_objects,
-  publicDelegatesBL = convert_to_objects,
-  pwdLastSet = convert_to_datetime,
-  replicationSignature = convert_to_hex,
-  replUpToDateVector = convert_to_hex,
-  repsFrom = convert_to_hex,
-  repsTo = convert_to_hex,
-  sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
-  subRefs = convert_to_objects,
-  userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL"),
-  uSNChanged = convert_to_datetime,
-  uSNCreated = convert_to_datetime,
-  wellKnownObjects = convert_to_objects,
-  whenCreated = convert_pytime_to_datetime,
-  whenChanged = convert_pytime_to_datetime,
-)
-_PROPERTY_MAP['msDs-masteredBy'] = convert_to_objects
-_PROPERTY_MAP_OUT = _PROPERTY_MAP
-
-def convert_from_object (item):
-  if item is None: return None
-  return item.com_object
-
-def convert_from_objects (items):
-  if items == []:
-    return None
-  else:
-    return [obj.com_object for obj in items]
-
-def convert_from_datetime (item):
-  if item is None: return None
-  try:
-    return pytime_to_datetime (item)
-  except:
-    return ad_time_to_datetime (item)
-
-def convert_from_sid (item):
-  if item is None: return None
-  return win32security.SID (item)
-
-def convert_from_guid (item):
-  if item is None: return None
-  guid = convert_from_hex (item)
-  return "{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
-
-def convert_from_hex (item):
-  if item is None: return None
-  return "".join (["%x" % ord (i) for i in item])
-
-def convert_from_enum (name):
-  def _convert_from_enum (item):
-    if item is None: return None
-    return ENUMS[name][item]
-  return _convert_from_enum
-
-def convert_from_flags (enum_name):
-  def _convert_from_flags (item):
-    if item is None: return None
-    item = unsigned_to_signed (item)
-    enum = ENUMS[enum_name]
-    return set ([name for (bitmask, name) in enum.item_numbers () if item & bitmask])
-  return _convert_from_flags
-
-
-
-_PROPERTY_MAP_IN = ddict (
-  accountExpires = convert_from_datetime,
-  badPasswordTime = convert_from_datetime,
-  creationTime = convert_from_datetime,
-  dSASignature = convert_from_hex,
-  forceLogoff = convert_from_datetime,
-  fSMORoleOwner = convert_from_object,
-  groupType = convert_from_flags ("GROUP_TYPES"),
-  lastLogoff = convert_from_datetime,
-  lastLogon = convert_from_datetime,
-  lastLogonTimestamp = convert_from_datetime,
-  lockoutDuration = convert_from_datetime,
-  lockoutObservationWindow = convert_from_datetime,
-  lockoutTime = convert_from_datetime,
-  masteredBy = convert_from_objects,
-  maxPwdAge = convert_from_datetime,
-  member = convert_from_objects,
-  memberOf = convert_from_objects,
-  minPwdAge = convert_from_datetime,
-  modifiedCount = convert_from_datetime,
-  modifiedCountAtLastProm = convert_from_datetime,
-  msExchMailboxGuid = convert_from_guid,
-  objectGUID = convert_from_guid,
-  objectSid = convert_from_sid,
-  Parent = convert_from_object,
-  publicDelegates = convert_from_objects,
-  publicDelegatesBL = convert_from_objects,
-  pwdLastSet = convert_from_datetime,
-  replicationSignature = convert_from_hex,
-  replUpToDateVector = convert_from_hex,
-  repsFrom = convert_from_hex,
-  repsTo = convert_from_hex,
-  sAMAccountType = convert_from_enum ("SAM_ACCOUNT_TYPES"),
-  subRefs = convert_from_objects,
-  userAccountControl = convert_from_flags ("USER_ACCOUNT_CONTROL"),
-  uSNChanged = convert_from_datetime,
-  uSNCreated = convert_from_datetime,
-  wellKnownObjects = convert_from_objects
-)
-_PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
 
 class _AD_root (object):
   def __init__ (self, obj):
@@ -563,32 +388,23 @@ class _AD_object (object):
     #
     _set (self, "com_object", obj)
     schema = GetObject (obj.Schema)
-    _set (self, "properties", getattr (schema, "MandatoryProperties", []) + getattr (schema, "OptionalProperties", []))
-    _set (self, "is_container", getattr (schema, "Container", False))
+    _set (self, "properties", schema.MandatoryProperties + schema.OptionalProperties)
+    _set (self, "is_container", schema.Container)
 
-    self._property_map = _PROPERTY_MAP
+    self._property_map = dict (
+      objectGUID = convert_to_guid,
+      uSNChanged = convert_to_datetime,
+      uSNCreated = convert_to_datetime,
+      replicationSignature = convert_to_hex,
+      Parent = convert_to_object,
+      wellKnownObjects = convert_to_objects
+    )
     self._delegate_map = dict ()
 
   def __getitem__ (self, key):
     return getattr (self, key)
 
   def __getattr__ (self, name):
-    #
-    # Special-case find_... methods to search for
-    # corresponding object types.
-    #
-    if name.startswith ("find_"):
-      names = name[len ("find_"):].lower ().split ("_")
-      first, rest = names[0], names[1:]
-      object_class = "".join ([first] + [n.title () for n in rest])
-      return self._find (object_class)
-
-    if name.startswith ("search_"):
-      names = name[len ("search_"):].lower ().split ("_")
-      first, rest = names[0], names[1:]
-      object_class = "".join ([first] + [n.title () for n in rest])
-      return self._search (object_class)
-
     #
     # Allow access to object's properties as though normal
     #  Python instance properties. Some properties are accessed
@@ -638,9 +454,6 @@ class _AD_object (object):
   def __eq__ (self, other):
     return self.com_object.Guid == other.com_object.Guid
 
-  def __hash__ (self):
-    return hash (self.com_object.ADsPath)
-
   class AD_iterator:
     """ Inner class for wrapping iterated objects
     (This class and the __iter__ method supplied by
@@ -655,13 +468,8 @@ class _AD_object (object):
 
   def __iter__(self):
     return self.AD_iterator(self.com_object)
-
+    
   def walk (self):
-    """Analogous to os.walk, traverse this AD subtree,
-    depth-first, and yield for each container:
-
-    container, containers, items
-    """
     children = list (self)
     this_containers = [c for c in children if c.is_container]
     this_items = [c for c in children if not c.is_container]
@@ -669,11 +477,6 @@ class _AD_object (object):
     for c in this_containers:
       for container, containers, items in c.walk ():
         yield container, containers, items
-
-  def flat (self):
-    for container, containers, items in self.walk ():
-      for item in items:
-        yield item
 
   def dump (self, ofile=sys.stdout):
     ofile.write (self.as_string () + "\n")
@@ -731,51 +534,29 @@ class _AD_object (object):
     """
     return AD_object (path=_add_path (self.path (), relative_path))
 
-  def _find (self, object_class):
-    """Helper function to allow general-purpose searching for
-    objects of a class by calling a .find_xxx_yyy method.
-    """
-    def _find (name):
-      for item in self.search (objectClass=object_class, name=name):
-        return item
-    return _find
-
-  def _search (self, object_class):
-    """Helper function to allow general-purpose searching for
-    objects of a class by calling a .search_xxx_yyy method.
-    """
-    def _search (*args, **kwargs):
-      return self.search (objectClass=object_class, *args, **kwargs)
-    return _search
-
-  def find (self, name):
-    for item in self.search (name=name):
-      return item
-
   def find_user (self, name=None):
-    """Make a special case of (the common need of) finding a user
-    either by username or by display name
-    """
     name = name or win32api.GetUserName ()
     for user in self.search ("sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory='Person', objectClass='User'):
       return user
 
+  def find_computer (self, name=None):
+    name = name or socket.gethostname ()
+    for computer in self.search (objectCategory='Computer', cn=name):
+      return computer
+
+  def find_group (self, name):
+    for group in self.search (objectCategory='group', cn=name):
+      return group
+      
   def find_ou (self, name):
-    """Convenient alias for find_organizational_unit"""
-    return self.find_organizational_unit (name)
+    for ou in self.search (objectClass="organizationalUnit", ou=name):
+      return ou
+      
+  def find_public_folder (self, name):
+    for public_folder in self.search (objectClass="publicFolder", displayName=name):
+      return public_folder
 
   def search (self, *args, **kwargs):
-    """The key method which puts together its arguments to construct
-    a valid AD search string, using AD-SQL (or whatever it's called)
-    rather than the conventional LDAP syntax.
-
-    Position args are AND-ed together and passed along verbatim
-    Keyword args are AND-ed together as equi-filters
-    The results are always wrapped as an _AD_object or one of
-    its subclasses. No matter which class is returned, well-known
-    attributes are converted according to a property map to more
-    Pythonic types.
-    """
     sql_string = []
     sql_string.append ("SELECT *")
     sql_string.append ("FROM '%s'" % self.path ())
@@ -783,7 +564,7 @@ class _AD_object (object):
     if args:
       clauses.append (_and (*args))
     if kwargs:
-      clauses.append (_and (*["%s='%s'" % (k, v) for (k, v) in kwargs.items ()]))
+      clauses.append (_and (*("%s='%s'" % (k, v) for (k, v) in kwargs.items ())))
     where_clause = _and (*clauses)
     if where_clause:
       sql_string.append ("WHERE %s" % where_clause)
@@ -794,20 +575,52 @@ class _AD_object (object):
 class _AD_user (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
+    self._property_map.update (dict (
+      pwdLastSet = convert_to_datetime,
+      memberOf = convert_to_objects,
+      objectSid = convert_to_sid,
+      accountExpires = convert_to_datetime,
+      badPasswordTime = convert_to_datetime,
+      lastLogoff = convert_to_datetime,
+      lastLogon = convert_to_datetime,
+      lastLogonTimestamp = convert_to_datetime,
+      lockoutTime = convert_to_datetime,
+      msExchMailboxGuid = convert_to_guid,
+      publicDelegates = convert_to_objects,
+      publicDelegatesBL = convert_to_objects,
+      sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
+      userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL")
+    ))
 
 class _AD_computer (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
+    self._property_map.update (dict (
+      objectSid = convert_to_sid,
+      accountExpires = convert_to_datetime,
+      badPasswordTime = convert_to_datetime,
+      lastLogoff = convert_to_datetime,
+      lastLogon = convert_to_datetime,
+      lastLogonTimestamp = convert_to_datetime,
+      publicDelegates = convert_to_objects,
+      publicDelegatesBL = convert_to_objects,
+      pwdLastSet = convert_to_datetime,
+      sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
+      userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL")
+    ))
 
 class _AD_group (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
+    self._property_map.update (dict (
+      groupType = convert_to_flags ("GROUP_TYPES"),
+      objectSid = convert_to_sid,
+      member = convert_to_objects,
+      memberOf = convert_to_objects,
+      sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES")
+    ))
 
   def walk (self):
-    """Override the usual .walk method by returning instead:
-
-    group, groups, users
-    """
     members = self.member or []
     groups = [m for m in members if m.Class == 'group']
     users = [m for m in members if m.Class == 'user']
@@ -819,11 +632,33 @@ class _AD_group (_AD_object):
 class _AD_organisational_unit (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
+    self._property_map.update (dict (
+    ))
 
 class _AD_domain_dns (_AD_object):
   def __init__ (self, *args, **kwargs):
     _AD_object.__init__ (self, *args, **kwargs)
-
+    self._property_map.update (dict (
+      creationTime = convert_to_datetime,
+      dSASignature = convert_to_hex,
+      forceLogoff = convert_to_datetime,
+      fSMORoleOwner = convert_to_object,
+      lockoutDuration = convert_to_datetime,
+      lockoutObservationWindow = convert_to_datetime,
+      masteredBy = convert_to_objects,
+      maxPwdAge = convert_to_datetime,
+      minPwdAge = convert_to_datetime,
+      modifiedCount = convert_to_datetime,
+      modifiedCountAtLastProm = convert_to_datetime,
+      objectSid = convert_to_sid,
+      replUpToDateVector = convert_to_hex,
+      repsFrom = convert_to_hex,
+      repsTo = convert_to_hex,
+      subRefs = convert_to_objects,
+      wellKnownObjects = convert_to_objects
+    ))
+    self._property_map['msDs-masteredBy'] = convert_to_objects
+    
 class _AD_public_folder (_AD_object):
   pass
 
@@ -844,20 +679,6 @@ def cached_AD_object (path, obj):
     _CACHE[path] = classed_obj
     return classed_obj
 
-def clear_cache ():
-  _CACHE.clear ()
-
-def escaped_moniker (moniker):
-  #
-  # If the moniker *appears* to have been escaped
-  # already, return it straight. This is obviously
-  # fragile but seems to work for now.
-  #
-  if moniker.find ("\\/") > -1:
-    return moniker
-  else:
-    return moniker.replace ("/", "\\/")
-
 def AD_object (obj_or_path=None, path=""):
   """Factory function for suitably-classed Active Directory
   objects from an incoming path or object. NB The interface
@@ -874,23 +695,17 @@ def AD_object (obj_or_path=None, path=""):
 
   @return An _AD_object or a subclass proxying for the AD object
   """
-  scheme = "LDAP://"
   if path and not obj_or_path:
     obj_or_path = path
-  try:
-    if isinstance (obj_or_path, (type (""), type (""))):
-      moniker = obj_or_path.lower ()
-      if obj_or_path.upper ().startswith (scheme):
-        moniker = obj_or_path[len (scheme):]
-      else:
-        moniker = obj_or_path
-      moniker = escaped_moniker (moniker)
-      return cached_AD_object (obj_or_path, GetObject ("LDAP://" + moniker))
-    else:
-      return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
-  except:
-    raise
-    #~ raise Exception, "Problem with path or object %s" % obj_or_path
+#  try:
+  if isinstance (obj_or_path, str):
+    if not obj_or_path.upper ().startswith ("LDAP://"):
+      obj_or_path = "LDAP://" + obj_or_path
+    return cached_AD_object (obj_or_path, GetObject (obj_or_path))
+  else:
+    return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
+#  except:
+#    print ("ERROR: Problem with path or object %s" % obj_or_path)
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
@@ -902,12 +717,6 @@ def _root (server=None):
   else:
     return GetObject ("LDAP://rootDSE")
 
-#
-# Convenience functions for common needs
-#
-def find (name):
-  return root ().find (name)
-
 def find_user (name=None):
   return root ().find_user (name)
 
@@ -916,15 +725,12 @@ def find_computer (name=None):
 
 def find_group (name):
   return root ().find_group (name)
-
+  
 def find_ou (name):
   return root ().find_ou (name)
-
+  
 def find_public_folder (name):
   return root ().find_public_folder (name)
-
-def search (*args, **kwargs):
-  return root ().search (*args, **kwargs)
 
 #
 # root returns a cached object referring to the
@@ -936,6 +742,9 @@ def root ():
   if _ad is None:
     _ad = AD ()
   return _ad
+
+def search (*args, **kwargs):
+  return root ().search (*args, **kwargs)
 
 def search_ex (query_string=""):
   """Search the Active Directory by specifying a complete
@@ -954,3 +763,4 @@ def search_ex (query_string=""):
   """
   for result in query (query_string, Page_size=50):
     yield result
+
