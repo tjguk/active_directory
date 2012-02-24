@@ -125,3 +125,29 @@ def rdn (dn0, dn1):
     raise RuntimeError ("The distinguished names are not related")
 
   return dn1[:-len (dn0)-1]
+
+ADS_NAME_INITTYPE_DOMAIN   = 1
+ADS_NAME_INITTYPE_SERVER   = 2
+ADS_NAME_INITTYPE_GC       = 3
+
+ADS_NAME_TYPE_1779                      = 1
+ADS_NAME_TYPE_CANONICAL                 = 2
+ADS_NAME_TYPE_NT4                       = 3
+ADS_NAME_TYPE_DISPLAY                   = 4
+ADS_NAME_TYPE_DOMAIN_SIMPLE             = 5
+ADS_NAME_TYPE_ENTERPRISE_SIMPLE         = 6
+ADS_NAME_TYPE_GUID                      = 7
+ADS_NAME_TYPE_UNKNOWN                   = 8
+ADS_NAME_TYPE_USER_PRINCIPAL_NAME       = 9
+ADS_NAME_TYPE_CANONICAL_EX              = 10
+ADS_NAME_TYPE_SERVICE_PRINCIPAL_NAME    = 11
+ADS_NAME_TYPE_SID_OR_SID_HISTORY_NAME   = 12
+
+names = {}
+def translate_name (name, from_format=ADS_NAME_TYPE_UNKNOWN, to_format=ADS_NAME_TYPE_1779):
+  NameTranslate = win32com.client.Dispatch ("NameTranslate")
+  if name not in names:
+    NameTranslate.Init (ADS_NAME_INITTYPE_GC, "")
+    NameTranslate.Set (ADS_NAME_TYPE_NT4, name)
+    names[ntname] = NameTranslate.Get (ADS_NAME_TYPE_1779)
+  return names[ntname]
