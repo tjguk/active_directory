@@ -91,7 +91,10 @@ try:
   set
 except NameError:
   from sets import Set as set
-
+try:
+  basestring
+except NameError:
+  basestring = str
 import os, sys
 import datetime
 import struct
@@ -757,7 +760,7 @@ class _AD_object (object):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    for user in self.search ("sAMAccountName='%s' OR displayName='%s' OR cn='%s'" % (name, name, name), objectCategory='Person', objectClass='User'):
+    for user in self.search ("anr='%s'" % name, objectCategory='Person', objectClass='User'):
       return user
 
   def find_ou (self, name):
@@ -878,7 +881,7 @@ def AD_object (obj_or_path=None, path=""):
   if path and not obj_or_path:
     obj_or_path = path
   try:
-    if isinstance (obj_or_path, (type (""), type (""))):
+    if isinstance (obj_or_path, basestring):
       moniker = obj_or_path.lower ()
       if obj_or_path.upper ().startswith (scheme):
         moniker = obj_or_path[len (scheme):]
@@ -920,9 +923,6 @@ def find_group (name):
 def find_ou (name):
   return root ().find_ou (name)
 
-def find_public_folder (name):
-  return root ().find_public_folder (name)
-
 def search (*args, **kwargs):
   return root ().search (*args, **kwargs)
 
@@ -954,3 +954,6 @@ def search_ex (query_string=""):
   """
   for result in query (query_string, Page_size=50):
     yield result
+
+if __name__ == '__main__':
+  print find_user ()
