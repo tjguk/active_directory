@@ -103,6 +103,11 @@ import win32api
 from win32com.client import Dispatch, GetObject
 import win32security
 
+try:
+  u = unicode
+except NameError:
+  u = str
+
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
 
@@ -215,10 +220,10 @@ USER_ACCOUNT_CONTROL = Enum (
 )
 
 ENUMS = {
-  "GROUP_TYPES" : GROUP_TYPES,
-  "AUTHENTICATION_TYPES" : AUTHENTICATION_TYPES,
-  "SAM_ACCOUNT_TYPES" : SAM_ACCOUNT_TYPES,
-  "USER_ACCOUNT_CONTROL" : USER_ACCOUNT_CONTROL
+  u("GROUP_TYPES") : GROUP_TYPES,
+  u("AUTHENTICATION_TYPES") : AUTHENTICATION_TYPES,
+  u("SAM_ACCOUNT_TYPES") : SAM_ACCOUNT_TYPES,
+  u("USER_ACCOUNT_CONTROL") : USER_ACCOUNT_CONTROL
 }
 
 def _set (obj, attribute, value):
@@ -254,7 +259,7 @@ def _add_path (root_path, relative_path):
     _add_path ('LDAP://DC=gb,DC=vo,DC=local', "cn=Users")
       => "LDAP://cn=users,DC=gb,DC=vo,DC=local"
   """
-  protocol = "LDAP://"
+  protocol = u("LDAP://")
   if relative_path.startswith (protocol):
     return relative_path
 
@@ -263,12 +268,12 @@ def _add_path (root_path, relative_path):
   else:
     start_path = root_path
 
-  return protocol + relative_path + "," + start_path
+  return protocol + relative_path + u(",") + start_path
 
 def connection ():
-  connection = Dispatch ("ADODB.Connection")
-  connection.Provider = "ADsDSOObject"
-  connection.Open ("Active Directory Provider")
+  connection = Dispatch (u("ADODB.Connection"))
+  connection.Provider = u("ADsDSOObject")
+  connection.Open (u("Active Directory Provider"))
   return connection
 
 class ADO_record (object):
@@ -292,17 +297,17 @@ class ADO_record (object):
     """Return a readable presentation of the entire record"""
     s = []
     s.append (repr (self))
-    s.append ("{")
+    s.append (u("{"))
     for name, item in self.fields.items ():
-      s.append ("  %s = %s" % (name, item))
-    s.append ("}")
-    return "\n".join (s)
+      s.append (u("  %s = %s" % (name, item)))
+    s.append (u("}"))
+    return u("\n").join (s)
 
 def query (query_string, **command_properties):
   """Auxiliary function to serve as a quick-and-dirty
    wrapper round an ADO query
   """
-  command = Dispatch ("ADODB.Command")
+  command = Dispatch (u("ADODB.Command"))
   command.ActiveConnection = connection ()
   #
   # Add any client-specified ADO command properties.
@@ -314,7 +319,7 @@ def query (query_string, **command_properties):
   #   "Time Limit" = 30 => How many seconds should the search continue
   #
   for k, v in command_properties.items ():
-    command.Properties (k.replace ("_", " ")).Value = v
+    command.Properties (k.replace (u("_"), u(" "))).Value = v
   command.CommandText = query_string
 
   results = []
@@ -370,11 +375,11 @@ def convert_to_sid (item):
 def convert_to_guid (item):
   if item is None: return None
   guid = convert_to_hex (item)
-  return "{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+  return u("{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:]))
 
 def convert_to_hex (item):
   if item is None: return None
-  return "".join (["%02x" % ord (i) for i in item])
+  return u("").join ([u("%02x") % ord (i) for i in item])
 
 def convert_to_enum (name):
   def _convert_to_enum (item):
@@ -400,7 +405,7 @@ _PROPERTY_MAP = ddict (
   dSASignature = convert_to_hex,
   forceLogoff = convert_to_datetime,
   fSMORoleOwner = convert_to_object,
-  groupType = convert_to_flags ("GROUP_TYPES"),
+  groupType = convert_to_flags (u("GROUP_TYPES")),
   lastLogoff = convert_to_datetime,
   lastLogon = convert_to_datetime,
   lastLogonTimestamp = convert_to_datetime,
@@ -425,16 +430,16 @@ _PROPERTY_MAP = ddict (
   replUpToDateVector = convert_to_hex,
   repsFrom = convert_to_hex,
   repsTo = convert_to_hex,
-  sAMAccountType = convert_to_enum ("SAM_ACCOUNT_TYPES"),
+  sAMAccountType = convert_to_enum (u("SAM_ACCOUNT_TYPES")),
   subRefs = convert_to_objects,
-  userAccountControl = convert_to_flags ("USER_ACCOUNT_CONTROL"),
+  userAccountControl = convert_to_flags (u("USER_ACCOUNT_CONTROL")),
   uSNChanged = convert_to_datetime,
   uSNCreated = convert_to_datetime,
   wellKnownObjects = convert_to_objects,
   whenCreated = convert_pytime_to_datetime,
   whenChanged = convert_pytime_to_datetime,
 )
-_PROPERTY_MAP['msDs-masteredBy'] = convert_to_objects
+_PROPERTY_MAP[u('msDs-masteredBy')] = convert_to_objects
 _PROPERTY_MAP_OUT = _PROPERTY_MAP
 
 def convert_from_object (item):
@@ -461,11 +466,11 @@ def convert_from_sid (item):
 def convert_from_guid (item):
   if item is None: return None
   guid = convert_from_hex (item)
-  return "{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:])
+  return u("{%s-%s-%s-%s-%s}" % (guid[:8], guid[8:12], guid[12:16], guid[16:20], guid[20:]))
 
 def convert_from_hex (item):
   if item is None: return None
-  return "".join (["%x" % ord (i) for i in item])
+  return "".join ([u("%x") % ord (i) for i in item])
 
 def convert_from_enum (name):
   def _convert_from_enum (item):
@@ -490,7 +495,7 @@ _PROPERTY_MAP_IN = ddict (
   dSASignature = convert_from_hex,
   forceLogoff = convert_from_datetime,
   fSMORoleOwner = convert_from_object,
-  groupType = convert_from_flags ("GROUP_TYPES"),
+  groupType = convert_from_flags (u("GROUP_TYPES")),
   lastLogoff = convert_from_datetime,
   lastLogon = convert_from_datetime,
   lastLogonTimestamp = convert_from_datetime,
@@ -515,14 +520,14 @@ _PROPERTY_MAP_IN = ddict (
   replUpToDateVector = convert_from_hex,
   repsFrom = convert_from_hex,
   repsTo = convert_from_hex,
-  sAMAccountType = convert_from_enum ("SAM_ACCOUNT_TYPES"),
+  sAMAccountType = convert_from_enum (u("SAM_ACCOUNT_TYPES")),
   subRefs = convert_from_objects,
-  userAccountControl = convert_from_flags ("USER_ACCOUNT_CONTROL"),
+  userAccountControl = convert_from_flags (u("USER_ACCOUNT_CONTROL")),
   uSNChanged = convert_from_datetime,
   uSNCreated = convert_from_datetime,
   wellKnownObjects = convert_from_objects
 )
-_PROPERTY_MAP_IN['msDs-masteredBy'] = convert_from_objects
+_PROPERTY_MAP_IN[u('msDs-masteredBy')] = convert_from_objects
 
 class _AD_root (object):
   def __init__ (self, obj):
@@ -565,14 +570,14 @@ class _AD_object (object):
     # Special-case find_... methods to search for
     # corresponding object types.
     #
-    if name.startswith ("find_"):
-      names = name[len ("find_"):].lower ().split ("_")
+    if name.startswith (u("find_")):
+      names = name[len (u("find_")):].lower ().split (u("_"))
       first, rest = names[0], names[1:]
       object_class = "".join ([first] + [n.title () for n in rest])
       return self._find (object_class)
 
-    if name.startswith ("search_"):
-      names = name[len ("search_"):].lower ().split ("_")
+    if name.startswith (u("search_")):
+      names = name[len (u("search_")):].lower ().split (u("_"))
       first, rest = names[0], names[1:]
       object_class = "".join ([first] + [n.title () for n in rest])
       return self._search (object_class)
@@ -664,24 +669,24 @@ class _AD_object (object):
         yield item
 
   def dump (self, ofile=sys.stdout):
-    ofile.write (self.as_string () + "\n")
-    ofile.write ("{\n")
+    ofile.write (self.as_string () + u("\n"))
+    ofile.write (u("{\n"))
     for name in self.properties:
       try:
         value = getattr (self, name)
       except:
-        value = "Unable to get value"
+        value = u("Unable to get value")
       if value:
         try:
           if isinstance (name, unicode):
             name = name.encode (sys.stdout.encoding)
           if isinstance (value, unicode):
             value = value.encode (sys.stdout.encoding)
-          ofile.write ("  %s => %s\n" % (name, value))
+          ofile.write (u("  %s => %s\n" % (name, value)))
         except UnicodeEncodeError:
-          ofile.write ("  %s => %s\n" % (name, repr (value)))
+          ofile.write (u("  %s => %s\n" % (name, repr (value))))
 
-    ofile.write ("}\n")
+    ofile.write (u("}\n"))
 
   def set (self, **kwds):
     """Set a number of values at one time. Should be
@@ -745,7 +750,7 @@ class _AD_object (object):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    for user in self.search ("anr='%s'" % name, objectCategory='Person', objectClass='User'):
+    for user in self.search ("anr='%s'" % name, objectCategory=u('Person'), objectClass=u('User')):
       return user
 
   def find_ou (self, name):
@@ -877,8 +882,7 @@ def AD_object (obj_or_path=None, path=""):
     else:
       return cached_AD_object (obj_or_path.ADsPath, obj_or_path)
   except:
-    raise
-    #~ raise Exception, "Problem with path or object %s" % obj_or_path
+    raise Exception ("Problem with path or object %s" % obj_or_path)
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
