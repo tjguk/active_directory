@@ -323,40 +323,25 @@ def query (query_string, **command_properties):
     yield ADO_record (recordset)
     recordset.MoveNext ()
 
-if datetime:
-  BASE_TIME = datetime.datetime (1601, 1, 1)
-  def ad_time_to_datetime (ad_time):
-    hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
-    ns100 = (hi << 32) + lo
-    delta = datetime.timedelta (microseconds=ns100 / 10)
-    return BASE_TIME + delta
+BASE_TIME = datetime.datetime (1601, 1, 1)
+def ad_time_to_datetime (ad_time):
+  hi, lo = unsigned_to_signed (ad_time.HighPart), unsigned_to_signed (ad_time.LowPart)
+  ns100 = (hi << 32) + lo
+  delta = datetime.timedelta (microseconds=ns100 / 10)
+  return BASE_TIME + delta
 
-  def ad_time_from_datetime (timestamp):
-    delta = timestamp - BASE_TIME
-    ns100 = 10 * delta_as_microseconds (delta)
-    hi = (ns100 & 0xffffffff00000000) >> 32
-    lo = (ns100 & 0xffffffff)
-    return hi, lo
+def ad_time_from_datetime (timestamp):
+  delta = timestamp - BASE_TIME
+  ns100 = 10 * delta_as_microseconds (delta)
+  hi = (ns100 & 0xffffffff00000000) >> 32
+  lo = (ns100 & 0xffffffff)
+  return hi, lo
 
-  def pytime_to_datetime (pytime):
-    return datetime.datetime.fromtimestamp (int (pytime))
+def pytime_to_datetime (pytime):
+  return datetime.datetime.fromtimestamp (int (pytime))
 
-  def pytime_from_datetime (datetime):
-    pass
-
-else:
-  def ad_time_to_datetime (ad_time):
-    return ad_time
-
-  def ad_time_from_datetime (timestamp):
-    return timestamp
-
-  def pytime_to_datetime (pytime):
-    return pytime
-
-  def pytime_from_datetime (datetime):
-    return datetime
-
+def pytime_from_datetime (datetime):
+  pass
 
 def convert_to_object (item):
   if item is None: return None
