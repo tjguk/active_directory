@@ -21,7 +21,7 @@ to stop you using it for any AD operations.
    eg
      import active_directory
      goldent = active_directory.find_user ("goldent")
-     print ad.displayName
+     print (ad.displayName)
 
 + Any object returned by the AD object's operations is themselves
   wrapped as AD objects so you get the same benefits.
@@ -30,7 +30,7 @@ to stop you using it for any AD operations.
     import active_directory
     users = active_directory.root ().child ("cn=users")
     for user in users.search ("displayName='Tim*'"):
-      print user.displayName
+      print (user.displayName)
 
 + To search the AD, there are two module-level general
   search functions, and module-level convenience functions
@@ -45,7 +45,7 @@ to stop you using it for any AD operations.
      #
      # This search returns an AD_object
      #
-     print user
+     print (user)
 
    query = \"""
      SELECT Name, displayName
@@ -90,7 +90,7 @@ from __version__ import __VERSION__, __RELEASE__
 try:
   set
 except NameError:
-    from sets import Set as set
+  from sets import Set as set
 try:
   basestring
 except NameError:
