@@ -2,7 +2,7 @@ active_directory.py - What's New?
 
 16th March 2012 0.8
 . Added Python 3.x compatibility
-. Bumped Python 2.x support up to Python 2.4 only
+. Bumped Python 2.x support up to Python 2.3+ only (sets & datetime)
 . Added walk method to any container
 
 3rd April 2008 0.7.1

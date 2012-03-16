@@ -90,7 +90,7 @@ from __version__ import __VERSION__, __RELEASE__
 try:
   set
 except NameError:
-  from sets import Set as set
+    from sets import Set as set
 try:
   basestring
 except NameError:

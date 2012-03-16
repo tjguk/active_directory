@@ -47,7 +47,7 @@ if not test_base:
 
 class ActiveDirectoryTestCase (unittest.TestCase):
 
-  uid = "".join (random.choice ("abcdef1234567890") for i in range (10))
+  uid = "".join ([random.choice ("abcdef1234567890") for i in range (10)])
   ou_id = "ou-" + uid
   user_id = "user-" + uid
   group_id = "group-" + uid
