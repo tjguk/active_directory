@@ -1,5 +1,7 @@
 from distutils.core import setup
 
+import __version__
+
 classifiers = [
   'Development Status :: 5 - Production/Stable',
   'Environment :: Win32 (MS Windows)',
@@ -14,7 +16,7 @@ classifiers = [
 
 setup (
   name = "active_directory",
-  version = "0.7-2.x",
+  version = __version__.__VERSION__,
   description = "Active Directory",
   long_description = open ("readme.txt").read (),
   author = "Tim Golden",
