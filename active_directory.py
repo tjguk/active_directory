@@ -956,4 +956,4 @@ def search_ex (query_string=""):
     yield result
 
 if __name__ == '__main__':
-  print find_user ()
+  print (find_user ())
