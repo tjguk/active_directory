@@ -1,2 +1,7 @@
 
 *.pyc
+/dist
+/build
+/__pycache__
+/MANIFEST
+/testing_config.ini
