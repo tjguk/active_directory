@@ -29,7 +29,7 @@ def get_config (section, item, function=ConfigParser.ConfigParser.get):
     return None
 
 try:
-  dc = win32net.NetGetAnyDCName ().strip ("\\")
+  dc = win32net.NetGetDCName ().strip ("\\")
 except win32net.error:
   dc = None
 is_inside_domain = bool (dc)
