@@ -1,3 +1,4 @@
+# -*- coding: UTF8 -*-
 import os, sys
 try:
   import ConfigParser

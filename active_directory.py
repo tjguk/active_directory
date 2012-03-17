@@ -1,4 +1,4 @@
-# -*- coding: iso-8859-1 -*-
+# -*- coding: UTF8 -*-
 """active_directory - a lightweight wrapper around COM support
  for Microsoft's Active Directory
 
