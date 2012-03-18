@@ -1,4 +1,4 @@
-# -*- coding: UTF8 -*-
+# -*- coding: UTF-8 -*-
 """active_directory - a lightweight wrapper around COM support
  for Microsoft's Active Directory
 
@@ -637,7 +637,7 @@ class _AD_object (object):
   class AD_iterator:
     """ Inner class for wrapping iterated objects
     (This class and the __iter__ method supplied by
-    Stian Søiland <stian@soiland.no>)
+    Stian SÃ¸iland <stian@soiland.no>)
     """
     def __init__(self, com_object):
       self._iter = iter(com_object)

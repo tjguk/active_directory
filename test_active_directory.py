@@ -1,4 +1,4 @@
-# -*- coding: UTF8 -*-
+# -*- coding: UTF-8 -*-
 import os, sys
 try:
   import ConfigParser
@@ -63,12 +63,13 @@ class ActiveDirectoryTestCase (unittest.TestCase):
     self.base_ou = active_directory.AD_object (test_base)
     self.ou = self.base_ou.Create ("organizationalUnit", "ou=%s" % self.ou_id)
     self.ou.SetInfo ()
-    self.user1 = self.ou.Create ("user", "cn=%s" % self.user_id)
-    self.user1.SetInfo ()
-    self.group1 = self.ou.Create ("group", "cn=%s" % self.group_id)
-    self.group1.SetInfo ()
-    self.computer1= self.ou.Create ("computer", "cn=%s" % self.computer_id)
-    self.computer1.SetInfo ()
+    self.user = self.ou.Create ("user", "cn=%s" % self.user_id)
+    self.user.displayName = "£9.99"
+    self.user.SetInfo ()
+    self.group = self.ou.Create ("group", "cn=%s" % self.group_id)
+    self.group.SetInfo ()
+    self.computer= self.ou.Create ("computer", "cn=%s" % self.computer_id)
+    self.computer.SetInfo ()
 
   def tearDown (self):
     self.ou.Delete ("group", "cn=%s" % self.group_id)
@@ -85,22 +86,25 @@ class ActiveDirectoryTestCase (unittest.TestCase):
   def assertIsInstance (self, item, klass, *args, **kwargs):
     self.assertTrue (isinstance (item, klass), *args, **kwargs)
 
+  def assertADEqual (self, item1, item2):
+    self.assertEqual (item1.GUID, item2.GUID)
+
 class TestConvenienceFunctions (ActiveDirectoryTestCase):
 
   def test_find (self):
-    self.assertEquals (active_directory.find (self.user_id).cn, self.user_id)
+    self.assertADEqual (active_directory.find (self.user_id), self.user)
 
   def test_find_user (self):
-    self.assertEquals (active_directory.find_user (self.user_id).cn, self.user_id)
+    self.assertADEqual (active_directory.find_user (self.user_id), self.user)
 
   def test_find_group (self):
-    self.assertEquals (active_directory.find_group (self.group_id).cn, self.group_id)
+    self.assertADEqual (active_directory.find_group (self.group_id), self.group)
 
   def test_find_ou (self):
-    self.assertEquals (active_directory.find_ou (self.ou_id).ou, self.ou_id)
+    self.assertADEqual (active_directory.find_ou (self.ou_id), self.ou)
 
   def test_find_computer (self):
-    self.assertEquals (active_directory.find_computer (self.computer_id).cn, self.computer_id)
+    self.assertADEqual (active_directory.find_computer (self.computer_id), self.computer)
 
 if __name__ == '__main__':
   unittest.main ()
