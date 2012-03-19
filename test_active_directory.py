@@ -87,7 +87,7 @@ class ActiveDirectoryTestCase (unittest.TestCase):
     self.assertTrue (isinstance (item, klass), *args, **kwargs)
 
   def assertADEqual (self, item1, item2, *args, **kwargs):
-    self.assertEqual (item1.GUID, item2.GUID, "%s is not the same as %s" % (item1.ADsPath, item2.ADsPath))
+    self.assertEqual (item1.ADsPath, item2.ADsPath, *args, **kwargs)
 
 class TestConvenienceFunctions (ActiveDirectoryTestCase):
 
@@ -107,4 +107,4 @@ class TestConvenienceFunctions (ActiveDirectoryTestCase):
     self.assertADEqual (active_directory.find_computer (self.computer_id), self.computer)
 
 if __name__ == '__main__':
-  unittest.main ()
+  unittest.main (failfast=False)

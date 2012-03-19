@@ -729,7 +729,8 @@ class _AD_object (object):
     objects of a class by calling a .find_xxx_yyy method.
     """
     def _find (name):
-      for item in self.search (objectClass=object_class, name=name):
+      print "_find: %s (%s)" % (name, object_class)
+      for item in self.search (objectClass=object_class, anr=name):
         return item
     return _find
 
@@ -741,8 +742,8 @@ class _AD_object (object):
       return self.search (objectClass=object_class, *args, **kwargs)
     return _search
 
-  def find (self, name):
-    for item in self.search (name=name):
+  def find (self, name, *args, **kwargs):
+    for item in self.search (anr=name, *args, **kwargs):
       return item
 
   def find_user (self, name=None):
@@ -750,8 +751,7 @@ class _AD_object (object):
     either by username or by display name
     """
     name = name or win32api.GetUserName ()
-    for user in self.search ("anr='%s'" % name, objectCategory=u('Person'), objectClass=u('User')):
-      return user
+    return self.find (name, objectCategory=u('Person'), objectClass=u('User'))
 
   def find_ou (self, name):
     """Convenient alias for find_organizational_unit"""
@@ -769,6 +769,7 @@ class _AD_object (object):
     attributes are converted according to a property map to more
     Pythonic types.
     """
+    print "search: %s, %s" % (list (args), kwargs)
     sql_string = []
     sql_string.append ("SELECT *")
     sql_string.append ("FROM '%s'" % self.path ())
