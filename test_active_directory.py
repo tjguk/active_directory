@@ -107,4 +107,4 @@ class TestConvenienceFunctions (ActiveDirectoryTestCase):
     self.assertADEqual (active_directory.find_computer (self.computer_id), self.computer)
 
 if __name__ == '__main__':
-  unittest.main (failfast=False)
+  unittest.main ()
