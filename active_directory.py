@@ -58,22 +58,22 @@ to stop you using it for any AD operations.
      #  is faster but doesn't give the convenience
      #  of the AD methods etc.
      #
-     print user
+     print (user)
 
-   print ad.find_user ("goldent")
+   print (ad.find_user ("goldent"))
 
-   print ad.find_computer ("vogbp200")
+   print (ad.find_computer ("vogbp200"))
 
    users = ad.AD ().child ("cn=users")
    for u in users.search ("displayName='Tim*'"):
-     print u
+     print (u)
 
 + Typical usage will be:
 
 import active_directory
 
 for computer in active_directory.search ("objectClass='computer'"):
-  print computer.displayName
+  print (computer.displayName)
 
 (c) Tim Golden <active-directory@timgolden.me.uk> October 2004
 Licensed under the (GPL-compatible) MIT License:
@@ -83,30 +83,27 @@ Many thanks, obviously to Mark Hammond for creating
 the pywin32 extensions without which this wouldn't
 have been possible.
 """
-from __future__ import generators
-
 from __version__ import __VERSION__, __RELEASE__
 
-try:
-  set
-except NameError:
-  from sets import Set as set
+import os, sys
+import datetime
+import logging
+import struct
+
 try:
   basestring
 except NameError:
   basestring = str
-import os, sys
-import datetime
-import struct
+try:
+  u = unicode
+except NameError:
+  u = str
 
 import win32api
 from win32com.client import Dispatch, GetObject
 import win32security
 
-try:
-  u = unicode
-except NameError:
-  u = str
+logger = logging.getLogger ("active_directory")
 
 def delta_as_microseconds (delta) :
   return delta.days * 24* 3600 * 10**6 + delta.seconds * 10**6 + delta.microseconds
@@ -122,9 +119,9 @@ def unsigned_to_signed (unsigned):
 # held as Enum objects, allowing access by number or
 # by name, and by name-as-attribute. This means you can do, eg:
 #
-# print GROUP_TYPES[2]
-# print GROUP_TYPES['GLOBAL_GROUP']
-# print GROUP_TYPES.GLOBAL_GROUP
+# print (GROUP_TYPES[2])
+# print (GROUP_TYPES['GLOBAL_GROUP'])
+# print (GROUP_TYPES.GLOBAL_GROUP)
 #
 # The first is useful when displaying the contents
 # of an AD object; the other two when you want a more
@@ -724,16 +721,6 @@ class _AD_object (object):
     """
     return AD_object (path=_add_path (self.path (), relative_path))
 
-  def _find (self, object_class):
-    """Helper function to allow general-purpose searching for
-    objects of a class by calling a .find_xxx_yyy method.
-    """
-    def _find (name):
-      print "_find: %s (%s)" % (name, object_class)
-      for item in self.search (objectClass=object_class, anr=name):
-        return item
-    return _find
-
   def _search (self, object_class):
     """Helper function to allow general-purpose searching for
     objects of a class by calling a .search_xxx_yyy method.
@@ -743,12 +730,21 @@ class _AD_object (object):
     return _search
 
   def find (self, name, *args, **kwargs):
+    logger.debug ("find: %s, %s, %s", name, args, kwargs)
     for item in self.search (anr=name, *args, **kwargs):
       return item
 
+  def _find (self, object_class):
+    """Helper function to allow general-purpose searching for
+    objects of a class by calling a .find_xxx_yyy method.
+    """
+    def _find (name):
+      return self.find (name, objectClass=object_class)
+    return _find
+
   def find_user (self, name=None):
-    """Make a special case of (the common need of) finding a user
-    either by username or by display name
+    """Make a special case of (the common need of) finding a user.
+    This is because objectClass user includes things like computers (!).
     """
     name = name or win32api.GetUserName ()
     return self.find (name, objectCategory=u('Person'), objectClass=u('User'))
@@ -769,7 +765,7 @@ class _AD_object (object):
     attributes are converted according to a property map to more
     Pythonic types.
     """
-    print "search: %s, %s" % (list (args), kwargs)
+    logger.debug ("search: %s, %s", args, kwargs)
     sql_string = []
     sql_string.append ("SELECT *")
     sql_string.append ("FROM '%s'" % self.path ())
@@ -946,4 +942,6 @@ def search_ex (query_string=""):
     yield result
 
 if __name__ == '__main__':
+  logger.addHandler (logging.StreamHandler ())
+  logger.setLevel (logging.DEBUG)
   print (find_user ())
