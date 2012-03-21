@@ -17,7 +17,7 @@ classifiers = [
 
 setup (
   name = "active_directory",
-  version = __version__.__VERSION__,
+  version = __version__.__VERSION__ + __version__.__RELEASE__,
   description = "Active Directory",
   long_description = open ("readme.txt").read (),
   author = "Tim Golden",
