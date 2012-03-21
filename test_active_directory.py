@@ -87,7 +87,7 @@ class ActiveDirectoryTestCase (unittest.TestCase):
     self.assertTrue (isinstance (item, klass), *args, **kwargs)
 
   def assertADEqual (self, item1, item2, *args, **kwargs):
-    self.assertEqual (item1.ADsPath, item2.ADsPath, *args, **kwargs)
+    self.assertEqualCI (item1.ADsPath, item2.ADsPath, *args, **kwargs)
 
 class TestConvenienceFunctions (ActiveDirectoryTestCase):
 
