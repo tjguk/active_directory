@@ -48,18 +48,18 @@ if not test_base:
 
 class ActiveDirectoryTestCase (unittest.TestCase):
 
-  uid = "".join ([random.choice ("abcdef1234567890") for i in range (10)])
-  ou_id = "ou-" + uid
-  user_id = "user-" + uid
-  group_id = "group-" + uid
-  computer_id = "computer-" + uid
-
   #
   # Set up (and later tear down) an OU with a single user in it.
   # Both are named __class__.uid which is a random collection of
   # ten letters & digits.
   #
   def setUp (self):
+    uid = "".join ([random.choice ("abcdef1234567890") for i in range (10)])
+    self.ou_id = "ou-" + uid
+    self.user_id = "user-" + uid
+    self.group_id = "group-" + uid
+    self.computer_id = "computer-" + uid
+
     self.base_ou = active_directory.AD_object (test_base)
     self.ou = self.base_ou.Create ("organizationalUnit", "ou=%s" % self.ou_id)
     self.ou.SetInfo ()
@@ -87,7 +87,7 @@ class ActiveDirectoryTestCase (unittest.TestCase):
     self.assertTrue (isinstance (item, klass), *args, **kwargs)
 
   def assertADEqual (self, item1, item2, *args, **kwargs):
-    self.assertEqualCI (item1.ADsPath, item2.ADsPath, *args, **kwargs)
+    self.assertEqualCI (item1.GUID, item2.GUID, *args, **kwargs)
 
 class TestConvenienceFunctions (ActiveDirectoryTestCase):
 
