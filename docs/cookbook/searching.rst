@@ -16,7 +16,7 @@ Find a user in the default AD
 
 Discussion
 ~~~~~~~~~~
-The :func:`find_user` convenience uses a cached AD root and
+The :func:`find_user` convenience function uses a cached AD root and
 returns the first object which is a User and a Person (without
 which computers accounts would be returned). The search uses
 the built-in Ambiguous Name Resolution so all likely name fields

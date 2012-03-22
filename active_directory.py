@@ -894,8 +894,8 @@ def _root (server=None):
 #
 # Convenience functions for common needs
 #
-def find (name):
-  return root ().find (name)
+def find (name, *args, **kwargs):
+  return root ().find (name, *args, **kwargs)
 
 def find_user (name=None):
   return root ().find_user (name)
