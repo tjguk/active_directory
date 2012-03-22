@@ -1,6 +1,11 @@
 The active_directory Module
 ***************************
 
+..  note::
+    While the module itself is fairly mature, these docs are definitely
+    a work in progress.
+
+
 What is it?
 -----------
 
