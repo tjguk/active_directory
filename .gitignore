@@ -5,3 +5,7 @@
 /__pycache__
 /MANIFEST
 /testing_config.ini
+/README
+/docs/_build
+/docs/_static
+/docs/_templates

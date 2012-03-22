@@ -1,0 +1,4 @@
+..  module:: winshell
+
+Searching
+=========
