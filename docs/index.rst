@@ -3,15 +3,18 @@ The active_directory Module
 
 ..  note::
     While the module itself is fairly mature, these docs are definitely
-    a work in progress.
+    a work in progress. I'll try to get more examples into the cookbook
+    which should help people get started.
 
 
 What is it?
 -----------
 
-Blah blah blah
-
-The module offers xxx areas of functionality:
+The active_directory module is a light wrapper around the
+AD functionality. It allows easy searching of common objects
+(users, groups, ou) and browsing of their contents. AD objects
+are wrapped in Python objects which ease their use in Python
+code while allowing the underlying object to be accessed easily.
 
 * :doc:`searching`
 
