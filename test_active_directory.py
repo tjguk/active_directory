@@ -49,8 +49,8 @@ if not test_base:
 class ActiveDirectoryTestCase (unittest.TestCase):
 
   #
-  # Set up (and later tear down) an OU with a single user in it.
-  # Both are named __class__.uid which is a random collection of
+  # Set up (and later tear down) an OU with a few objects in it of different classes.
+  # These are named <class>-<uid> where uid is a random collection of
   # ten letters & digits.
   #
   def setUp (self):
@@ -64,7 +64,7 @@ class ActiveDirectoryTestCase (unittest.TestCase):
     self.ou = self.base_ou.Create ("organizationalUnit", "ou=%s" % self.ou_id)
     self.ou.SetInfo ()
     self.user = self.ou.Create ("user", "cn=%s" % self.user_id)
-    self.user.displayName = "£9.99"
+    self.user.displayName = "£9.99" # non-ASCII
     self.user.SetInfo ()
     self.group = self.ou.Create ("group", "cn=%s" % self.group_id)
     self.group.SetInfo ()
