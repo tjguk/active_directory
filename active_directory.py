@@ -629,7 +629,7 @@ class _AD_object (object):
     return self.com_object.Guid == other.com_object.Guid
 
   def __hash__ (self):
-    return hash (self.com_object.ADsPath)
+    return hash (self.com_object.Guid)
 
   class AD_iterator:
     """ Inner class for wrapping iterated objects
