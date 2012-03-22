@@ -70,6 +70,7 @@ class ActiveDirectoryTestCase (unittest.TestCase):
     self.group.SetInfo ()
     self.computer= self.ou.Create ("computer", "cn=%s" % self.computer_id)
     self.computer.SetInfo ()
+    self.dns = set (item.distinguishedName for item in (self.ou, self.user, self.group, self.computer))
 
   def tearDown (self):
     self.ou.Delete ("group", "cn=%s" % self.group_id)
@@ -105,6 +106,33 @@ class TestConvenienceFunctions (ActiveDirectoryTestCase):
 
   def test_find_computer (self):
     self.assertADEqual (active_directory.find_computer (self.computer_id), self.computer)
+
+  def test_find (self):
+    self.assertADEqual (active_directory.find (self.user_id), self.user)
+
+  def test_search (self):
+    for computer in active_directory.search ("cn='%s'" % self.computer_id, objectClass="Computer"):
+      self.assertADEqual (computer, self.computer)
+      break
+    else:
+      raise RuntimeError ("Computer not found")
+
+  def test_search_ex_sql (self):
+    dns = set (
+      item.distinguishedName.Value \
+        for item in active_directory.search_ex ("SELECT distinguishedName FROM '%s'" % self.ou.ADsPath)
+    )
+    self.assertEqual (dns, self.dns)
+
+  def test_search_ex_ldap (self):
+    dns = set (
+      item.distinguishedName.Value \
+        for item in active_directory.search_ex ("<%s>;;distinguishedName;Subtree" % self.ou.ADsPath)
+    )
+    self.assertEqual (dns, self.dns)
+
+  def test_AD (self):
+    self.assertEqual (active_directory.AD ().distinguishedName, domain_dn)
 
 if __name__ == '__main__':
   unittest.main ()
