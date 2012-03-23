@@ -8,9 +8,12 @@ Blah blah blah
 
 The module offers xxx areas of functionality:
 
+* :doc:`tutorial`
 * :doc:`searching`
+* :doc:`objects`
+* :doc:`helpers`
 
-There's also list of cookbook examples:
+There's also cookbook of examples:
 
 * :doc:`cookbook`
 

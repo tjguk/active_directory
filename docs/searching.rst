@@ -102,17 +102,20 @@ Raw Searching
 -------------
 
 The quickest searching, but requiring the most work up front, is to use
-the :func:`search_ex` function whose only parameter is a well-formed Active
-Directory search string and which returns an iterator of :class:`ADO_object`.
+the :func:`query` function whose `query_string` parameter is a well-formed Active
+Directory search string and which returns an iterator of :class:`ADO_record` objects.
 The search string can be conventional LDAP format or a sort of stunted SQL
 accepted by Active Directory.
 
-This is the easiest way to run an existing query (eg from a mailing list
+Under the covers, all the other find & search functions call this,
+converting the result into an :class:`_AD_object`.
+
+This function the easiest way to run an existing query (eg from a mailing list
 or a webpage) against Active Directory::
 
   import active_directory
 
-  root = "LDAP://dc=local,dc=westpark"
+  root = active_directory.AD ()
   query_string = """SELECT
     distinguishedName
   FROM
@@ -123,3 +126,7 @@ or a webpage) against Active Directory::
   for result in active_directory.search_ex (query_string):
     print result.distinguishedName
 
+..  note:
+    For historical reasons, the :func:`search_ex` function has been retained,
+    but new code should use the :func:`query` function which allows ADO runtime
+    parameters to be specified.
