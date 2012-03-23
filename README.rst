@@ -15,4 +15,4 @@ code while allowing the underlying object to be accessed easily.
 active_directory is tested on all versions of Python from 2.4 to 3.2.
 It makes heavy use of the adsi modules in the pywin32 extensions.
 
-Docs are hosted at: http://active_directory.readthedocs.org/
+Docs (will be) hosted at: http://active_directory.readthedocs.org/
