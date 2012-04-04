@@ -37,10 +37,9 @@ to stop you using it for any AD operations.
   to find a user, computer etc. Usage is illustrated below:
 
    import active_directory as ad
-
    for user in ad.search (
-     "objectClass='User'",
-     "displayName='Tim Golden' OR sAMAccountName='goldent'"
+     "displayName='Tim Golden' OR sAMAccountName='goldent'",
+     objectClass='User'
    ):
      #
      # This search returns an AD_object
@@ -60,22 +59,22 @@ to stop you using it for any AD operations.
      #
      print (user)
 
-   print (ad.find_user ("goldent"))
+   print (ad.find_user ("tim"))
 
-   print (ad.find_computer ("vogbp200"))
+   print (ad.find_computer ("holst"))
 
    users = ad.AD ().child ("cn=users")
-   for u in users.search ("displayName='Tim*'"):
+   for u in users.search ("sAMAccountName='Adminis*'"):
      print (u)
 
 + Typical usage will be:
 
 import active_directory
 
-for computer in active_directory.search ("objectClass='computer'"):
-  print (computer.displayName)
+for computer in active_directory.search (objectClass='computer'):
+  print (computer.distinguishedName)
 
-(c) Tim Golden <active-directory@timgolden.me.uk> October 2004
+(c) Tim Golden <active-directory@timgolden.me.uk> October 2012
 Licensed under the (GPL-compatible) MIT License:
 http://www.opensource.org/licenses/mit-license.php
 
@@ -882,6 +881,8 @@ def AD_object (obj_or_path=None, path=""):
     raise Exception ("Problem with path or object %s" % obj_or_path)
 
 def AD (server=None):
+  """Return an AD Object representing the root of the domain.
+  """
   default_naming_context = _root (server).Get ("defaultNamingContext")
   if server:
     moniker = "LDAP://%s/%s" % (server, default_naming_context)

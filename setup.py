@@ -1,6 +1,6 @@
 # -*- coding: UTF8 -*-
 from distutils.core import setup
-import __version__
+import __active_directory_version__ as __version__
 
 classifiers = [
   'Development Status :: 5 - Production/Stable',
@@ -35,7 +35,7 @@ setup (
   author_email = "mail@timgolden.me.uk",
   url = "https://github.com/tjguk/active_directory",
   license = "http://www.opensource.org/licenses/mit-license.php",
-  py_modules = ["active_directory"],
+  py_modules = ["active_directory", "__active_directory_version__"],
   long_description = long_description,
 )
 
