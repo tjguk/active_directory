@@ -82,7 +82,7 @@ Many thanks, obviously to Mark Hammond for creating
 the pywin32 extensions without which this wouldn't
 have been possible.
 """
-from __version__ import __VERSION__, __RELEASE__
+from __active_directory_version__ import __VERSION__, __RELEASE__
 
 import os, sys
 import datetime
