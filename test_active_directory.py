@@ -41,7 +41,11 @@ if not server and not dc:
 
 username = get_config ("general", "username")
 password = get_config ("general", "password")
-domain_dn = win32com.client.GetObject ("LDAP://rootDSE").Get ("rootDomainNamingContext")
+if server:
+  moniker = "LDAP://%s/rootDSE" % server
+else:
+    moniker = "LDAP://rootDSE"
+domain_dn = win32com.client.GetObject (moniker).Get ("rootDomainNamingContext")
 test_base = get_config ("general", "test_base")
 if not test_base:
   raise RuntimeError ("test_base must be supplied")

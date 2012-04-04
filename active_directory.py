@@ -883,7 +883,11 @@ def AD_object (obj_or_path=None, path=""):
 
 def AD (server=None):
   default_naming_context = _root (server).Get ("defaultNamingContext")
-  return AD_object (GetObject ("LDAP://%s" % default_naming_context))
+  if server:
+    moniker = "LDAP://%s/%s" % (server, default_naming_context)
+  else:
+    moniker = "LDAP://%s" % default_naming_context
+  return AD_object (GetObject (moniker))
 
 def _root (server=None):
   if server:
