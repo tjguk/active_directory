@@ -8,5 +8,6 @@ In no particular order:
 + Check what GetInfo/X and SetInfo/X really do
 + Allow a more lightweight search when only the attributes are required
 + Extend find_user/group etc. to allow specification of alternative attributes
++ Sort out accessing remote domain from outside it
 
 TJG
