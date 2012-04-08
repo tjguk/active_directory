@@ -756,12 +756,12 @@ class _AD_object(object):
             return self.find(name, objectClass=object_class)
         return _find
 
-    def find_user(self, name=None):
+    def find_user(self, name=None, *args, **kwargs):
         """Make a special case of(the common need of) finding a user.
         This is because objectClass user includes things like computers(!).
         """
         name = name or win32api.GetUserName()
-        return self.find(name, objectCategory=u('Person'), objectClass=u('User'))
+        return self.find(name, objectCategory=u('Person'), objectClass=u('User'), *args, **kwargs)
 
     def find_ou(self, name):
         """Convenient alias for find_organizational_unit"""
