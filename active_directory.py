@@ -99,6 +99,7 @@ except NameError:
     u = str
 
 import win32api
+from win32com.adsi import adsi, adsicon
 from win32com.client import Dispatch, GetObject
 import win32security
 
@@ -781,7 +782,7 @@ class _AD_object(object):
         """
         logger.debug("search: %s, %s", args, kwargs)
         sql_string = []
-        sql_string.append("SELECT *")
+        sql_string.append("SELECT ADsPath, objectClass, distinguishedName, objectGuid")
         sql_string.append("FROM '%s'" % self.path())
         clauses = []
         if args:
@@ -792,8 +793,16 @@ class _AD_object(object):
         if where_clause:
             sql_string.append("WHERE %s" % where_clause)
 
+        container = self.com_object.QueryInterface (adsi.IID_IADsContainer)
+        dn = self.com_object.Get ("distinguishedName")
+        print "dn = ", dn
         for result in query("\n".join(sql_string), Page_size=50):
-            yield AD_object(result.ADsPath.Value)
+            yield result
+            result_dn = result.distinguishedName.Value
+            print "rdn = ", result_dn
+            yield "BLAH"
+            #~ yield self.__class__(container.GetObject (result.objectClass.Value[-1], rpath))
+            #~ yield AD_object(result.ADsPath.Value)
 
 class _AD_user(_AD_object):
     def __init__(self, *args, **kwargs):
@@ -893,7 +902,7 @@ def AD_object(obj_or_path=None, path=""):
     except:
         raise Exception("Problem with path or object %s" % obj_or_path)
 
-def AD(server=None):
+def AD(server=None, username=None, password=None):
     """Return an AD Object representing the root of the domain.
     """
     default_naming_context = _root(server).Get("defaultNamingContext")
@@ -901,7 +910,8 @@ def AD(server=None):
         moniker = "LDAP://%s/%s" % (server, default_naming_context)
     else:
         moniker = "LDAP://%s" % default_naming_context
-    return AD_object(GetObject(moniker))
+    obj = adsi.ADsOpenObject (moniker, username, password, 0, adsi.IID_IADs)
+    return AD_object(obj)
 
 def _root(server=None):
     if server:
