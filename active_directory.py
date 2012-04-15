@@ -869,7 +869,7 @@ def escaped_moniker(moniker):
     else:
         return moniker.replace("/", "\\/")
 
-def AD_object(obj_or_path=None, path=""):
+def AD_object(obj_or_path=None, path="", username=None, password=None):
     """Factory function for suitably-classed Active Directory
     objects from an incoming path or object. NB The interface
     is now    intended to be:
@@ -905,13 +905,15 @@ def AD_object(obj_or_path=None, path=""):
 def AD(server=None, username=None, password=None):
     """Return an AD Object representing the root of the domain.
     """
+    flags = adsicon.ADS_SECURE_AUTHENTICATION
     default_naming_context = _root(server).Get("defaultNamingContext")
     if server:
+        flags |= adsicon.ADS_SERVER_BIND
         moniker = "LDAP://%s/%s" % (server, default_naming_context)
     else:
         moniker = "LDAP://%s" % default_naming_context
-    obj = adsi.ADsOpenObject (moniker, username, password, 0, adsi.IID_IADs)
-    return AD_object(obj)
+    obj = adsi.ADsOpenObject (moniker, username, password, , adsi.IID_IADs)
+    return AD_object(obj, username=username, password=password)
 
 def _root(server=None):
     if server:
