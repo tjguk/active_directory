@@ -10,10 +10,10 @@ The search & find functions below all accept the following parameter styles
 (in addition to any which are specific to the function in question):
 
 * keyword args - these translate into an equals-to search in the resulting
-  LDAP query, so search (objectClass='user') will return an iterable of all
+  LDAP query, so `search (objectClass='user')` will return an iterable of all
   objects whose class is 'user'.
 * positional args - these strings can be more complex, even compound, AD query components and
-  will be AND-ed together. So search ("logonCount > 0", "displayName = Tim*")
+  will be AND-ed together. So `search ("logonCount > 0", "displayName = Tim*")`
   will return an iterable of all objects whose displayName starts with "Tim"
   and who have logged on at least once.
 * both - it's perfectly possible to combine both parameter styles. According
@@ -25,7 +25,7 @@ Finding
 -------
 
 If you only want to find one thing (or the first thing which matches) then
-the use the find_xxx family of methods. Each of these takes a name and
+then use the find_xxx family of methods. Each of these takes a name and
 the more general one accepts other parameters. They then return the first
 item which matches, or None if no match is found. There is no error if
 more than one object matches; the first found will be returned.
@@ -80,7 +80,7 @@ object to query against, cacheing it for future searches.
 Searching
 ---------
 
-If you want to find the set of objects matching some criteria the use
+If you want to find the set of objects matching some criteria then use
 the search method. It accepts arbitrary parameters from which it constructs
 a valid search string. It returns a (possibly empty) iterator over the matches
 returned from Active Directory.

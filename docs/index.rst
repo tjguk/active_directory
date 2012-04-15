@@ -21,7 +21,7 @@ code while allowing the underlying object to be accessed easily.
 * :doc:`objects`
 * :doc:`helpers`
 
-There's also cookbook of examples:
+There's also a cookbook of examples:
 
 * :doc:`cookbook`
 
