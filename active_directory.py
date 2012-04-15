@@ -558,7 +558,7 @@ class _AD_object(object):
          users = AD_object(path="LDAP://cn=Users,DC=gb,DC=vo,DC=local")
     """
 
-    def __init__(self, obj):
+    def __init__(self, obj, username=None, password=None):
         #
         # Be careful here with attribute assignment;
         #    __setattr__ & __getattr__ will fall over
@@ -568,6 +568,7 @@ class _AD_object(object):
         schema = GetObject(obj.Schema)
         _set(self, "properties", getattr(schema, "MandatoryProperties", []) + getattr(schema, "OptionalProperties", []))
         _set(self, "is_container", getattr(schema, "Container", False))
+        self.username = username
 
         self._property_map = _PROPERTY_MAP
         self._delegate_map = dict()
@@ -660,6 +661,9 @@ class _AD_object(object):
 
     def __iter__(self):
         return self.AD_iterator(self.com_object)
+
+    def _open (self, rdn):
+        raise NotImplementedError
 
     def walk(self):
         """Analogous to os.walk, traverse this AD subtree,
@@ -757,12 +761,12 @@ class _AD_object(object):
             return self.find(name, objectClass=object_class)
         return _find
 
-    def find_user(self, name=None, *args, **kwargs):
+    def find_user(self, name=None):
         """Make a special case of(the common need of) finding a user.
         This is because objectClass user includes things like computers(!).
         """
         name = name or win32api.GetUserName()
-        return self.find(name, objectCategory=u('Person'), objectClass=u('User'), *args, **kwargs)
+        return self.find(name, objectCategory=u('Person'), objectClass=u('User'))
 
     def find_ou(self, name):
         """Convenient alias for find_organizational_unit"""
@@ -905,15 +909,17 @@ def AD_object(obj_or_path=None, path="", username=None, password=None):
 def AD(server=None, username=None, password=None):
     """Return an AD Object representing the root of the domain.
     """
-    flags = adsicon.ADS_SECURE_AUTHENTICATION
     default_naming_context = _root(server).Get("defaultNamingContext")
     if server:
-        flags |= adsicon.ADS_SERVER_BIND
         moniker = "LDAP://%s/%s" % (server, default_naming_context)
+        #
+        # DON'T CACHE THE PASSWORD; ONLY THE USERNAME
+        #
+        obj = adsi.ADsOpenObject(moniker, username, password, 0, adsi.IID_IADs)
     else:
         moniker = "LDAP://%s" % default_naming_context
-    obj = adsi.ADsOpenObject (moniker, username, password, , adsi.IID_IADs)
-    return AD_object(obj, username=username, password=password)
+        obj = GetObject(moniker)
+    return AD_object(obj, username, password)
 
 def _root(server=None):
     if server:
