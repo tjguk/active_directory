@@ -267,6 +267,71 @@ def _add_path(root_path, relative_path):
 
     return protocol + relative_path + u(",") + start_path
 
+class Path(object):
+
+    def __init__(self, path=None):
+        self.com_object = Dispatch("Pathname")
+        if path:
+            self.set(path)
+
+    def __repr__(self):
+        return "<%s: %s>" % (self.__class__.__name__, self)
+
+    def __str__(self):
+        return self.as_string ()
+
+    def __getitem__(self, item):
+        if item < 0:
+            item = self.com_object.GetNumElements () + item
+        return self.com_object.GetElement(item)
+
+    def __len__(self):
+        return self.com_object.GetNumElements()
+
+    def __iter__ (self):
+        for i in range (self.com_object.GetNumElements()):
+            yield self.com_object.GetElement(i)
+
+    def __reversed__ (self):
+        n_elements = self.com_object.GetNumElements()
+        for i in range (n_elements):
+            yield self.com_object.GetElement(n_elements - i)
+
+    def as_string(self, type=adsicon.ADS_FORMAT_X500):
+        return self.com_object.Retrieve(type)
+
+    def set(self, value, type=adsicon.ADS_SETTYPE_FULL):
+        self.com_object.Set(value, type)
+
+    def get(self, type):
+        return self.com_object.Retrieve(type)
+
+    def append(self, element):
+        self.com_object.AddLeafElement(element)
+
+    def pop(self):
+        leaf = self.com_object.GetElement(0)
+        self.com_object.RemoveLeafElement()
+        return leaf
+
+    def get_provider(self):
+        return self.get(adsicon.ADS_FORMAT_PROVIDER)
+    def set_provider(self, provider):
+        self.set(provider, adsicon.ADS_SETTYPE_PROVIDER)
+    provider = property(get_provider, set_provider)
+
+    def get_server(self):
+        return self.get(adsicon.ADS_FORMAT_SERVER)
+    def set_server(self, server):
+        self.set(server, adsicon.ADS_SETTYPE_SERVER)
+    server = property(get_server, set_server)
+
+    def get_dn(self):
+        return self.get(adsicon.ADS_FORMAT_X500_DN)
+    def set_dn(self, dn):
+        self.set(dn, adsicon.ADS_SETTYPE_DN)
+    dn = property(get_dn, set_dn)
+
 def connection():
     connection = Dispatch(u("ADODB.Connection"))
     connection.Provider = u("ADsDSOObject")
