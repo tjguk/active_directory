@@ -105,7 +105,7 @@ import win32security
 
 logger = logging.getLogger("active_directory")
 
-class ActiveDirectoryError (Exception):
+class ActiveDirectoryError(Exception):
     pass
 
 def delta_as_microseconds(delta):
@@ -661,6 +661,30 @@ _PROPERTY_MAP_IN = ddict(
 )
 _PROPERTY_MAP_IN[u('msDs-masteredBy')] = convert_from_objects
 
+class NotAContainerError(ActiveDirectoryError):
+    pass
+
+class _ADContainer(object):
+    ur"""A support object which takes an existing AD COM object
+    which implements the IADsContainer interface and provides
+    a corresponding iterator.
+
+    It is not expected to be called by user code (although it
+    can be). It is the basis of the :meth:`_AD_object.__iter__` method
+    of :class:`_AD_object` and its subclasses.
+    """
+    def __init__(self, com_object):
+        self.container = com_object.QueryInterface(adsi.IID_IADsContainer)
+
+    def __iter__ (self):
+        enumerator = adsi.ADsBuildEnumerator(self.container)
+        while True:
+            items = adsi.ADsEnumerateNext(enumerator, 10)
+            if items:
+                return items
+            else:
+                break
+
 class _AD_root(object):
     def __init__(self, obj):
         _set(self, "com_object", obj)
@@ -768,25 +792,21 @@ class _AD_object(object):
     def __hash__(self):
         return hash(self.com_object.Guid)
 
-    class AD_iterator:
-        """ Inner class for wrapping iterated objects
-       (This class and the __iter__ method supplied by
-        Stian Søiland <stian@soiland.no>)
-        """
-        def __init__(self, com_object):
-            self._iter = iter(com_object)
-
-        def __iter__(self):
-            return self
-
-        def next(self):
-            return AD_object(self._iter.next())
-
     def __iter__(self):
-        return self.AD_iterator(self.com_object)
+        try:
+            for item in _ADContainer (self.com_object):
+                yield self._get_object(Path (item.ADsPath).relative_to (self._path))
+        except NotAContainerError:
+            raise TypeError ("%r is not iterable" % self)
 
-    def _open (self, rdn):
-        raise NotImplementedError
+    def _get_object(self, rdn):
+        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
+        obj = container.GetObject(None, rdn, adsi.IID_IADs)
+        return self.__class__.factory(obj, username=self.username)
+
+    @classmethod
+    def factory(cls, com_object, username=None):
+        return cls (com_object, username=username)
 
     def translate (self, to_format):
         """Use the IADsNameTranslate functionality to render the underlying
