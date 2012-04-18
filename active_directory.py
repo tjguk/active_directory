@@ -720,8 +720,8 @@ class _AD_object(object):
         self._delegate_map = dict()
         self._translator = None
 
-    def __getitem__(self, key):
-        return getattr(self, key)
+    def __getitem__(self, rdn):
+        return self._get_object(None, rdn)
 
     def __getattr__(self, name):
         #
@@ -763,8 +763,18 @@ class _AD_object(object):
 
         return self._delegate_map[name]
 
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
+    def __setitem__(self, rdn, info):
+        try:
+            cls = info.pop ('Class')
+        except KeyError:
+            raise ActiveDirectoryError ("Must specify at least Class for new AD object")
+        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
+        obj = container.Create(cls, rdn)
+        obj.Setinfo()
+        for k, v in info.items ():
+            setattr (obj, k, v)
+        obj.SetInfo()
+        return self.__class__.factory(obj)
 
     def __setattr__(self, name, value):
         #
