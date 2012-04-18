@@ -105,6 +105,9 @@ import win32security
 
 logger = logging.getLogger("active_directory")
 
+class ActiveDirectoryError (Exception):
+    pass
+
 def delta_as_microseconds(delta):
     return delta.days * 24 * 3600 * (10 ** 6) + delta.seconds * (10 ** 6) + delta.microseconds
 
@@ -267,12 +270,19 @@ def _add_path(root_path, relative_path):
 
     return protocol + relative_path + u(",") + start_path
 
+class PathError (ActiveDirectoryError):
+    pass
+class PathTooShortError (PathError):
+    pass
+class PathDisjointError (PathError):
+    pass
+
 class Path(object):
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, type=adsicon.ADS_SETTYPE_FULL):
         self.com_object = Dispatch("Pathname")
         if path:
-            self.set(path)
+            self.set(path, type)
 
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, self)
@@ -307,14 +317,13 @@ class Path(object):
         for i in range (n_elements):
             yield self.com_object.GetElement(n_elements - i - 1)
 
-    @staticmethod
-    def escaped(element):
-        return self.com_object.GetEscapedElement(element)
+    def escaped(self, element):
+        return self.com_object.GetEscapedElement(0, element)
 
     @classmethod
     def from_iter(cls, iter):
         path = cls()
-        for element in iter:
+        for element in reversed(iter):
             path.append(element)
         return path
 
@@ -354,14 +363,31 @@ class Path(object):
     dn = property(get_dn, set_dn)
 
     def relative_to(self, other):
-        print "%s relative to %s" % (self ,other)
-        if len (other) < len (self):
-            raise ShorterError("%s is shorter than %s" % (other, self))
+        """Return a relative distinguished name which can be appended
+        to `other` to give `self`, eg::
+
+            p0 = Path ("LDAP://dc=example,dc=com")
+            p1 = Path ("LDAP://cn=user1,ou=Users,dc=example,dc=com")
+            rdn = p1.relative_to (p0)
+
+        Raises `PathTooShortError` if `self` is not at least as long as `other`
+        Raises `PathDisjointError` if `self` is not a sub path of `other`
+        """
+        #
+        # On the surface, this could all be done with string manipulation,
+        # combining startswith and [len():]. However, there are corner
+        # cases concerning embedded and escaped special characters which
+        # would trip up this naive approach. At least, I've adopted this
+        # more cautious approach until it doesn't run fast enough, at
+        # which point I might abandon caution in favour of speed plus
+        # caveats.
+        #
+        if len (self) < len (other):
+            raise PathTooShortError("%s is shorter than %s" % (self, other))
         for i1, i2 in zip(reversed(self), reversed(other)):
             if i1 != i2:
-                raise DisjointError("%s is not relative to %s" % (self, other))
-        else:
-            return self[:-len(other)]
+                raise PathDisjointError("%s is not relative to %s" % (self, other))
+        return self.__class__.from_iter(self[:-len(other)]).dn
 
 def connection():
     connection = Dispatch(u("ADODB.Connection"))
