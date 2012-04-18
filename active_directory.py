@@ -105,6 +105,9 @@ import win32security
 
 logger = logging.getLogger("active_directory")
 
+class ActiveDirectoryError (Exception):
+    pass
+
 def delta_as_microseconds(delta):
     return delta.days * 24 * 3600 * (10 ** 6) + delta.seconds * (10 ** 6) + delta.microseconds
 
@@ -267,12 +270,19 @@ def _add_path(root_path, relative_path):
 
     return protocol + relative_path + u(",") + start_path
 
+class PathError (ActiveDirectoryError):
+    pass
+class PathTooShortError (PathError):
+    pass
+class PathDisjointError (PathError):
+    pass
+
 class Path(object):
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, type=adsicon.ADS_SETTYPE_FULL):
         self.com_object = Dispatch("Pathname")
         if path:
-            self.set(path)
+            self.set(path, type)
 
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, self)
@@ -280,10 +290,20 @@ class Path(object):
     def __str__(self):
         return self.as_string ()
 
-    def __getitem__(self, item):
+    def _getitem(self, item):
         if item < 0:
             item = self.com_object.GetNumElements () + item
         return self.com_object.GetElement(item)
+
+    def _getslice(self, slice):
+        return list (self._getitem(item) for item in range(*slice.indices(self.com_object.GetNumElements ())))
+
+    def __getitem__(self, item):
+        print "getitem called with", item
+        if isinstance(item, slice):
+            return self._getslice(item)
+        else:
+            return self._getitem(item)
 
     def __len__(self):
         return self.com_object.GetNumElements()
@@ -295,7 +315,17 @@ class Path(object):
     def __reversed__ (self):
         n_elements = self.com_object.GetNumElements()
         for i in range (n_elements):
-            yield self.com_object.GetElement(n_elements - i)
+            yield self.com_object.GetElement(n_elements - i - 1)
+
+    def escaped(self, element):
+        return self.com_object.GetEscapedElement(0, element)
+
+    @classmethod
+    def from_iter(cls, iter):
+        path = cls()
+        for element in reversed(iter):
+            path.append(element)
+        return path
 
     def as_string(self, type=adsicon.ADS_FORMAT_X500):
         return self.com_object.Retrieve(type)
@@ -307,7 +337,7 @@ class Path(object):
         return self.com_object.Retrieve(type)
 
     def append(self, element):
-        self.com_object.AddLeafElement(element)
+        self.com_object.AddLeafElement(self.escaped(element))
 
     def pop(self):
         leaf = self.com_object.GetElement(0)
@@ -331,6 +361,33 @@ class Path(object):
     def set_dn(self, dn):
         self.set(dn, adsicon.ADS_SETTYPE_DN)
     dn = property(get_dn, set_dn)
+
+    def relative_to(self, other):
+        """Return a relative distinguished name which can be appended
+        to `other` to give `self`, eg::
+
+            p0 = Path ("LDAP://dc=example,dc=com")
+            p1 = Path ("LDAP://cn=user1,ou=Users,dc=example,dc=com")
+            rdn = p1.relative_to (p0)
+
+        Raises `PathTooShortError` if `self` is not at least as long as `other`
+        Raises `PathDisjointError` if `self` is not a sub path of `other`
+        """
+        #
+        # On the surface, this could all be done with string manipulation,
+        # combining startswith and [len():]. However, there are corner
+        # cases concerning embedded and escaped special characters which
+        # would trip up this naive approach. At least, I've adopted this
+        # more cautious approach until it doesn't run fast enough, at
+        # which point I might abandon caution in favour of speed plus
+        # caveats.
+        #
+        if len (self) < len (other):
+            raise PathTooShortError("%s is shorter than %s" % (self, other))
+        for i1, i2 in zip(reversed(self), reversed(other)):
+            if i1 != i2:
+                raise PathDisjointError("%s is not relative to %s" % (self, other))
+        return self.__class__.from_iter(self[:-len(other)]).dn
 
 def connection():
     connection = Dispatch(u("ADODB.Connection"))
@@ -623,7 +680,7 @@ class _AD_object(object):
          users = AD_object(path="LDAP://cn=Users,DC=gb,DC=vo,DC=local")
     """
 
-    def __init__(self, obj, username=None, password=None):
+    def __init__(self, obj, username=None):
         #
         # Be careful here with attribute assignment;
         #    __setattr__ & __getattr__ will fall over
@@ -637,6 +694,7 @@ class _AD_object(object):
 
         self._property_map = _PROPERTY_MAP
         self._delegate_map = dict()
+        self._translator = None
 
     def __getitem__(self, key):
         return getattr(self, key)
@@ -729,6 +787,18 @@ class _AD_object(object):
 
     def _open (self, rdn):
         raise NotImplementedError
+
+    def translate (self, to_format):
+        """Use the IADsNameTranslate functionality to render the underlying
+        distinguished name into various formats. The to_format must be one
+        of the adsicon.ADS_NAME_TYPE_* or the string which forms the last
+        part of that constant, eg "canonical", "user_principal_name"
+        """
+        if self._translator is None:
+            self._translator = Dispatch ("NameTranslate")
+            self._translator.InitEx (None, None, None, None, None)
+            self._translator.Set (adsicon.ADS_NAME_TYPE_1779, self.distinguishedName)
+        self._translator.Get (to_format)
 
     def walk(self):
         """Analogous to os.walk, traverse this AD subtree,
@@ -915,17 +985,11 @@ _CLASS_MAP = {
     "domainDNS" : _AD_domain_dns,
     "publicFolder" : _AD_public_folder
 }
-_CACHE = {}
 def cached_AD_object(path, obj):
-    try:
-        return _CACHE[path]
-    except KeyError:
-        classed_obj = _CLASS_MAP.get(obj.Class, _AD_object)(obj)
-        _CACHE[path] = classed_obj
-        return classed_obj
+    return _CLASS_MAP.get(obj.Class, _AD_object)(obj)
 
 def clear_cache():
-    _CACHE.clear()
+    pass
 
 def escaped_moniker(moniker):
     #
