@@ -138,5 +138,24 @@ class TestConvenienceFunctions(ActiveDirectoryTestCase):
     def test_AD(self):
         self.assertEqual(active_directory.AD().distinguishedName, domain_dn)
 
+class TestRelativePath(unittest.TestCase):
+
+    def test_shorter_is_error(self):
+        self.assertRaises(active_directory.PathTooShortError, relative_to, [1, 2], [1])
+
+    def test_disjoint_is_error(self):
+        self.assertRaises(active_directory.PathDisjointError, relative_to, [1], [2])
+
+    def test_equal_is_empty(self):
+        expected = []
+        answer = relative_to([1], [1])
+        self.assertEqual(answer, expected)
+
+    def test_true_relative(self):
+        expected = [1, 2]
+        answer = relative_to([3, 4], [1, 2, 3, 4])
+        self.assertEqual(answer, expected)
+
+
 if __name__ == '__main__':
     unittest.main()

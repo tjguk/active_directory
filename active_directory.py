@@ -105,7 +105,7 @@ import win32security
 
 logger = logging.getLogger("active_directory")
 
-class ActiveDirectoryError (Exception):
+class ActiveDirectoryError(Exception):
     pass
 
 def delta_as_microseconds(delta):
@@ -661,6 +661,32 @@ _PROPERTY_MAP_IN = ddict(
 )
 _PROPERTY_MAP_IN[u('msDs-masteredBy')] = convert_from_objects
 
+class NotAContainerError(ActiveDirectoryError):
+    pass
+
+class _ADContainer(object):
+    ur"""A support object which takes an existing AD COM object
+    which implements the IADsContainer interface and provides
+    a corresponding iterator.
+
+    It is not expected to be called by user code (although it
+    can be). It is the basis of the :meth:`_AD_object.__iter__` method
+    of :class:`_AD_object` and its subclasses.
+    """
+    def __init__(self, com_object, n_items_buffer=10):
+        self.container = com_object.QueryInterface(adsi.IID_IADsContainer)
+        self.n_items_buffer = n_items_buffer
+
+    def __iter__ (self):
+        enumerator = adsi.ADsBuildEnumerator(self.container)
+        while True:
+            items = adsi.ADsEnumerateNext(enumerator, self.n_items_buffer)
+            if items:
+                for item in items:
+                    yield item
+            else:
+                break
+
 class _AD_root(object):
     def __init__(self, obj):
         _set(self, "com_object", obj)
@@ -696,8 +722,8 @@ class _AD_object(object):
         self._delegate_map = dict()
         self._translator = None
 
-    def __getitem__(self, key):
-        return getattr(self, key)
+    def __getitem__(self, rdn):
+        return self.__class__ (self._get_object(rdn), self.username)
 
     def __getattr__(self, name):
         #
@@ -739,8 +765,31 @@ class _AD_object(object):
 
         return self._delegate_map[name]
 
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
+    def __setitem__(self, rdn, info):
+        self.add (rdn, **info)
+
+    def add (self, rdn, **kwargs):
+        try:
+            cls = kwargs.pop ('Class')
+        except KeyError:
+            raise ActiveDirectoryError ("Must specify at least Class for new AD object")
+        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
+        obj = container.Create(cls, rdn)
+        obj.Setinfo()
+        for k, v in kwargs.items ():
+            setattr (obj, k, v)
+        obj.SetInfo()
+        return self.__class__.factory(obj)
+
+    def __delitem__(self, rdn):
+        #
+        # Although the docs say you can pass NULL as the first param
+        # to Delete, it doesn't appear to be supported. To keep the
+        # interface in line, we'll do a GetObject (which does support
+        # a NULL class) and then use the Class attribute to fill in
+        # the Delete method.
+        #
+        self.com_object.Delete (self._get_object (rdn).Class, rdn)
 
     def __setattr__(self, name, value):
         #
@@ -768,25 +817,21 @@ class _AD_object(object):
     def __hash__(self):
         return hash(self.com_object.Guid)
 
-    class AD_iterator:
-        """ Inner class for wrapping iterated objects
-       (This class and the __iter__ method supplied by
-        Stian Søiland <stian@soiland.no>)
-        """
-        def __init__(self, com_object):
-            self._iter = iter(com_object)
-
-        def __iter__(self):
-            return self
-
-        def next(self):
-            return AD_object(self._iter.next())
-
     def __iter__(self):
-        return self.AD_iterator(self.com_object)
+        try:
+            for item in _ADContainer (self.com_object):
+                rdn = Path (item.ADsPath).relative_to (self._path)
+                yield self.__class__(self._get_object(rdn))
+        except NotAContainerError:
+            raise TypeError ("%r is not iterable" % self)
 
-    def _open (self, rdn):
-        raise NotImplementedError
+    def _get_object(self, rdn):
+        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
+        return container.GetObject(None, rdn, adsi.IID_IADs)
+
+    @classmethod
+    def factory(cls, com_object, username=None):
+        return cls (com_object, username=username)
 
     def translate (self, to_format):
         """Use the IADsNameTranslate functionality to render the underlying
@@ -1048,7 +1093,7 @@ def AD(server=None, username=None, password=None):
     else:
         moniker = "LDAP://%s" % default_naming_context
         obj = GetObject(moniker)
-    return AD_object(obj, username, password)
+    return AD_object(obj, username)
 
 def _root(server=None):
     if server:
