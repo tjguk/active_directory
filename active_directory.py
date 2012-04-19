@@ -673,15 +673,17 @@ class _ADContainer(object):
     can be). It is the basis of the :meth:`_AD_object.__iter__` method
     of :class:`_AD_object` and its subclasses.
     """
-    def __init__(self, com_object):
+    def __init__(self, com_object, n_items_buffer=10):
         self.container = com_object.QueryInterface(adsi.IID_IADsContainer)
+        self.n_items_buffer = n_items_buffer
 
     def __iter__ (self):
         enumerator = adsi.ADsBuildEnumerator(self.container)
         while True:
-            items = adsi.ADsEnumerateNext(enumerator, 10)
+            items = adsi.ADsEnumerateNext(enumerator, self.n_items_buffer)
             if items:
-                return items
+                for item in items:
+                    yield item
             else:
                 break
 
@@ -721,7 +723,7 @@ class _AD_object(object):
         self._translator = None
 
     def __getitem__(self, rdn):
-        return self._get_object(None, rdn)
+        return self.__class__ (self._get_object(rdn), self.username)
 
     def __getattr__(self, name):
         #
@@ -764,17 +766,30 @@ class _AD_object(object):
         return self._delegate_map[name]
 
     def __setitem__(self, rdn, info):
+        self.add (rdn, **info)
+
+    def add (self, rdn, **kwargs):
         try:
-            cls = info.pop ('Class')
+            cls = kwargs.pop ('Class')
         except KeyError:
             raise ActiveDirectoryError ("Must specify at least Class for new AD object")
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
         obj = container.Create(cls, rdn)
         obj.Setinfo()
-        for k, v in info.items ():
+        for k, v in kwargs.items ():
             setattr (obj, k, v)
         obj.SetInfo()
         return self.__class__.factory(obj)
+
+    def __delitem__(self, rdn):
+        #
+        # Although the docs say you can pass NULL as the first param
+        # to Delete, it doesn't appear to be supported. To keep the
+        # interface in line, we'll do a GetObject (which does support
+        # a NULL class) and then use the Class attribute to fill in
+        # the Delete method.
+        #
+        self.com_object.Delete (self._get_object (rdn).Class, rdn)
 
     def __setattr__(self, name, value):
         #
@@ -805,14 +820,14 @@ class _AD_object(object):
     def __iter__(self):
         try:
             for item in _ADContainer (self.com_object):
-                yield self._get_object(Path (item.ADsPath).relative_to (self._path))
+                rdn = Path (item.ADsPath).relative_to (self._path)
+                yield self.__class__(self._get_object(rdn))
         except NotAContainerError:
             raise TypeError ("%r is not iterable" % self)
 
     def _get_object(self, rdn):
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
-        obj = container.GetObject(None, rdn, adsi.IID_IADs)
-        return self.__class__.factory(obj, username=self.username)
+        return container.GetObject(None, rdn, adsi.IID_IADs)
 
     @classmethod
     def factory(cls, com_object, username=None):
@@ -1078,7 +1093,7 @@ def AD(server=None, username=None, password=None):
     else:
         moniker = "LDAP://%s" % default_naming_context
         obj = GetObject(moniker)
-    return AD_object(obj, username, password)
+    return AD_object(obj, username)
 
 def _root(server=None):
     if server:
