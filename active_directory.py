@@ -299,7 +299,6 @@ class Path(object):
         return list (self._getitem(item) for item in range(*slice.indices(self.com_object.GetNumElements ())))
 
     def __getitem__(self, item):
-        print "getitem called with", item
         if isinstance(item, slice):
             return self._getslice(item)
         else:
@@ -827,7 +826,7 @@ class _AD_object(object):
 
     def _get_object(self, rdn):
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
-        return container.GetObject(None, rdn, adsi.IID_IADs)
+        return container.GetObject(None, rdn).QueryInterface(adsi.IID_IADs)
 
     @classmethod
     def factory(cls, com_object, username=None):
@@ -871,7 +870,7 @@ class _AD_object(object):
             try:
                 value = getattr(self, name)
             except:
-                value = u("Unable to get value")
+                value = None
             if value:
                 try:
                     if isinstance(name, unicode):
@@ -978,15 +977,10 @@ class _AD_object(object):
             sql_string.append("WHERE %s" % where_clause)
 
         container = self.com_object.QueryInterface (adsi.IID_IADsContainer)
-        dn = self.com_object.Get ("distinguishedName")
-        print "dn = ", dn
+        dn = Path(self.com_object.Get ("distinguishedName"), adsicon.ADS_SETTYPE_DN)
         for result in query("\n".join(sql_string), Page_size=50):
-            yield result
-            result_dn = result.distinguishedName.Value
-            print "rdn = ", result_dn
-            yield "BLAH"
-            #~ yield self.__class__(container.GetObject (result.objectClass.Value[-1], rpath))
-            #~ yield AD_object(result.ADsPath.Value)
+            rdn = Path(result.distinguishedName.Value, adsicon.ADS_SETTYPE_DN).relative_to(dn)
+            yield AD_object(self._get_object(rdn))
 
 class _AD_user(_AD_object):
     def __init__(self, *args, **kwargs):
@@ -1092,7 +1086,7 @@ def AD(server=None, username=None, password=None):
         obj = adsi.ADsOpenObject(moniker, username, password, 0, adsi.IID_IADs)
     else:
         moniker = "LDAP://%s" % default_naming_context
-        obj = GetObject(moniker)
+        obj = adsi.ADsGetObject(moniker, adsi.IID_IADs)
     return AD_object(obj, username)
 
 def _root(server=None):
