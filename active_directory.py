@@ -712,7 +712,11 @@ class _AD_object(object):
         #    each other if you aren't.
         #
         _set(self, "com_object", obj)
-        schema = GetObject(obj.Schema)
+        #
+        # FIXME: GetObject
+        #
+        print "Schema:", obj.Schema
+        schema = adsi.ADsGetObject(obj.Schema, adsi.IID_IADs)
         _set(self, "properties", getattr(schema, "MandatoryProperties", []) + getattr(schema, "OptionalProperties", []))
         _set(self, "is_container", getattr(schema, "Container", False))
         self.username = username
@@ -1025,6 +1029,9 @@ _CLASS_MAP = {
     "publicFolder" : _AD_public_folder
 }
 def cached_AD_object(path, obj):
+    print "Looking at", path, obj
+    result = _CLASS_MAP.get(obj.Class, _AD_object)(obj)
+    print "Returning", result
     return _CLASS_MAP.get(obj.Class, _AD_object)(obj)
 
 def clear_cache():
@@ -1060,19 +1067,20 @@ def AD_object(obj_or_path=None, path="", username=None, password=None):
     scheme = "LDAP://"
     if path and not obj_or_path:
         obj_or_path = path
-    try:
-        if isinstance(obj_or_path, basestring):
-            moniker = obj_or_path.lower()
-            if obj_or_path.upper().startswith(scheme):
-                moniker = obj_or_path[len(scheme):]
-            else:
-                moniker = obj_or_path
-            moniker = escaped_moniker(moniker)
-            return cached_AD_object(obj_or_path, GetObject("LDAP://" + moniker))
+    if isinstance(obj_or_path, basestring):
+        moniker = obj_or_path.lower()
+        if obj_or_path.upper().startswith(scheme):
+            moniker = obj_or_path[len(scheme):]
         else:
-            return cached_AD_object(obj_or_path.ADsPath, obj_or_path)
-    except:
-        raise Exception("Problem with path or object %s" % obj_or_path)
+            moniker = obj_or_path
+        moniker = escaped_moniker(moniker)
+        #
+        # FIXME: GetObject
+        #
+        cls = _CLASS_MAP.get(obj.Class, _AD_object)
+        return cls(obj, username=username, password=password)
+    else:
+        return cached_AD_object(obj_or_path.ADsPath, obj_or_path)
 
 def AD(server=None, username=None, password=None):
     """Return an AD Object representing the root of the domain.
@@ -1087,7 +1095,7 @@ def AD(server=None, username=None, password=None):
     else:
         moniker = "LDAP://%s" % default_naming_context
         obj = adsi.ADsGetObject(moniker, adsi.IID_IADs)
-    return AD_object(obj, username)
+    return AD_object(obj, username=username)
 
 def _root(server=None):
     if server:
