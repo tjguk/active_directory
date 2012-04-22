@@ -180,7 +180,7 @@ if is_inside_domain:
 
         def setUp(self):
             ActiveDirectoryTestCase.setUp(self)
-            self.base = active_directory.AD(domain_dn, username, password)
+            self.base = active_directory.AD(None, username, password)
 
         def tearDown(self):
             self.base = None

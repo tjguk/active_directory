@@ -401,9 +401,11 @@ class Path(object):
 def connection(username, password):
     connection = Dispatch(u("ADODB.Connection"))
     connection.Provider = u("ADsDSOObject")
-    connection.Properties("User Id").Value = username
-    connection.Properties ("Password").Value = password
-    connection.Properties("Encrypt Password").Value = True
+    if username:
+        connection.Properties("User Id").Value = username
+    if password:
+        connection.Properties ("Password").Value = password
+        connection.Properties("Encrypt Password").Value = True
     connection.Properties("ADSI Flag").Value = adsicon.ADS_SECURE_AUTHENTICATION
     connection.Open(u("Active Directory Provider"))
     return connection
@@ -683,7 +685,7 @@ class NotAContainerError(ActiveDirectoryError):
     pass
 
 class _ADContainer(object):
-    ur"""A support object which takes an existing AD COM object
+    """A support object which takes an existing AD COM object
     which implements the IADsContainer interface and provides
     a corresponding iterator.
 
@@ -731,9 +733,6 @@ class _AD_object(object):
         #    each other if you aren't.
         #
         _set(self, "com_object", obj)
-        #
-        # FIXME: GetObject
-        #
         try:
             schema = open_object(obj.Schema, username, password)
         except pythoncom.com_error:
