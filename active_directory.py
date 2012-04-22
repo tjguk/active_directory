@@ -736,7 +736,6 @@ class _AD_object(object):
         #
         try:
             schema = open_object(obj.Schema, username, password)
-            print "Found schema at", schema.ADsPath
         except pythoncom.com_error:
             schema = None
         _set(self, "properties", getattr(schema, "MandatoryProperties", []) + getattr(schema, "OptionalProperties", []))
@@ -854,7 +853,6 @@ class _AD_object(object):
             raise TypeError("%r is not iterable" % self)
 
     def _get_object(self, rdn):
-        print "About to call _get_object with", rdn
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
         return container.GetObject(None, rdn).QueryInterface(adsi.IID_IADs)
 
@@ -1007,16 +1005,10 @@ class _AD_object(object):
             sql_string.append("WHERE %s" % where_clause)
 
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
-        print "my path:", self._path
         for result in query("\n".join(sql_string), self.username, self.password, Page_size=50):
-            print "result:", result
             result_path = self._path.copied()
             result_path.dn = result.distinguishedName.Value
-            print "result path:", result_path
-            rdn = result_path.relative_to(self._path)
-            print "rdn:", rdn
-            obj = self._get_object(rdn)
-            print "obj:", obj
+            obj = self._get_object(result_path.relative_to(self._path))
             yield AD_object(obj, username=self.username, password=self.password)
 
 class _AD_user(_AD_object):
@@ -1168,7 +1160,7 @@ def search_ex(query_string=""):
              FROM 'LDAP://DC=gb,DC=vo,DC=local'
              WHERE objectCategory = 'Person'
          \"""):
-             print user.displayName
+             print(user.displayName)
     """
     for result in query(query_string, Page_size=50):
         yield result
