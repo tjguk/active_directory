@@ -15,7 +15,7 @@ has only really been developed to aid searching, but since
 you can always access the original COM object, there's nothing
 to stop you using it for any AD operations.
 
-+ The active directory class(_AD_object or a subclass) will determine
++ The active directory class(\ or a subclass) will determine
     its properties and allow you to access them as instance properties.
 
      eg
@@ -99,7 +99,9 @@ except NameError:
     u = str
 
 import win32api
-from win32com.adsi import adsi, adsicon
+import pythoncom
+from win32com import adsi
+from win32com.adsi import adsicon
 from win32com.client import Dispatch, GetObject
 import win32security
 
@@ -270,11 +272,11 @@ def _add_path(root_path, relative_path):
 
     return protocol + relative_path + u(",") + start_path
 
-class PathError (ActiveDirectoryError):
+class PathError(ActiveDirectoryError):
     pass
-class PathTooShortError (PathError):
+class PathTooShortError(PathError):
     pass
-class PathDisjointError (PathError):
+class PathDisjointError(PathError):
     pass
 
 class Path(object):
@@ -288,15 +290,15 @@ class Path(object):
         return "<%s: %s>" % (self.__class__.__name__, self)
 
     def __str__(self):
-        return self.as_string ()
+        return self.as_string()
 
     def _getitem(self, item):
         if item < 0:
-            item = self.com_object.GetNumElements () + item
+            item = self.com_object.GetNumElements() + item
         return self.com_object.GetElement(item)
 
     def _getslice(self, slice):
-        return list (self._getitem(item) for item in range(*slice.indices(self.com_object.GetNumElements ())))
+        return list(self._getitem(item) for item in range(*slice.indices(self.com_object.GetNumElements())))
 
     def __getitem__(self, item):
         if isinstance(item, slice):
@@ -307,13 +309,13 @@ class Path(object):
     def __len__(self):
         return self.com_object.GetNumElements()
 
-    def __iter__ (self):
-        for i in range (self.com_object.GetNumElements()):
+    def __iter__(self):
+        for i in range(self.com_object.GetNumElements()):
             yield self.com_object.GetElement(i)
 
-    def __reversed__ (self):
+    def __reversed__(self):
         n_elements = self.com_object.GetNumElements()
-        for i in range (n_elements):
+        for i in range(n_elements):
             yield self.com_object.GetElement(n_elements - i - 1)
 
     def escaped(self, element):
@@ -343,6 +345,14 @@ class Path(object):
         self.com_object.RemoveLeafElement()
         return leaf
 
+    def copied(self):
+        return self.__class__(
+            self.com_object.CopyPath().Retrieve(
+                adsicon.ADS_SETTYPE_FULL
+            ),
+            adsicon.ADS_SETTYPE_FULL
+        )
+
     def get_provider(self):
         return self.get(adsicon.ADS_FORMAT_PROVIDER)
     def set_provider(self, provider):
@@ -365,9 +375,9 @@ class Path(object):
         """Return a relative distinguished name which can be appended
         to `other` to give `self`, eg::
 
-            p0 = Path ("LDAP://dc=example,dc=com")
-            p1 = Path ("LDAP://cn=user1,ou=Users,dc=example,dc=com")
-            rdn = p1.relative_to (p0)
+            p0 = Path("LDAP://dc=example,dc=com")
+            p1 = Path("LDAP://cn=user1,ou=Users,dc=example,dc=com")
+            rdn = p1.relative_to(p0)
 
         Raises `PathTooShortError` if `self` is not at least as long as `other`
         Raises `PathDisjointError` if `self` is not a sub path of `other`
@@ -381,16 +391,20 @@ class Path(object):
         # which point I might abandon caution in favour of speed plus
         # caveats.
         #
-        if len (self) < len (other):
+        if len(self) < len(other):
             raise PathTooShortError("%s is shorter than %s" % (self, other))
         for i1, i2 in zip(reversed(self), reversed(other)):
             if i1 != i2:
                 raise PathDisjointError("%s is not relative to %s" % (self, other))
         return self.__class__.from_iter(self[:-len(other)]).dn
 
-def connection():
+def connection(username, password):
     connection = Dispatch(u("ADODB.Connection"))
     connection.Provider = u("ADsDSOObject")
+    connection.Properties("User Id").Value = username
+    connection.Properties ("Password").Value = password
+    connection.Properties("Encrypt Password").Value = True
+    connection.Properties("ADSI Flag").Value = adsicon.ADS_SECURE_AUTHENTICATION
     connection.Open(u("Active Directory Provider"))
     return connection
 
@@ -417,16 +431,21 @@ class ADO_record(object):
         s.append(repr(self))
         s.append(u("{"))
         for name, item in self.fields.items():
-            s.append(u("    %s = %s" % (name, item)))
+            s.append(u("    %s = %r") % (name, item.Value))
         s.append(u("}"))
         return u("\n").join(s)
 
-def query(query_string, **command_properties):
+def open_object(moniker, username=None, password=None, extra_flags=0):
+    flags = adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_FAST_BIND
+    flags |= extra_flags
+    return adsi.ADsOpenObject(moniker, username, password, flags, adsi.IID_IADs)
+
+def query(query_string, username=None, password=None, **command_properties):
     """Auxiliary function to serve as a quick-and-dirty
      wrapper round an ADO query
     """
     command = Dispatch(u("ADODB.Command"))
-    command.ActiveConnection = connection()
+    command.ActiveConnection = connection(username, password)
     #
     # Add any client-specified ADO command properties.
     # NB underscores in the keyword are replaced by spaces.
@@ -676,13 +695,13 @@ class _ADContainer(object):
         self.container = com_object.QueryInterface(adsi.IID_IADsContainer)
         self.n_items_buffer = n_items_buffer
 
-    def __iter__ (self):
+    def __iter__(self):
         enumerator = adsi.ADsBuildEnumerator(self.container)
         while True:
             items = adsi.ADsEnumerateNext(enumerator, self.n_items_buffer)
             if items:
                 for item in items:
-                    yield item
+                    yield item.QueryInterface(adsi.IID_IADs)
             else:
                 break
 
@@ -705,7 +724,7 @@ class _AD_object(object):
          users = AD_object(path="LDAP://cn=Users,DC=gb,DC=vo,DC=local")
     """
 
-    def __init__(self, obj, username=None):
+    def __init__(self, obj, username=None, password=None):
         #
         # Be careful here with attribute assignment;
         #    __setattr__ & __getattr__ will fall over
@@ -715,18 +734,24 @@ class _AD_object(object):
         #
         # FIXME: GetObject
         #
-        print "Schema:", obj.Schema
-        schema = adsi.ADsGetObject(obj.Schema, adsi.IID_IADs)
+        try:
+            schema = open_object(obj.Schema, username, password)
+            print "Found schema at", schema.ADsPath
+        except pythoncom.com_error:
+            schema = None
         _set(self, "properties", getattr(schema, "MandatoryProperties", []) + getattr(schema, "OptionalProperties", []))
         _set(self, "is_container", getattr(schema, "Container", False))
+
         self.username = username
+        self.password = password
 
         self._property_map = _PROPERTY_MAP
         self._delegate_map = dict()
         self._translator = None
+        self._path = Path(self.ADsPath)
 
     def __getitem__(self, rdn):
-        return self.__class__ (self._get_object(rdn), self.username)
+        return self.__class__(self._get_object(rdn), self.username)
 
     def __getattr__(self, name):
         #
@@ -769,18 +794,18 @@ class _AD_object(object):
         return self._delegate_map[name]
 
     def __setitem__(self, rdn, info):
-        self.add (rdn, **info)
+        self.add(rdn, **info)
 
-    def add (self, rdn, **kwargs):
+    def add(self, rdn, **kwargs):
         try:
-            cls = kwargs.pop ('Class')
+            cls = kwargs.pop('Class')
         except KeyError:
-            raise ActiveDirectoryError ("Must specify at least Class for new AD object")
+            raise ActiveDirectoryError("Must specify at least Class for new AD object")
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
         obj = container.Create(cls, rdn)
         obj.Setinfo()
-        for k, v in kwargs.items ():
-            setattr (obj, k, v)
+        for k, v in kwargs.items():
+            setattr(obj, k, v)
         obj.SetInfo()
         return self.__class__.factory(obj)
 
@@ -792,7 +817,7 @@ class _AD_object(object):
         # a NULL class) and then use the Class attribute to fill in
         # the Delete method.
         #
-        self.com_object.Delete (self._get_object (rdn).Class, rdn)
+        self.com_object.Delete(self._get_object(rdn).Class, rdn)
 
     def __setattr__(self, name, value):
         #
@@ -822,31 +847,32 @@ class _AD_object(object):
 
     def __iter__(self):
         try:
-            for item in _ADContainer (self.com_object):
-                rdn = Path (item.ADsPath).relative_to (self._path)
-                yield self.__class__(self._get_object(rdn))
+            for item in _ADContainer(self.com_object):
+                rdn = Path(item.ADsPath).relative_to(self._path)
+                yield self.__class__(self._get_object(rdn), username=self.username, password=self.password)
         except NotAContainerError:
-            raise TypeError ("%r is not iterable" % self)
+            raise TypeError("%r is not iterable" % self)
 
     def _get_object(self, rdn):
+        print "About to call _get_object with", rdn
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
         return container.GetObject(None, rdn).QueryInterface(adsi.IID_IADs)
 
     @classmethod
     def factory(cls, com_object, username=None):
-        return cls (com_object, username=username)
+        return cls(com_object, username=username)
 
-    def translate (self, to_format):
+    def translate(self, to_format):
         """Use the IADsNameTranslate functionality to render the underlying
         distinguished name into various formats. The to_format must be one
         of the adsicon.ADS_NAME_TYPE_* or the string which forms the last
         part of that constant, eg "canonical", "user_principal_name"
         """
         if self._translator is None:
-            self._translator = Dispatch ("NameTranslate")
-            self._translator.InitEx (None, None, None, None, None)
-            self._translator.Set (adsicon.ADS_NAME_TYPE_1779, self.distinguishedName)
-        self._translator.Get (to_format)
+            self._translator = Dispatch("NameTranslate")
+            self._translator.InitEx(None, None, None, None, None)
+            self._translator.Set(adsicon.ADS_NAME_TYPE_1779, self.distinguishedName)
+        self._translator.Get(to_format)
 
     def walk(self):
         """Analogous to os.walk, traverse this AD subtree,
@@ -907,7 +933,7 @@ class _AD_object(object):
 
     def parent(self):
         """Find this object's parent"""
-        return AD_object(path=self.com_object.Parent)
+        return AD_object(path=self.com_object.Parent, username=self.username, password=self.password)
 
     def child(self, relative_path):
         """Return the relative child of this object. The relative_path
@@ -980,11 +1006,18 @@ class _AD_object(object):
         if where_clause:
             sql_string.append("WHERE %s" % where_clause)
 
-        container = self.com_object.QueryInterface (adsi.IID_IADsContainer)
-        dn = Path(self.com_object.Get ("distinguishedName"), adsicon.ADS_SETTYPE_DN)
-        for result in query("\n".join(sql_string), Page_size=50):
-            rdn = Path(result.distinguishedName.Value, adsicon.ADS_SETTYPE_DN).relative_to(dn)
-            yield AD_object(self._get_object(rdn))
+        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
+        print "my path:", self._path
+        for result in query("\n".join(sql_string), self.username, self.password, Page_size=50):
+            print "result:", result
+            result_path = self._path.copied()
+            result_path.dn = result.distinguishedName.Value
+            print "result path:", result_path
+            rdn = result_path.relative_to(self._path)
+            print "rdn:", rdn
+            obj = self._get_object(rdn)
+            print "obj:", obj
+            yield AD_object(obj, username=self.username, password=self.password)
 
 class _AD_user(_AD_object):
     def __init__(self, *args, **kwargs):
@@ -1028,11 +1061,8 @@ _CLASS_MAP = {
     "domainDNS" : _AD_domain_dns,
     "publicFolder" : _AD_public_folder
 }
-def cached_AD_object(path, obj):
-    print "Looking at", path, obj
-    result = _CLASS_MAP.get(obj.Class, _AD_object)(obj)
-    print "Returning", result
-    return _CLASS_MAP.get(obj.Class, _AD_object)(obj)
+def cached_AD_object(path, obj, username=None, password=None):
+    return _CLASS_MAP.get(obj.Class, _AD_object)(obj, username, password)
 
 def clear_cache():
     pass
@@ -1064,38 +1094,28 @@ def AD_object(obj_or_path=None, path="", username=None, password=None):
 
     @return An _AD_object or a subclass proxying for the AD object
     """
-    scheme = "LDAP://"
     if path and not obj_or_path:
         obj_or_path = path
     if isinstance(obj_or_path, basestring):
-        moniker = obj_or_path.lower()
-        if obj_or_path.upper().startswith(scheme):
-            moniker = obj_or_path[len(scheme):]
-        else:
-            moniker = obj_or_path
-        moniker = escaped_moniker(moniker)
-        #
-        # FIXME: GetObject
-        #
-        cls = _CLASS_MAP.get(obj.Class, _AD_object)
-        return cls(obj, username=username, password=password)
+        obj = open_object(obj_or_path, username, password)
     else:
-        return cached_AD_object(obj_or_path.ADsPath, obj_or_path)
+        obj = obj_or_path
+
+    cls = _CLASS_MAP.get(obj.Class, _AD_object)
+    return cls(obj, username=username, password=password)
 
 def AD(server=None, username=None, password=None):
     """Return an AD Object representing the root of the domain.
     """
     default_naming_context = _root(server).Get("defaultNamingContext")
+    flags = adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_FAST_BIND
     if server:
         moniker = "LDAP://%s/%s" % (server, default_naming_context)
-        #
-        # DON'T CACHE THE PASSWORD; ONLY THE USERNAME
-        #
-        obj = adsi.ADsOpenObject(moniker, username, password, 0, adsi.IID_IADs)
+        flags |= adsicon.ADS_SERVER_BIND
     else:
         moniker = "LDAP://%s" % default_naming_context
-        obj = adsi.ADsGetObject(moniker, adsi.IID_IADs)
-    return AD_object(obj, username=username)
+    obj = adsi.ADsOpenObject(moniker, username, password, flags, adsi.IID_IADs)
+    return AD_object(obj, username=username, password=password)
 
 def _root(server=None):
     if server:
