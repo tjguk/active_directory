@@ -48,5 +48,6 @@ Prerequisites & Compatibility
 
 The module has been tested on versions of Python from 2.4 to 2.7 plus Python 3.2
 running on WinXP, Win7 & Win2k3. It may also work on older (or newer) versions.
-It's tested with the most recent pywin32 extensions, but the functionality
-it uses from those libraries has been in place for many versions.
+It's tested with the most recent pywin32 extensions. While the adsi functionality
+it uses has been present in pywin32 for a long while, the early ports to Python 3.x
+did not include it; only release 217 and later do.

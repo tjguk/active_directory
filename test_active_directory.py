@@ -44,7 +44,7 @@ password = get_config("general", "password")
 if server:
     moniker = "LDAP://%s/rootDSE" % server
 else:
-        moniker = "LDAP://rootDSE"
+    moniker = "LDAP://rootDSE"
 domain_dn = win32com.client.GetObject(moniker).Get("rootDomainNamingContext")
 test_base = get_config("general", "test_base")
 if not test_base:
@@ -94,67 +94,143 @@ class ActiveDirectoryTestCase(unittest.TestCase):
     def assertADEqual(self, item1, item2, *args, **kwargs):
         self.assertEqualCI(item1.GUID, item2.GUID, *args, **kwargs)
 
-class TestConvenienceFunctions(ActiveDirectoryTestCase):
+if is_inside_domain:
+    class TestConvenienceFunctions(ActiveDirectoryTestCase):
 
-    def test_find(self):
-        self.assertADEqual(active_directory.find(self.user_id), self.user)
+        def test_find(self):
+            self.assertADEqual(active_directory.find(self.user_id), self.user)
 
-    def test_find_user(self):
-        self.assertADEqual(active_directory.find_user(self.user_id), self.user)
+        def test_find_user(self):
+            self.assertADEqual(active_directory.find_user(self.user_id), self.user)
 
-    def test_find_group(self):
-        self.assertADEqual(active_directory.find_group(self.group_id), self.group)
+        def test_find_group(self):
+            self.assertADEqual(active_directory.find_group(self.group_id), self.group)
 
-    def test_find_ou(self):
-        self.assertADEqual(active_directory.find_ou(self.ou_id), self.ou)
+        def test_find_ou(self):
+            self.assertADEqual(active_directory.find_ou(self.ou_id), self.ou)
 
-    def test_find_computer(self):
-        self.assertADEqual(active_directory.find_computer(self.computer_id), self.computer)
+        def test_find_computer(self):
+            self.assertADEqual(active_directory.find_computer(self.computer_id), self.computer)
 
-    def test_find(self):
-        self.assertADEqual(active_directory.find(self.user_id), self.user)
+        def test_find(self):
+            self.assertADEqual(active_directory.find(self.user_id), self.user)
 
-    def test_search(self):
-        for computer in active_directory.search("cn='%s'" % self.computer_id, objectClass="Computer"):
-            self.assertADEqual(computer, self.computer)
-            break
-        else:
-            raise RuntimeError("Computer not found")
+        def test_search(self):
+            for computer in active_directory.search("cn='%s'" % self.computer_id, objectClass="Computer"):
+                self.assertADEqual(computer, self.computer)
+                break
+            else:
+                raise RuntimeError("Computer not found")
 
-    def test_search_ex_sql(self):
-        dns = set(
-            item.distinguishedName.Value \
-                for item in active_directory.search_ex("SELECT distinguishedName FROM '%s'" % self.ou.ADsPath)
-        )
-        self.assertEqual(dns, self.dns)
+        def test_search_ex_sql(self):
+            dns = set(
+                item.distinguishedName.Value \
+                    for item in active_directory.search_ex("SELECT distinguishedName FROM '%s'" % self.ou.ADsPath)
+            )
+            self.assertEqual(dns, self.dns)
 
-    def test_search_ex_ldap(self):
-        dns = set(
-            item.distinguishedName.Value \
-                for item in active_directory.search_ex("<%s>;;distinguishedName;Subtree" % self.ou.ADsPath)
-        )
-        self.assertEqual(dns, self.dns)
+        def test_search_ex_ldap(self):
+            dns = set(
+                item.distinguishedName.Value \
+                    for item in active_directory.search_ex("<%s>;;distinguishedName;Subtree" % self.ou.ADsPath)
+            )
+            self.assertEqual(dns, self.dns)
 
-    def test_AD(self):
-        self.assertEqual(active_directory.AD().distinguishedName, domain_dn)
+        def test_AD(self):
+            self.assertEqual(active_directory.AD().distinguishedName, domain_dn)
 
-class TestRelativePath(unittest.TestCase):
+if server:
+    class TestServerBased(ActiveDirectoryTestCase):
 
-    def test_shorter_is_error(self):
-        self.assertRaises(active_directory.PathTooShortError, relative_to, [1, 2], [1])
+        def setUp(self):
+            ActiveDirectoryTestCase.setUp(self)
+            self.base = active_directory.AD(server, username, password)
 
-    def test_disjoint_is_error(self):
-        self.assertRaises(active_directory.PathDisjointError, relative_to, [1], [2])
+        def tearDown(self):
+            self.base = None
+            ActiveDirectoryTestCase.tearDown(self)
 
-    def test_equal_is_empty(self):
-        expected = []
-        answer = relative_to([1], [1])
-        self.assertEqual(answer, expected)
+        def test_find(self):
+            self.assertADEqual(self.base.find(self.user_id), self.user)
 
-    def test_true_relative(self):
-        expected = [1, 2]
-        answer = relative_to([3, 4], [1, 2, 3, 4])
-        self.assertEqual(answer, expected)
+        def test_find_user(self):
+            self.assertADEqual(self.base.find(self.user_id), self.user)
+
+        def test_find_group(self):
+            self.assertADEqual(self.base.find_group(self.group_id), self.group)
+
+        def test_find_ou(self):
+            self.assertADEqual(self.base.find_ou(self.ou_id), self.ou)
+
+        def test_find_computer(self):
+            self.assertADEqual(self.base.find_computer(self.computer_id), self.computer)
+
+        def test_find(self):
+            self.assertADEqual(self.base.find(self.user_id), self.user)
+
+        def test_search(self):
+            for computer in self.base.search("cn='%s'" % self.computer_id, objectClass="Computer"):
+                self.assertADEqual(computer, self.computer)
+                break
+            else:
+                raise RuntimeError("Computer not found")
+
+if is_inside_domain:
+    class TestDomainBased(ActiveDirectoryTestCase):
+
+        def setUp(self):
+            ActiveDirectoryTestCase.setUp(self)
+            self.base = active_directory.AD(None, username, password)
+
+        def tearDown(self):
+            self.base = None
+            ActiveDirectoryTestCase.tearDown(self)
+
+        def test_find(self):
+            self.assertADEqual(self.base.find(self.user_id), self.user)
+
+        def test_find_user(self):
+            self.assertADEqual(self.base.find(self.user_id), self.user)
+
+        def test_find_group(self):
+            self.assertADEqual(self.base.find_group(self.group_id), self.group)
+
+        def test_find_ou(self):
+            self.assertADEqual(self.base.find_ou(self.ou_id), self.ou)
+
+        def test_find_computer(self):
+            self.assertADEqual(self.base.find_computer(self.computer_id), self.computer)
+
+        def test_find(self):
+            self.assertADEqual(self.base.find(self.user_id), self.user)
+
+        def test_search(self):
+            for computer in self.base.search("cn='%s'" % self.computer_id, objectClass="Computer"):
+                self.assertADEqual(computer, self.computer)
+                break
+            else:
+                raise RuntimeError("Computer not found")
+
+
+if False:
+    class TestRelativePath(unittest.TestCase):
+
+        def test_shorter_is_error(self):
+            p2 = active_directory.Path ([1, 2])
+            self.assertRaises(active_directory.PathTooShortError, active_directory.Path.relative_to, [1, 2], [1])
+
+        def test_disjoint_is_error(self):
+            self.assertRaises(active_directory.PathDisjointError, active_directory.Path.relative_to, [1], [2])
+
+        def test_equal_is_empty(self):
+            expected = []
+            answer = relative_to([1], [1])
+            self.assertEqual(answer, expected)
+
+        def test_true_relative(self):
+            expected = [1, 2]
+            answer = relative_to([3, 4], [1, 2, 3, 4])
+            self.assertEqual(answer, expected)
 
 
 if __name__ == '__main__':
