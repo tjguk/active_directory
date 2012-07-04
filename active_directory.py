@@ -838,10 +838,10 @@ class _AD_object(object):
         return "<%s: %s>" % (self.__class__.__name__, self.as_string())
 
     def __eq__(self, other):
-        return self.com_object.Guid == other.com_object.Guid
+        return self.com_object.GUID == other.com_object.GUID
 
     def __hash__(self):
-        return hash(self.com_object.Guid)
+        return hash(self.com_object.GUID)
 
     def __iter__(self):
         try:
