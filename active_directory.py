@@ -485,20 +485,23 @@ def pytime_to_datetime(pytime):
     return datetime.datetime.fromtimestamp(int(pytime))
 
 def pytime_from_datetime(datetime):
-    pass
+    return datetime
 
 def convert_to_object(item):
     if item is None:
         return None
+    if not item.startswith(("LDAP://", "GC://")):
+        item = "LDAP://" + item
     return AD_object(item)
 
 def convert_to_objects(items):
     if items is None:
         return []
     else:
-        if not isinstance(items, (tuple, list)):
-            items = [items]
-        return [AD_object(item) for item in items]
+        if isinstance(items, (tuple, list)):
+            return [convert_to_object(item) for item in items]
+        else:
+            return convert_to_objects(item)
 
 def convert_to_datetime(item):
     if item is None:
