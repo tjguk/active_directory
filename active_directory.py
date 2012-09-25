@@ -501,7 +501,7 @@ def convert_to_objects(items):
         if isinstance(items, (tuple, list)):
             return [convert_to_object(item) for item in items]
         else:
-            return convert_to_objects(item)
+            return [convert_to_object(items)]
 
 def convert_to_datetime(item):
     if item is None:
