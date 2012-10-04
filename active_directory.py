@@ -894,8 +894,8 @@ class _AD_object(object):
                 yield item
 
     def dump(self, ofile=sys.stdout):
-        ofile.write(self.as_string() + u("\n"))
-        ofile.write(u("{\n"))
+        ofile.write(self.as_string() + ("\n"))
+        ofile.write("{\n")
         for name in self.properties:
             try:
                 value = getattr(self, name)
@@ -904,14 +904,14 @@ class _AD_object(object):
             if value:
                 try:
                     if isinstance(name, unicode):
-                        name = name.encode(sys.stdout.encoding)
+                        name = name.encode(sys.stdout.encoding, "backslashreplace")
                     if isinstance(value, unicode):
-                        value = value.encode(sys.stdout.encoding)
-                    ofile.write(u("    %s => %s\n" % (name, value)))
+                        value = value.encode(sys.stdout.encoding, "backslashreplace")
+                    ofile.write("    %s => %s\n" % (name, value))
                 except UnicodeEncodeError:
-                    ofile.write(u("    %s => %s\n" % (name, repr(value))))
+                    ofile.write("    %s => %s\n" % (name, repr(value)))
 
-        ofile.write(u("}\n"))
+        ofile.write(("}\n"))
 
     def set(self, **kwds):
         """Set a number of values at one time. Should be
