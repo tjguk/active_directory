@@ -935,6 +935,14 @@ class _AD_object(object):
         """Find this object's parent"""
         return AD_object(path=self.com_object.Parent, username=self.username, password=self.password)
 
+    def member_of_all(self):
+        """Find all groups of which is object is a member, directly or indirectly"""
+        groups = getattr(self, "memberOf", [])
+        member_of = set(groups)
+        for group in groups:
+          member_of.update(group.member_of_all())
+        return member_of
+
     def child(self, relative_path):
         """Return the relative child of this object. The relative_path
          is inserted into this object's AD path to make a coherent AD
@@ -1139,8 +1147,7 @@ def search(*args, **kwargs):
     return root().search(*args, **kwargs)
 
 #
-# root returns a cached object referring to the
-#    root of the logged-on active directory tree.
+# root returns a cached object referring to the root of the logged-on active directory tree.
 #
 _ad = None
 def root():
