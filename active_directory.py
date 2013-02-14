@@ -894,7 +894,10 @@ class _AD_object(object):
                 yield item
 
     def dump(self, ofile=sys.stdout):
-        ofile.write(self.as_string() + ("\n"))
+        def encoded(u):
+          return u.encode(sys.stdout.encoding, "backslashreplace")
+
+        ofile.write(encoded(self.as_string()) + ("\n"))
         ofile.write("{\n")
         for name in self.properties:
             try:
@@ -904,9 +907,9 @@ class _AD_object(object):
             if value:
                 try:
                     if isinstance(name, unicode):
-                        name = name.encode(sys.stdout.encoding, "backslashreplace")
+                        name = encoded(name)
                     if isinstance(value, unicode):
-                        value = value.encode(sys.stdout.encoding, "backslashreplace")
+                        value = encoded(value)
                     ofile.write("    %s => %s\n" % (name, value))
                 except UnicodeEncodeError:
                     ofile.write("    %s => %s\n" % (name, repr(value)))
