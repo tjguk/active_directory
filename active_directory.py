@@ -470,7 +470,7 @@ def query(query_string, username=None, password=None, **command_properties):
 BASE_TIME = datetime.datetime(1601, 1, 1)
 def ad_time_to_datetime(ad_time):
     try:
-      hi, lo = unsigned_to_signed(ad_time.HighPart), unsigned_to_signed(ad_time.LowPart)
+      hi, lo = signed_to_unsigned(ad_time.HighPart), signed_to_unsigned(ad_time.LowPart)
     except struct.error:
       #
       # The conversion can overflow. Don't try to recover or guess a value
@@ -512,7 +512,7 @@ def convert_to_objects(items):
 def convert_to_datetime(item):
     if item is None:
         return None
-    return ad_time_to_datetime(item)
+    return ad_time_to_datetime(Dispatch(item))
 
 def convert_pytime_to_datetime(item):
     if item is None:
