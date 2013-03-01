@@ -469,7 +469,13 @@ def query(query_string, username=None, password=None, **command_properties):
 
 BASE_TIME = datetime.datetime(1601, 1, 1)
 def ad_time_to_datetime(ad_time):
-    hi, lo = unsigned_to_signed(ad_time.HighPart), unsigned_to_signed(ad_time.LowPart)
+    try:
+      hi, lo = unsigned_to_signed(ad_time.HighPart), unsigned_to_signed(ad_time.LowPart)
+    except struct.error:
+      #
+      # The conversion can overflow. Don't try to recover or guess a value
+      #
+      return None
     ns100 = (hi << 32) + lo
     delta = datetime.timedelta(microseconds=ns100 / 10)
     return BASE_TIME + delta
