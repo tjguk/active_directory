@@ -497,7 +497,7 @@ def convert_to_object(item):
     if item is None:
         return None
     if not item.startswith(("LDAP://", "GC://")):
-        item = "LDAP://" + item
+        item = "LDAP://" + escaped_moniker(item)
     return AD_object(item)
 
 def convert_to_objects(items):
