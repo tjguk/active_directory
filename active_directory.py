@@ -87,6 +87,7 @@ from __active_directory_version__ import __VERSION__, __RELEASE__
 import os, sys
 import datetime
 import logging
+import re
 import struct
 
 try:
@@ -497,7 +498,7 @@ def convert_to_object(item):
     if item is None:
         return None
     if not item.startswith(("LDAP://", "GC://")):
-        item = "LDAP://" + escaped_moniker(item)
+        item = "LDAP://" + escaped_dn(item)
     return AD_object(item)
 
 def convert_to_objects(items):
@@ -862,7 +863,7 @@ class _AD_object(object):
 
     def _get_object(self, rdn):
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
-        return container.GetObject(None, rdn).QueryInterface(adsi.IID_IADs)
+        return container.GetObject(None, escaped_dn(rdn)).QueryInterface(adsi.IID_IADs)
 
     @classmethod
     def factory(cls, com_object, username=None):
@@ -1078,16 +1079,56 @@ def cached_AD_object(path, obj, username=None, password=None):
 def clear_cache():
     pass
 
-def escaped_moniker(moniker):
-    #
-    # If the moniker *appears* to have been escaped
-    # already, return it straight. This is obviously
-    # fragile but seems to work for now.
-    #
-    if moniker.find("\\/") > -1:
-        return moniker
-    else:
-        return moniker.replace("/", "\\/")
+#
+# ESCAPED CHARACTERS
+# Certain characters must be escaped if they are present in LDAP segments. Some of
+# them form the syntactic elements of the LDAP string (eg slash and comma). To
+# bind to a moniker containing these, they must be escaped. However... some of them
+# come back from an LDAP search ready-escaped. So it's not always clear when they
+# need to be escaped.
+#
+
+#
+# The backslash *must* be first so that the later substitutions
+# can safely backslash-escape their own characters without that
+# backslash being doubled later on.
+#
+CHARACTERS_TO_ESCAPE = '\\' + ',#+<>;"=/'
+def escaped(moniker, characters_to_escape=CHARACTERS_TO_ESCAPE):
+    r = re.compile(r"(?<!\\)(%s)" % "|".join(characters_to_escape))
+    return r.sub(r"\\\1", moniker)
+
+    if False:
+      #
+      # I did consider a regex for this, but because of the backslashes
+      # it would be a nightmare to read & maintain even if I could get
+      # it to work.
+      #
+      for character in characters_to_escape:
+          #
+          # Don't escape the character if it appears to be escaped
+          # already. We could be caught on a pathologically-constructed
+          # moniker, but this seems to be a pragmatic way.
+          #
+          replacement = "\\" + character
+          if replacement not in moniker:
+              moniker = moniker.replace(character, replacement)
+
+      return moniker
+
+#
+# a segment is the right-hand side of the cn=goldent part of
+# a distinguished name. It shouldn't contain any of the escapable
+# characters.
+#
+escaped_segment = escaped
+
+#
+# A DN can (and usually will) contain commas and equals but any other elements
+# can be escaped. Generally these come back from a search ready-escaped
+#
+def escaped_dn(dn):
+    return escaped(dn, characters_to_escape='/')
 
 def AD_object(obj_or_path=None, path="", username=None, password=None):
     """Factory function for suitably-classed Active Directory
