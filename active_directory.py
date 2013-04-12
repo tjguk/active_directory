@@ -1025,7 +1025,7 @@ class _AD_object(object):
             sql_string.append("WHERE %s" % where_clause)
 
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
-        for result in query("\n".join(sql_string), self.username, self.password, Page_size=50):
+        for result in query("\n".join(sql_string), self.username, self.password, Page_size=50, Chase_referrals=0x40):
             result_path = self._path.copied()
             result_path.dn = result.distinguishedName.Value
             obj = self._get_object(result_path.relative_to(self._path))
