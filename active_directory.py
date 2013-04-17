@@ -950,7 +950,8 @@ class _AD_object(object):
         groups = getattr(self, "memberOf", [])
         member_of = set(groups)
         for group in groups:
-          member_of.update(group.member_of_all())
+          if group not in member_of:
+            member_of.update(group.member_of_all())
         return member_of
 
     def child(self, relative_path):
