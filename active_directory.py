@@ -1047,12 +1047,12 @@ class _AD_group(_AD_object):
     def walk(self):
         """Override the usual .walk method by returning instead:
 
-        group, groups, users
+        group, groups, items
         """
         members = self.member or []
         groups = [m for m in members if m.Class == 'group']
-        users = [m for m in members if m.Class == 'user']
-        yield(self, groups, users)
+        items = [m for m in members if m.Class != 'group']
+        yield(self, groups, items)
         for group in groups:
             for result in group.walk():
                 yield result
