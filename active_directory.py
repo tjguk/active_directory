@@ -323,10 +323,10 @@ class Path(object):
         return self.com_object.GetEscapedElement(0, element)
 
     @classmethod
-    def from_iter(cls, iter):
+    def from_iter(cls, iter, escape=True):
         path = cls()
         for element in reversed(iter):
-            path.append(element)
+            path.append(element, escape=escape)
         return path
 
     def as_string(self, type=adsicon.ADS_FORMAT_X500):
@@ -338,8 +338,10 @@ class Path(object):
     def get(self, type):
         return self.com_object.Retrieve(type)
 
-    def append(self, element):
-        self.com_object.AddLeafElement(self.escaped(element))
+    def append(self, element, escape=True):
+        if escape:
+            element = self.escaped(element)
+        self.com_object.AddLeafElement(element)
 
     def pop(self):
         leaf = self.com_object.GetElement(0)
@@ -372,7 +374,7 @@ class Path(object):
         self.set(dn, adsicon.ADS_SETTYPE_DN)
     dn = property(get_dn, set_dn)
 
-    def relative_to(self, other):
+    def relative_to(self, other, escape=True):
         """Return a relative distinguished name which can be appended
         to `other` to give `self`, eg::
 
@@ -397,7 +399,7 @@ class Path(object):
         for i1, i2 in zip(reversed(self), reversed(other)):
             if i1 != i2:
                 raise PathDisjointError("%s is not relative to %s" % (self, other))
-        return self.__class__.from_iter(self[:-len(other)]).dn
+        return self.__class__.from_iter(self[:-len(other)], escape=escape).dn
 
 def connection(username, password):
     connection = Dispatch(u("ADODB.Connection"))
@@ -494,11 +496,15 @@ def pytime_to_datetime(pytime):
 def pytime_from_datetime(datetime):
     return datetime
 
-def convert_to_object(item):
+def convert_to_object(item, escape=False):
+    """Convert an ADs Path to its corresponding AD object.
+    Unusually here, escaping is off by default. This is because this
+    function is used as a factory for a number of AD properties
+    """
     if item is None:
         return None
     if not item.startswith(("LDAP://", "GC://")):
-        item = "LDAP://" + escaped_dn(item)
+        item = "LDAP://" + (escaped_dn(item) if escape else item)
     return AD_object(item)
 
 def convert_to_objects(items):
@@ -861,9 +867,17 @@ class _AD_object(object):
         except NotAContainerError:
             raise TypeError("%r is not iterable" % self)
 
-    def _get_object(self, rdn):
+    def _get_object(self, rdn, escape=True):
+        """Return an object which is part of this (container) object
+        via GetObject. This routine is called both by code which taking
+        user input (eg via __getitem__) or by internal code. In the former
+        case, assume that the rdn needs to be escaped; in the latter case,
+        assume that it already is.
+        """
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
-        return container.GetObject(None, escaped_dn(rdn)).QueryInterface(adsi.IID_IADs)
+        if escape:
+            rdn = escaped_dn(rdn)
+        return container.GetObject(None, rdn).QueryInterface(adsi.IID_IADs)
 
     @classmethod
     def factory(cls, com_object, username=None):
@@ -1025,11 +1039,14 @@ class _AD_object(object):
         if where_clause:
             sql_string.append("WHERE %s" % where_clause)
 
-        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
         for result in query("\n".join(sql_string), self.username, self.password, Page_size=50, Chase_referrals=0x40):
             result_path = self._path.copied()
             result_path.dn = result.distinguishedName.Value
-            obj = self._get_object(result_path.relative_to(self._path))
+            #
+            # The distinguishedName from an ADO query is already escaped. So, presumably,
+            # is self._path.
+            #
+            obj = self._get_object(result_path.relative_to(self._path, escape=False), escape=False)
             yield AD_object(obj, username=self.username, password=self.password)
 
 class _AD_user(_AD_object):
@@ -1143,7 +1160,9 @@ def AD_object(obj_or_path=None, path="", username=None, password=None):
         AD_object(obj=None, path="")
 
     @param obj_or_path Either an COM AD object or the path to one. If
-    the path doesn't start with "LDAP://" this will be prepended.
+    the path doesn't start with "LDAP://" this will be prepended. If this
+    is a path it is assumed to be already escaped. (This can be done via the
+    module escaped() function if needs be.
 
     @return An _AD_object or a subclass proxying for the AD object
     """
