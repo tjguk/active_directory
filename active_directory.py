@@ -440,10 +440,10 @@ class ADO_record(object):
         s.append(u("}"))
         return u("\n").join(s)
 
-def open_object(moniker, username=None, password=None, extra_flags=0):
+def open_object(moniker, username=None, password=None, extra_flags=0, interface=adsi.IID_IADs):
     flags = adsicon.ADS_SECURE_AUTHENTICATION | adsicon.ADS_FAST_BIND
     flags |= extra_flags
-    return adsi.ADsOpenObject(moniker, username, password, flags, adsi.IID_IADs)
+    return adsi.ADsOpenObject(moniker, username, password, flags, interface)
 
 def query(query_string, username=None, password=None, **command_properties):
     """Auxiliary function to serve as a quick-and-dirty
@@ -765,7 +765,7 @@ class _AD_object(object):
         self._path = Path(self.ADsPath)
 
     def __getitem__(self, rdn):
-        return self.__class__(self._get_object(rdn), self.username)
+        return self.__class__(self._get_object(rdn, escape=True), self.username)
 
     def __getattr__(self, name):
         #
@@ -831,7 +831,7 @@ class _AD_object(object):
         # a NULL class) and then use the Class attribute to fill in
         # the Delete method.
         #
-        self.com_object.Delete(self._get_object(rdn).Class, rdn)
+        self.com_object.Delete(self._get_object(rdn, escape=True).Class, rdn)
 
     def __setattr__(self, name, value):
         #
@@ -856,23 +856,23 @@ class _AD_object(object):
     def __eq__(self, other):
         return self.com_object.GUID == other.com_object.GUID
 
+
     def __hash__(self):
         return hash(self.com_object.GUID)
 
     def __iter__(self):
         try:
             for item in _ADContainer(self.com_object):
-                rdn = Path(item.ADsPath).relative_to(self._path)
-                yield self.__class__(self._get_object(rdn), username=self.username, password=self.password)
+                rdn = Path(item.ADsPath).relative_to(self._path, escape=False)
+                yield self.__class__(self._get_object(rdn, escape=False), username=self.username, password=self.password)
         except NotAContainerError:
             raise TypeError("%r is not iterable" % self)
 
-    def _get_object(self, rdn, escape=True):
+    def _get_object(self, rdn, escape):
         """Return an object which is part of this (container) object
         via GetObject. This routine is called both by code which taking
         user input (eg via __getitem__) or by internal code. In the former
-        case, assume that the rdn needs to be escaped; in the latter case,
-        assume that it already is.
+        case, the rdn needs to be escaped; in the latter case, it already is.
         """
         container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
         if escape:
@@ -1058,8 +1058,20 @@ class _AD_computer(_AD_object):
         _AD_object.__init__(self, *args, **kwargs)
 
 class _AD_group(_AD_object):
+    """An AD group is considered slightly differently from other objects:
+    it iterates over its members, and __get|set|delitem__ operate on its
+    members, not on its items. (I can't see any way in which a group can be
+    an AD container so there should be no loss of functionality).
+    """
     def __init__(self, *args, **kwargs):
         _AD_object.__init__(self, *args, **kwargs)
+        #~ self.group = self.com_object.QueryInterface(adsi.IID_IADsGroup)
+
+    def __contains__(self, dn):
+        return self.group.IsMember(dn)
+
+    def remove(self, dn):
+        self.group.Remove(dn)
 
     def walk(self):
         """Override the usual .walk method by returning instead:
@@ -1148,7 +1160,7 @@ escaped_segment = escaped
 def escaped_dn(dn):
     return escaped(dn, characters_to_escape='/')
 
-def AD_object(obj_or_path=None, path="", username=None, password=None):
+def AD_object(obj_or_path=None, path="", username=None, password=None, interface=adsi.IID_IADs):
     """Factory function for suitably-classed Active Directory
     objects from an incoming path or object. NB The interface
     is now    intended to be:
@@ -1169,7 +1181,7 @@ def AD_object(obj_or_path=None, path="", username=None, password=None):
     if path and not obj_or_path:
         obj_or_path = path
     if isinstance(obj_or_path, basestring):
-        obj = open_object(obj_or_path, username, password)
+        obj = open_object(obj_or_path, username, password, interface=interface)
     else:
         obj = obj_or_path
 
