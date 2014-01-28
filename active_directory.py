@@ -504,7 +504,10 @@ def convert_to_object(item, escape=False):
     if item is None:
         return None
     if not item.startswith(("LDAP://", "GC://")):
-        item = "LDAP://" + (escaped_dn(item) if escape else item)
+        if escape:
+            item = "LDAP://" + escaped_dn(item)
+        else:
+            item = "LDAP://" + item
     return AD_object(item)
 
 def convert_to_objects(items):
