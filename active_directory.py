@@ -101,6 +101,7 @@ except NameError:
 
 import win32api
 import pythoncom
+import win32com
 from win32com import adsi
 from win32com.adsi import adsicon
 from win32com.client import Dispatch, GetObject
@@ -818,7 +819,7 @@ class _AD_object(object):
             cls = kwargs.pop('Class')
         except KeyError:
             raise ActiveDirectoryError("Must specify at least Class for new AD object")
-        container = self.com_object.QueryInterface(adsi.IID_IADsContainer)
+        container = win32com.client.Dispatch(self.com_object)
         obj = container.Create(cls, rdn)
         obj.Setinfo()
         for k, v in kwargs.items():
@@ -956,7 +957,7 @@ class _AD_object(object):
         self.com_object.SetInfo()
 
     def path(self):
-        return self.com_object.ADsPath
+        return Path(self.com_object.ADsPath)
 
     def parent(self):
         """Find this object's parent"""
@@ -1190,6 +1191,7 @@ def AD_object(obj_or_path=None, path="", username=None, password=None, interface
 
     cls = _CLASS_MAP.get(obj.Class, _AD_object)
     return cls(obj, username=username, password=password)
+active_directory = AD_object
 
 def AD(server=None, username=None, password=None):
     """Return an AD Object representing the root of the domain.
