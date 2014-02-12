@@ -849,7 +849,7 @@ class _AD_object(object):
             _set(self, name, value)
 
     def as_string(self):
-        return self.path()
+        return self.path().as_string()
 
     def __str__(self):
         return self.as_string()
