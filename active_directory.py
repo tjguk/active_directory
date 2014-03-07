@@ -1082,7 +1082,7 @@ class _AD_group(_AD_object):
 
         group, groups, users
         """
-        members = self.member or []
+        members = getattr(self, "member", []) or []
         groups = [m for m in members if m.Class == 'group']
         users = [m for m in members if m.Class == 'user']
         yield(self, groups, users)
