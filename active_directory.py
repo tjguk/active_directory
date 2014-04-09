@@ -557,7 +557,7 @@ def convert_to_flags(enum_name):
     def _convert_to_flags(item):
         if item is None:
             return None
-        item = unsigned_to_signed(item)
+        item = signed_to_unsigned(item)
         enum = ENUMS[enum_name]
         return set([name for(bitmask, name) in enum.item_numbers() if item & bitmask])
     return _convert_to_flags
@@ -937,7 +937,10 @@ class _AD_object(object):
                         value = encoded(value)
                     ofile.write("    %s => %s\n" % (name, value))
                 except UnicodeEncodeError:
-                    ofile.write("    %s => %s\n" % (name, repr(value)))
+                    try:
+                        ofile.write("    %s => %s\n" % (name, repr(value)))
+                    except UnicodeEncodeError:
+                        ofile.write("    %s => <Unencodable>\n" % (name))
 
         ofile.write(("}\n"))
 
