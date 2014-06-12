@@ -1080,18 +1080,21 @@ class _AD_group(_AD_object):
     def remove(self, dn):
         self.group.Remove(dn)
 
-    def walk(self):
+    def walk(self, already_seen_groups=None):
         """Override the usual .walk method by returning instead:
 
         group, groups, users
         """
+        if already_seen_groups is None:
+            already_seen_groups = set([self])
         members = getattr(self, "member", []) or []
         groups = [m for m in members if m.Class == 'group']
         users = [m for m in members if m.Class == 'user']
         yield(self, groups, users)
         for group in groups:
-            for result in group.walk():
-                yield result
+            if group not in already_seen_groups:
+                for result in group.walk(already_seen_groups | set([group])):
+                    yield result
 
 class _AD_organisational_unit(_AD_object):
     pass
