@@ -998,6 +998,9 @@ class _AD_object(object):
         return _search
 
     def find(self, name, *args, **kwargs):
+        """Return the first thing matching name via ANR (Ambiguous Name Resolution).
+        Optionally, pass along to .search filters from *args, **kwargs
+        """
         logger.debug("find: %s, %s, %s", name, args, kwargs)
         for item in self.search(anr=name, *args, **kwargs):
             return item
@@ -1013,12 +1016,17 @@ class _AD_object(object):
     def find_user(self, name=None):
         """Make a special case of(the common need of) finding a user.
         This is because objectClass user includes things like computers(!).
+        
+        NB This uses ambiguous name resolution so only use it for a casual match
         """
         name = name or win32api.GetUserName()
         return self.find(name, objectCategory=u('Person'), objectClass=u('User'))
 
     def find_ou(self, name):
-        """Convenient alias for find_organizational_unit"""
+        """Convenient alias for find_organizational_unit
+        
+        NB This uses ambiguous name resolution so only use it for a casual match
+        """
         return self.find_organizational_unit(name)
 
     def search(self, *args, **kwargs):
@@ -1223,21 +1231,36 @@ def _root(server=None):
 #
 def find(name, *args, **kwargs):
     return root().find(name, *args, **kwargs)
+find.__doc__ = _AD_object.find.__doc__
 
 def find_user(name=None):
     return root().find_user(name)
+find_user.__doc__ = _AD_object.find_user.__doc__
 
 def find_computer(name=None):
+    """Make a special case of finding a computer.
+        
+    NB This uses ambiguous name resolution so only use it for a casual match
+    """
     return root().find_computer(name)
 
 def find_group(name):
+    """Make a special case of finding a group.
+        
+    NB This uses ambiguous name resolution so only use it for a casual match
+    """
     return root().find_group(name)
 
 def find_ou(name):
+    """Make a special case of finding an OU.
+        
+    NB This uses ambiguous name resolution so only use it for a casual match
+    """
     return root().find_ou(name)
 
 def search(*args, **kwargs):
     return root().search(*args, **kwargs)
+search.__doc__ = _AD_object.search.__doc__
 
 #
 # root returns a cached object referring to the root of the logged-on active directory tree.
