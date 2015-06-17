@@ -492,7 +492,7 @@ def ad_time_from_datetime(timestamp):
     return hi, lo
 
 def pytime_to_datetime(pytime):
-    return datetime.datetime.fromtimestamp(int(pytime))
+    return datetime.datetime(pytime.year, pytime.month, pytime.day, pytime.hour, pytime.minute, pytime.second)
 
 def pytime_from_datetime(datetime):
     return datetime
@@ -605,6 +605,7 @@ _PROPERTY_MAP = ddict(
     wellKnownObjects=convert_to_objects,
     whenCreated=convert_pytime_to_datetime,
     whenChanged=convert_pytime_to_datetime,
+    dSCorePropagationData=convert_pytime_to_datetime,
 )
 _PROPERTY_MAP[u('msDs-masteredBy')] = convert_to_objects
 _PROPERTY_MAP_OUT = _PROPERTY_MAP
@@ -936,9 +937,9 @@ class _AD_object(object):
                     if isinstance(value, unicode):
                         value = encoded(value)
                     ofile.write("    %s => %s\n" % (name, value))
-                except UnicodeEncodeError:
+                except (UnicodeEncodeError, ValueError): ## the pytime type will raise a ValueError for a date too small
                     try:
-                        ofile.write("    %s => %s\n" % (name, repr(value)))
+                        ofile.write("    %s => %r\n" % (name, value))
                     except UnicodeEncodeError:
                         ofile.write("    %s => <Unencodable>\n" % (name))
 
