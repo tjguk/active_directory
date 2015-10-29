@@ -920,11 +920,27 @@ class _AD_object(object):
                 yield item
 
     def dump(self, ofile=sys.stdout):
-        def encoded(u):
-          return u.encode(sys.stdout.encoding, "backslashreplace")
+        def encoded(s):
+            """Encode as necessary for the output stream
+            
+            This should be operating on a Unicode string to start with. If it's not,
+            it's a bytestring of an unknown encoding and any attempt to re-encode will
+            probably fail or produce mojibake.
+            
+            If the output stream is already encoded (typically for Python3, possibly
+            for Python 2) then pass back the Unicode object unchanged as the io module
+            will encode it. If not, encode according to (arbitrarily) the encoding of
+            sys.stdout, falling back to backslashreplace.
+            """
+            if not isinstance(s, u):
+                raise RuntimeError("Unable to encode bytestring: %r" % s)
+            if hasattr(ofile, "encoding"):
+                return s
+            else:
+                return s.encode(sys.stdout.encoding, "backslashreplace")
 
-        ofile.write(encoded(self.as_string()) + ("\n"))
-        ofile.write("{\n")
+        ofile.write(encoded(self.as_string()))
+        ofile.write("\n{\n")
         for name in self.properties:
             try:
                 value = getattr(self, name)
@@ -932,9 +948,9 @@ class _AD_object(object):
                 value = None
             if value:
                 try:
-                    if isinstance(name, unicode):
+                    if isinstance(name, u):
                         name = encoded(name)
-                    if isinstance(value, unicode):
+                    if isinstance(value, u):
                         value = encoded(value)
                     ofile.write("    %s => %s\n" % (name, value))
                 except (UnicodeEncodeError, ValueError): ## the pytime type will raise a ValueError for a date too small
