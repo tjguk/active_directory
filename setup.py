@@ -6,7 +6,7 @@
 from setuptools import setup, find_packages
 import os
 import codecs
-import __active_directory_version__ as __version__
+from __active_directory_version__ import __VERSION__ as __version__
 
 here = os.path.abspath(os.path.dirname(__file__))
 
