@@ -6,7 +6,7 @@
 from setuptools import setup, find_packages
 import os
 import codecs
-import __active_directory_version__ as __version__
+import __active_directory_version__ as _version
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -16,7 +16,7 @@ with codecs.open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
 setup(
     name='active_directory',
 
-    version=__version__,
+    version=_version.__VERSION__,
 
     description='Active Directory',
     long_description=long_description,
