@@ -1108,14 +1108,14 @@ class _AD_group(_AD_object):
     def walk(self, already_seen_groups=None):
         """Override the usual .walk method by returning instead:
 
-        group, groups, users
+        group, groups, items
         """
         if already_seen_groups is None:
             already_seen_groups = set([self])
         members = getattr(self, "member", []) or []
         groups = [m for m in members if m.Class == 'group']
-        users = [m for m in members if m.Class == 'user']
-        yield(self, groups, users)
+        items = [m for m in members if m.Class != 'group']
+        yield(self, groups, items)
         for group in groups:
             if group not in already_seen_groups:
                 for result in group.walk(already_seen_groups | set([group])):
