@@ -260,8 +260,11 @@ def _add_path(root_path, relative_path):
     """Add another level to an LDAP path.
     eg,
 
-        _add_path('LDAP://DC=gb,DC=vo,DC=local', "cn=Users")
+        _add_path('LDAP://DC=gb,DC=vo,DC=local', "cn=users")
             => "LDAP://cn=users,DC=gb,DC=vo,DC=local"
+
+        _add_path('LDAP://server/DC=gb,DC=vo,DC=local', "cn=users")
+            => "LDAP://server/cn=users,DC=gb,DC=vo,DC=local"
     """
     protocol = u("LDAP://")
     if relative_path.startswith(protocol):
@@ -272,7 +275,13 @@ def _add_path(root_path, relative_path):
     else:
         start_path = root_path
 
-    return protocol + relative_path + u(",") + start_path
+    if '/' in start_path:
+        server, start_path = start_path.split('/')
+        server += '/'
+    else:
+        server = ""
+
+    return protocol + server + relative_path + u(",") + start_path
 
 class PathError(ActiveDirectoryError):
     pass
@@ -1004,7 +1013,7 @@ class _AD_object(object):
             users = root.child("cn=Users")
 
         """
-        return AD_object(path=_add_path(self.path(), relative_path))
+        return AD_object(path=_add_path(self.path().as_string(), relative_path), username=self.username, password=self.password)
 
     def _search(self, object_class):
         """Helper function to allow general-purpose searching for
